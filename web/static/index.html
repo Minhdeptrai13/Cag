@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AOV BATCH PRO CHECKER</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="layout">
+    <!-- Top Bar -->
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-tag">AOV</span>
+        <span class="brand-title">BATCH CHECKER PRO</span>
+        <span class="brand-status">ONLINE</span>
+      </div>
+      <div class="top-counters">
+        <div class="count-pill pill-total">TOTAL: <strong id="statTotal">0</strong></div>
+        <div class="count-pill pill-hit">HIT: <strong id="statHits">0</strong></div>
+        <div class="count-pill pill-trang">TRANG TTT: <strong id="statTrang">0</strong></div>
+        <div class="count-pill pill-vip">SKIN VIP: <strong id="statSkinVIP">0</strong></div>
+      </div>
+    </header>
+
+    <!-- Main 2-Column Grid -->
+    <div class="workspace">
+      <!-- Left Panel: Input & Controls -->
+      <aside class="panel-left">
+        <div class="panel-header">
+          <h2>INPUT COMBO LIST</h2>
+          <div class="thread-picker">
+            <span>LUONG:</span>
+            <input type="number" id="threadInput" min="1" max="50" value="10" />
+          </div>
+        </div>
+
+        <div class="drop-zone" id="uploadZone">
+          <input type="file" id="fileInput" accept=".txt" style="display:none;" />
+          <span class="drop-text">[ KEO THA HOAC CLICK DE CHON FILE .TXT ]</span>
+          <span class="file-name" id="fileChosen"></span>
+        </div>
+
+        <div class="textarea-wrap">
+          <textarea id="batchText" spellcheck="false" placeholder="Dan danh sach tai khoan vao day (1 acc / dong):&#10;user:pass&#10;user|pass&#10;user;pass&#10;user/pass&#10;user pass"></textarea>
+        </div>
+
+        <div class="ctrl-btns">
+          <button class="btn btn-run" id="btnStartBatch">
+            <span id="btnBatchText">BAT DAU CHECK</span>
+            <span id="btnBatchLoader" style="display:none;">DANG CHAY LUONG...</span>
+          </button>
+          <button class="btn btn-clear" id="btnClearBatch">XOA</button>
+        </div>
+
+        <!-- Progress Indicator -->
+        <div class="progress-box" id="progressWrap" style="display:none;">
+          <div class="progress-labels">
+            <span id="progressStatus">Dang xu ly...</span>
+            <span id="progressRatio">0/0 (0%)</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="progressBarFill" style="width:0%;"></div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Right Panel: Live Feed & Output Operations -->
+      <main class="panel-right">
+        <div class="panel-header">
+          <div class="output-tabs">
+            <button class="tab-filter active" data-filter="all">TAT CA (<span id="countFilterAll">0</span>)</button>
+            <button class="tab-filter" data-filter="trang">ACC TRANG (<span id="countFilterTrang">0</span>)</button>
+            <button class="tab-filter" data-filter="vip">SKIN VIP (<span id="countFilterVip">0</span>)</button>
+            <button class="tab-filter" data-filter="live">HIT LIVE (<span id="countFilterLive">0</span>)</button>
+          </div>
+          <div class="action-btns">
+            <button class="btn-tool" id="btnCopyView">COPY DANG XEM</button>
+            <button class="btn-tool" id="btnExportTrang">LUU ACC TRANG (.TXT)</button>
+            <button class="btn-tool btn-tool-primary" id="btnExportAll">LUU TAT CA HIT (.TXT)</button>
+          </div>
+        </div>
+
+        <!-- Search Filter Bar -->
+        <div class="filter-row">
+          <input type="text" id="filterSearch" placeholder="Loc nhanh: ingame, rank, tuong, skin sss, anime..." />
+        </div>
+
+        <!-- Live Accounts Feed Stream -->
+        <div class="live-stream" id="batchResultsList">
+          <div class="empty-state" id="emptyState">
+            [ CHUA CO DU LIEU - HAY NHAP COMBO VA BAM BAT DAU CHECK ]
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: aov-checker-pro
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py --web
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.12
