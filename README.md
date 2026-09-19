@@ -57,11 +57,35 @@ pip install -r requirements.txt
 5. **Check Nhanh Bằng Dòng Lệnh**:
    ```bash
    # Check 1 tài khoản
-   python main.py <taikhoan> <matkhau>
+python main.py <taikhoan> <matkhau>
 
-   # Check file combo với 10 luồng
-   python main.py combo.txt 10
+# Check danh sách file
+python main.py <duong_dan_file.txt> [so_luong_luong]
+```
+
+---
+
+## 🌐 Triển Khai Miễn Phí Lên Render.com
+
+1. Đẩy mã nguồn lên GitHub của bạn:
+   ```bash
+   git remote add origin https://github.com/<USERNAME>/<REPO_NAME>.git
+   git branch -M main
+   git push -u origin main
    ```
+2. Đăng nhập vào [Render.com](https://render.com/) $\rightarrow$ Chọn **New +** $\rightarrow$ **Blueprint** (hoặc **Web Service**).
+3. Kết nối với repo GitHub vừa tạo:
+   * **Runtime**: Python 3
+   * **Build Command**: `pip install -r requirements.txt`
+   * **Start Command**: `python main.py --web`
+4. Render sẽ tự động build và cấp cho bạn một domain HTTPS miễn phí để dùng trên mọi trình duyệt ở bất cứ đâu!
+
+---
+
+## 📱 Build File APK Android Trên Google Colab
+1. Mở [Google Colab](https://colab.research.google.com/) $\rightarrow$ Tải lên file `Build_APK_Colab.ipynb`.
+2. Bấm **Runtime $\rightarrow$ Run all** và tải file `aov_checker.zip` lên khi được yêu cầu.
+3. Sau ~10 phút máy chủ Google sẽ tự xuất và tải file `.apk` về điện thoại của bạn.
 
 ---
 
