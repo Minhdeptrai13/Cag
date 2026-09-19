@@ -521,3 +521,249 @@ function downloadFile(filename, content) {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+// ── Authentication & Developer API Logic ────────────────────────────────────
+let currentUser = null;
+let currentApiKey = null;
+
+// Auth DOM
+const authGuestView = document.getElementById('authGuestView');
+const authUserView = document.getElementById('authUserView');
+const navUsername = document.getElementById('navUsername');
+const navCredits = document.getElementById('navCredits');
+
+const authModal = document.getElementById('authModal');
+const btnOpenAuthModal = document.getElementById('btnOpenAuthModal');
+const btnCloseAuthModal = document.getElementById('btnCloseAuthModal');
+const tabLoginBtn = document.getElementById('tabLoginBtn');
+const tabRegisterBtn = document.getElementById('tabRegisterBtn');
+const loginForm = document.getElementById('loginForm');
+const registerForm = document.getElementById('registerForm');
+const loginError = document.getElementById('loginError');
+const regError = document.getElementById('regError');
+const btnLogout = document.getElementById('btnLogout');
+
+// API Modal DOM
+const apiModal = document.getElementById('apiModal');
+const btnOpenApiModal = document.getElementById('btnOpenApiModal');
+const btnCloseApiModal = document.getElementById('btnCloseApiModal');
+const displayApiKey = document.getElementById('displayApiKey');
+const btnCopyApiKey = document.getElementById('btnCopyApiKey');
+const btnGenNewApiKey = document.getElementById('btnGenNewApiKey');
+const curlExample = document.getElementById('curlExample');
+
+// Check Local Storage on Load
+function initAuth() {
+  const savedUser = localStorage.getItem('aov_user');
+  if (savedUser) {
+    try {
+      currentUser = JSON.parse(savedUser);
+      renderUserBar();
+      refreshUserCredits();
+    } catch (e) {
+      localStorage.removeItem('aov_user');
+    }
+  }
+}
+
+function renderUserBar() {
+  if (currentUser) {
+    authGuestView.style.display = 'none';
+    authUserView.style.display = 'flex';
+    navUsername.textContent = currentUser.username;
+    navCredits.textContent = currentUser.credits ?? 50;
+  } else {
+    authGuestView.style.display = 'flex';
+    authUserView.style.display = 'none';
+  }
+}
+
+async function refreshUserCredits() {
+  if (!currentUser) return;
+  try {
+    const res = await fetch(`/api/user/keys?user_id=${currentUser.id}`);
+    const data = await res.json();
+    if (data.status === 'ok') {
+      currentUser.credits = data.credits;
+      navCredits.textContent = data.credits;
+      localStorage.setItem('aov_user', JSON.stringify(currentUser));
+      if (data.keys && data.keys.length > 0) {
+        currentApiKey = data.keys[0].key;
+        updateApiModalContent();
+      }
+    }
+  } catch (e) {
+    console.error('Loi refresh credit:', e);
+  }
+}
+
+// Modal open/close
+btnOpenAuthModal?.addEventListener('click', () => {
+  loginError.style.display = 'none';
+  regError.style.display = 'none';
+  authModal.style.display = 'flex';
+});
+
+btnCloseAuthModal?.addEventListener('click', () => {
+  authModal.style.display = 'none';
+});
+
+tabLoginBtn?.addEventListener('click', () => {
+  tabLoginBtn.classList.add('active');
+  tabRegisterBtn.classList.remove('active');
+  loginForm.style.display = 'flex';
+  registerForm.style.display = 'none';
+});
+
+tabRegisterBtn?.addEventListener('click', () => {
+  tabRegisterBtn.classList.add('active');
+  tabLoginBtn.classList.remove('active');
+  loginForm.style.display = 'none';
+  registerForm.style.display = 'flex';
+});
+
+// Login Submit
+loginForm?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  loginError.style.display = 'none';
+  const username = document.getElementById('loginUser').value.trim();
+  const password = document.getElementById('loginPass').value;
+
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      currentUser = data.user;
+      localStorage.setItem('aov_user', JSON.stringify(currentUser));
+      authModal.style.display = 'none';
+      renderUserBar();
+      showToast(`XIN CHAO, ${currentUser.username.toUpperCase()}!`);
+      loadUserApiKeys();
+    } else {
+      loginError.textContent = data.message || 'Dang nhap that bai';
+      loginError.style.display = 'block';
+    }
+  } catch (err) {
+    loginError.textContent = 'Loi ket noi den may chu';
+    loginError.style.display = 'block';
+  }
+});
+
+// Register Submit
+registerForm?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  regError.style.display = 'none';
+  const username = document.getElementById('regUser').value.trim();
+  const password = document.getElementById('regPass').value;
+
+  try {
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      currentUser = data.user;
+      currentApiKey = data.api_key;
+      localStorage.setItem('aov_user', JSON.stringify(currentUser));
+      authModal.style.display = 'none';
+      renderUserBar();
+      showToast(`TAO TAI KHOAN THANH CONG! +50 CREDITS`);
+    } else {
+      regError.textContent = data.message || 'Dang ky that bai';
+      regError.style.display = 'block';
+    }
+  } catch (err) {
+    regError.textContent = 'Loi ket noi den may chu';
+    regError.style.display = 'block';
+  }
+});
+
+btnLogout?.addEventListener('click', () => {
+  currentUser = null;
+  currentApiKey = null;
+  localStorage.removeItem('aov_user');
+  renderUserBar();
+  showToast('DA DANG XUAT');
+});
+
+// API Modal
+btnOpenApiModal?.addEventListener('click', () => {
+  if (!currentUser) return;
+  apiModal.style.display = 'flex';
+  loadUserApiKeys();
+});
+
+btnCloseApiModal?.addEventListener('click', () => {
+  apiModal.style.display = 'none';
+});
+
+async function loadUserApiKeys() {
+  if (!currentUser) return;
+  try {
+    const res = await fetch(`/api/user/keys?user_id=${currentUser.id}`);
+    const data = await res.json();
+    if (data.status === 'ok') {
+      if (data.keys && data.keys.length > 0) {
+        currentApiKey = data.keys[0].key;
+      } else {
+        currentApiKey = 'Chua co API Key';
+      }
+      updateApiModalContent();
+    }
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+function updateApiModalContent() {
+  if (displayApiKey) displayApiKey.value = currentApiKey || 'Dang tao...';
+  const domain = window.location.origin;
+  if (curlExample) {
+    curlExample.textContent = `curl -X POST ${domain}/api/v1/check \\\n  -H "Authorization: Bearer ${currentApiKey || 'YOUR_API_KEY'}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"account":"user123:password456"}'`;
+  }
+}
+
+btnCopyApiKey?.addEventListener('click', () => {
+  if (displayApiKey && displayApiKey.value) {
+    navigator.clipboard.writeText(displayApiKey.value);
+    showToast('DA COPY API KEY!');
+  }
+});
+
+btnGenNewApiKey?.addEventListener('click', async () => {
+  if (!currentUser) return;
+  if (!confirm('Ban co chac chan muon tao API Key moi khong? Key cu se bi thu hoi.')) return;
+  try {
+    const res = await fetch('/api/keys/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: currentUser.id })
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      currentApiKey = data.key;
+      updateApiModalContent();
+      showToast('DA TAO API KEY MOI THANH CONG!');
+    } else {
+      showToast('Khong the tao key: ' + data.message);
+    }
+  } catch (e) {
+    showToast('Loi ket noi tao key');
+  }
+});
+
+// Close modals on clicking overlay backdrop
+window.addEventListener('click', (e) => {
+  if (e.target === authModal) authModal.style.display = 'none';
+  if (e.target === apiModal) apiModal.style.display = 'none';
+});
+
+// Init on DOM ready
+initAuth();
+

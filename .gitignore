@@ -9,3 +9,4 @@ bin/
 .buildozer/
 aov_checker.zip
 *.log
+*.db

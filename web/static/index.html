@@ -4,9 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AOV BATCH PRO CHECKER</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
@@ -23,6 +20,20 @@
         <div class="count-pill pill-hit">HIT: <strong id="statHits">0</strong></div>
         <div class="count-pill pill-trang">TRANG TTT: <strong id="statTrang">0</strong></div>
         <div class="count-pill pill-vip">SKIN VIP: <strong id="statSkinVIP">0</strong></div>
+      </div>
+      <!-- User / Auth Header Area -->
+      <div class="user-bar">
+        <div id="authGuestView" class="auth-box">
+          <button class="btn-auth-nav" id="btnOpenAuthModal">DANG NHAP / DANG KY</button>
+        </div>
+        <div id="authUserView" class="auth-box" style="display:none;">
+          <div class="user-pill">
+            <span class="user-badge" id="navUsername">Tris</span>
+            <span class="credit-badge"><strong id="navCredits">50</strong> CR</span>
+          </div>
+          <button class="btn-api-nav" id="btnOpenApiModal">API KEYS</button>
+          <button class="btn-logout-nav" id="btnLogout">THOAT</button>
+        </div>
       </div>
     </header>
 
@@ -96,6 +107,107 @@
           </div>
         </div>
       </main>
+    </div>
+  </div>
+
+  <!-- Auth Modal -->
+  <div class="modal-overlay" id="authModal" style="display:none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-tabs">
+          <button class="modal-tab active" id="tabLoginBtn">DANG NHAP</button>
+          <button class="modal-tab" id="tabRegisterBtn">DANG KY (+50 CREDITS)</button>
+        </div>
+        <button class="btn-modal-close" id="btnCloseAuthModal">&times;</button>
+      </div>
+
+      <!-- Login Form -->
+      <form class="modal-body" id="loginForm">
+        <div class="form-group">
+          <label>TAI KHOAN:</label>
+          <input type="text" id="loginUser" required placeholder="Nhap username..." autocomplete="username" />
+        </div>
+        <div class="form-group">
+          <label>MAT KHAU:</label>
+          <input type="password" id="loginPass" required placeholder="Nhap password..." autocomplete="current-password" />
+        </div>
+        <div class="form-error" id="loginError" style="display:none;"></div>
+        <button type="submit" class="btn btn-run" id="btnSubmitLogin">DANG NHAP HE THONG</button>
+      </form>
+
+      <!-- Register Form -->
+      <form class="modal-body" id="registerForm" style="display:none;">
+        <div class="form-group">
+          <label>TAI KHOAN:</label>
+          <input type="text" id="regUser" required placeholder="Toi thieu 3 ky tu..." autocomplete="username" />
+        </div>
+        <div class="form-group">
+          <label>MAT KHAU:</label>
+          <input type="password" id="regPass" required placeholder="Toi thieu 4 ky tu..." autocomplete="new-password" />
+        </div>
+        <div class="form-error" id="regError" style="display:none;"></div>
+        <button type="submit" class="btn btn-run" id="btnSubmitRegister">TAO TAI KHOAN (+50 CREDITS)</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- API Key & Developer Modal -->
+  <div class="modal-overlay" id="apiModal" style="display:none;">
+    <div class="modal-card modal-card-lg">
+      <div class="modal-header">
+        <div class="modal-title">DEVELOPER REST API & API KEYS</div>
+        <button class="btn-modal-close" id="btnCloseApiModal">&times;</button>
+      </div>
+      <div class="modal-body modal-body-scroll">
+        <div class="api-key-section">
+          <label>API KEY DANG SU DUNG:</label>
+          <div class="api-key-box">
+            <input type="text" id="displayApiKey" readonly value="Loading..." />
+            <button class="btn-tool" id="btnCopyApiKey">COPY KEY</button>
+            <button class="btn-tool" id="btnGenNewApiKey">TAO KEY MOI</button>
+          </div>
+          <small class="text-muted">Moi lan goi Developer API se tru 1 Credit tu tai khoan cua ban.</small>
+        </div>
+
+        <div class="api-docs-section">
+          <h3>ENDPOINT CHECKER: <code>POST /api/v1/check</code></h3>
+          <p>Tich hop tool check truc tiep vao bot Telegram, Discord, Tool Auto hoac script Python cua ban.</p>
+          
+          <div class="doc-block">
+            <div class="doc-head">HEADER AUTHENTICATION:</div>
+            <pre><code>Authorization: Bearer YOUR_API_KEY
+Content-Type: application/json</code></pre>
+          </div>
+
+          <div class="doc-block">
+            <div class="doc-head">JSON PAYLOAD:</div>
+            <pre><code>{
+  "account": "user123:password456"
+}</code></pre>
+          </div>
+
+          <div class="doc-block">
+            <div class="doc-head">EXAMPLE CURL REQUEST:</div>
+            <pre><code id="curlExample">curl -X POST https://YOUR_DOMAIN/api/v1/check \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"account":"user123:password456"}'</code></pre>
+          </div>
+
+          <div class="doc-block">
+            <div class="doc-head">PYTHON EXAMPLE:</div>
+            <pre><code>import requests
+
+res = requests.post("https://YOUR_DOMAIN/api/v1/check", headers={
+    "Authorization": "Bearer YOUR_API_KEY"
+}, json={"account": "user123:password456"})
+
+data = res.json()
+print("Status:", data.get("status"))
+print("Line:", data.get("line"))</code></pre>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
