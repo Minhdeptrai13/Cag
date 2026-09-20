@@ -1014,7 +1014,156 @@ body.app-body {
 }
 
 .ai-docked-input-bar {
-  padding-top: 14px;
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* AI Features Toolbar (Think & Deep-Research Toggles) */
+.ai-features-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ai-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+.ai-toggle-btn:hover {
+  border-color: var(--border-focus);
+  color: var(--text-primary);
+}
+.ai-toggle-btn .toggle-indicator {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: all 0.2s;
+}
+.ai-toggle-btn.active {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: var(--gold-metallic);
+  color: var(--gold-light);
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.2);
+}
+.ai-toggle-btn.active .toggle-indicator {
+  background: var(--gold-light);
+  box-shadow: 0 0 6px var(--gold-light);
+}
+.ai-toggle-btn.deep-active {
+  background: rgba(139, 92, 246, 0.15);
+  border-color: var(--violet-neon);
+  color: #c4b5fd;
+  box-shadow: 0 0 10px rgba(139, 92, 246, 0.25);
+}
+.ai-toggle-btn.deep-active .toggle-indicator {
+  background: var(--violet-neon);
+  box-shadow: 0 0 6px var(--violet-neon);
+}
+.ai-direct-check-badge {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--green-neon);
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+}
+
+/* AI Chain-of-Thought (CoT) Accordion */
+.ai-thought-accordion {
+  margin-bottom: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.02);
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+.ai-thought-accordion.open {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.03);
+}
+.ai-thought-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.03);
+  transition: background 0.15s;
+}
+.ai-thought-header:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+}
+.ai-thought-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.ai-thought-title .thought-brain-icon {
+  color: var(--gold-light);
+  animation: pulseLight 2s infinite ease-in-out;
+}
+.ai-thought-chevron {
+  transition: transform 0.2s ease;
+  color: var(--text-muted);
+}
+.ai-thought-accordion.open .ai-thought-chevron {
+  transform: rotate(180deg);
+}
+.ai-thought-content {
+  display: none;
+  padding: 12px 14px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: var(--text-muted);
+  border-top: 1px dashed var(--border-subtle);
+  white-space: pre-wrap;
+  background: rgba(0, 0, 0, 0.2);
+}
+.ai-thought-accordion.open .ai-thought-content {
+  display: block;
+}
+
+/* Shimmer Loading & Pulse Animations */
+@keyframes pulseLight {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.08); filter: drop-shadow(0 0 6px var(--gold-light)); }
+}
+.ai-shimmer-text {
+  background: linear-gradient(90deg, var(--text-muted) 0%, #fff 50%, var(--text-muted) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 1.8s infinite linear;
+  font-weight: 600;
+}
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 .ai-input-wrapper {
   background: var(--bg-surface);

@@ -430,10 +430,30 @@
               </div>
             </div>
 
-            <!-- Docked Prompt Command Bar -->
+            <!-- Docked Prompt Command Bar with Think & Deep-Research Toggles -->
             <form id="aiCanvasForm" class="ai-docked-input-bar">
+              <!-- AI Features Toggle Controls (CoT Thinking & Deep Research) -->
+              <div class="ai-features-toolbar">
+                <button type="button" class="ai-toggle-btn active" id="btnToggleThinking" title="Bật/Tắt chuỗi tư duy Reasoning / Chain-of-Thought">
+                  <span class="toggle-indicator"></span>
+                  <svg class="svg-icon icon-xs" viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z"></path><line x1="9" y1="21" x2="15" y2="21"></line></svg>
+                  <span>Suy Nghĩ (Think CoT)</span>
+                </button>
+
+                <button type="button" class="ai-toggle-btn" id="btnToggleDeepResearch" title="Kích hoạt phân tích thuật toán và nghiên cứu sâu">
+                  <span class="toggle-indicator"></span>
+                  <svg class="svg-icon icon-xs" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+                  <span>Nghiên Cứu Sâu (Deep Research)</span>
+                </button>
+
+                <div class="ai-direct-check-badge" title="AI hỗ trợ gọi API check acc trực tiếp và trừ credit tự động">
+                  <svg class="svg-icon icon-xs" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span>Live Tool RAG Active</span>
+                </div>
+              </div>
+
               <div class="ai-input-wrapper">
-                <textarea id="aiCanvasInput" class="ai-docked-textarea" rows="1" placeholder="Nhập câu hỏi hoặc yêu cầu phân tích nick Liên Quân Mobile... (Enter để gửi)"></textarea>
+                <textarea id="aiCanvasInput" class="ai-docked-textarea" rows="1" placeholder="Nhập câu hỏi, viết code, hoặc 'check acc user:pass' trực tiếp... (Enter để gửi)"></textarea>
                 <button type="submit" class="ai-submit-btn" id="btnSendAICanvas" title="Gửi tin nhắn">
                   <svg class="svg-icon" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                 </button>

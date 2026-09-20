@@ -819,8 +819,15 @@ class AOVWebHandler(BaseHTTPRequestHandler):
             user_msg = str(payload.get("message") or payload.get("prompt") or "").strip()
             user_name = str(payload.get("user_name") or payload.get("display_name") or "Tris").strip()
             user_id = payload.get("user_id")
+            if user_id:
+                try:
+                    user_id = int(user_id)
+                except Exception:
+                    user_id = None
             history = payload.get("history", [])
             task_id = payload.get("task_id", "")
+            enable_thinking = bool(payload.get("thinking") or payload.get("enable_thinking"))
+            enable_deep_research = bool(payload.get("deep_research") or payload.get("enable_deep_research"))
 
             batch_context = None
             if task_id:
@@ -834,8 +841,29 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                             "recent_hits": t.get("all_hits", [])[-10:]
                         }
 
-            reply = chat_with_copilot(user_msg, history=history, batch_context=batch_context, user_name=user_name)
-            self._send_json({"success": True, "status": "ok", "reply": reply, "response": reply})
+            res_data = chat_with_copilot(
+                user_msg,
+                history=history,
+                batch_context=batch_context,
+                user_name=user_name,
+                enable_thinking=enable_thinking,
+                enable_deep_research=enable_deep_research,
+                user_id=user_id
+            )
+            
+            # Compatible with both legacy string and new object output
+            reply_text = res_data.get("reply") if isinstance(res_data, dict) else str(res_data)
+            thought_text = res_data.get("thought") if isinstance(res_data, dict) else None
+            account_result = res_data.get("account_result") if isinstance(res_data, dict) else None
+
+            self._send_json({
+                "success": True,
+                "status": "ok",
+                "reply": reply_text,
+                "response": reply_text,
+                "thought": thought_text,
+                "account_result": account_result
+            })
             return
 
         # ── 14. ADMIN ACTIONS: ADJUST CREDITS ─────────────────────────────────

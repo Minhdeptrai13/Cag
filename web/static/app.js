@@ -555,6 +555,27 @@ document.getElementById('btnExportTrang').addEventListener('click', () => {
 const aiMainChatBody = document.getElementById('aiMainChatBody');
 const aiCanvasForm = document.getElementById('aiCanvasForm');
 const aiCanvasInput = document.getElementById('aiCanvasInput');
+const btnToggleThinking = document.getElementById('btnToggleThinking');
+const btnToggleDeepResearch = document.getElementById('btnToggleDeepResearch');
+
+let aiThinkingEnabled = true;
+let aiDeepResearchEnabled = false;
+
+if (btnToggleThinking) {
+  btnToggleThinking.addEventListener('click', () => {
+    aiThinkingEnabled = !aiThinkingEnabled;
+    btnToggleThinking.classList.toggle('active', aiThinkingEnabled);
+    showToast(aiThinkingEnabled ? 'ĐÃ BẬT: Chuỗi suy nghĩ (Reasoning CoT)' : 'ĐÃ TẮT: Chuỗi suy nghĩ');
+  });
+}
+
+if (btnToggleDeepResearch) {
+  btnToggleDeepResearch.addEventListener('click', () => {
+    aiDeepResearchEnabled = !aiDeepResearchEnabled;
+    btnToggleDeepResearch.classList.toggle('deep-active', aiDeepResearchEnabled);
+    showToast(aiDeepResearchEnabled ? 'ĐÃ BẬT: Phân tích sâu (Deep Research Mode)' : 'ĐÃ TẮT: Phân tích sâu');
+  });
+}
 
 document.querySelectorAll('.ai-pill-btn, .ai-prompt-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -584,7 +605,16 @@ async function sendAICanvasMessage(text) {
   appendAIMessage('user', text);
   aiCanvasInput.value = '';
 
-  const typing = appendAIMessage('assistant', 'Đang trích xuất dữ liệu RAG và phân tích...', true);
+  let loadingLabel = 'Đang trích xuất dữ liệu RAG và phân tích...';
+  if (aiThinkingEnabled && aiDeepResearchEnabled) {
+    loadingLabel = 'Đang suy nghĩ (Chain-of-Thought) & Nghiên cứu sâu...';
+  } else if (aiThinkingEnabled) {
+    loadingLabel = 'Đang kích hoạt chuỗi suy nghĩ CoT...';
+  } else if (aiDeepResearchEnabled) {
+    loadingLabel = 'Đang truy vấn mô hình nghiên cứu sâu...';
+  }
+
+  const typing = appendAIMessage('assistant', loadingLabel, true);
 
   try {
     const userName = currentUser ? (currentUser.display_name || currentUser.username || 'Tris') : 'Tris';
@@ -595,13 +625,23 @@ async function sendAICanvasMessage(text) {
         prompt: text,
         task_id: activeTaskId || '',
         user_name: userName,
-        user_id: currentUser ? currentUser.id : 0
+        user_id: currentUser ? currentUser.id : 0,
+        enable_thinking: aiThinkingEnabled,
+        enable_deep_research: aiDeepResearchEnabled
       })
     });
     const data = await res.json();
     typing.remove();
+
     if (data.status === 'ok' || data.success) {
-      appendAIMessage('assistant', data.response || data.reply || 'Đã phân tích xong.');
+      const reply = data.response || data.reply || 'Đã hoàn tất xử lý.';
+      const thought = data.thought || null;
+      appendAIMessage('assistant', reply, false, thought);
+
+      // If account was checked directly, refresh profile to update credits
+      if (data.account_result && currentUser) {
+        syncCurrentUserProfile();
+      }
     } else {
       appendAIMessage('assistant', data.error || 'Trợ lý AI gặp gián đoạn kết nối.');
     }
@@ -665,7 +705,7 @@ window.copyCodeBlock = function(id) {
   });
 };
 
-function appendAIMessage(role, content, isTyping = false) {
+function appendAIMessage(role, content, isTyping = false, thought = null) {
   const row = document.createElement('div');
   row.className = `ai-message-row ${role}`;
 
@@ -687,9 +727,29 @@ function appendAIMessage(role, content, isTyping = false) {
   const text = document.createElement('div');
   text.className = 'ai-msg-text';
   if (isTyping) {
-    text.innerHTML = `<span class="ai-typing-indicator"><span class="dot"></span><span class="dot"></span><span class="dot"></span> ${escapeHtml(content)}</span>`;
+    text.innerHTML = `<span class="ai-typing-indicator"><span class="dot"></span><span class="dot"></span><span class="dot"></span> <span class="ai-shimmer-text">${escapeHtml(content)}</span></span>`;
   } else {
-    text.innerHTML = formatAIMarkdown(content);
+    let htmlOutput = '';
+    
+    // Render Thinking Accordion if thought exists
+    if (thought) {
+      const accId = 'thought_' + Math.random().toString(36).substring(2, 9);
+      htmlOutput += `
+        <div class="ai-thought-accordion" id="${accId}">
+          <div class="ai-thought-header" onclick="toggleThoughtAccordion('${accId}')">
+            <span class="ai-thought-title">
+              <span class="thought-brain-icon">🧠</span>
+              <span>Chuỗi suy nghĩ (Reasoning Process)</span>
+            </span>
+            <span class="ai-thought-chevron">▼</span>
+          </div>
+          <div class="ai-thought-content">${escapeHtml(thought)}</div>
+        </div>
+      `;
+    }
+
+    htmlOutput += formatAIMarkdown(content);
+    text.innerHTML = htmlOutput;
   }
 
   bubble.appendChild(header);
@@ -701,6 +761,13 @@ function appendAIMessage(role, content, isTyping = false) {
   aiMainChatBody.scrollTop = aiMainChatBody.scrollHeight;
   return row;
 }
+
+window.toggleThoughtAccordion = function(id) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.classList.toggle('open');
+  }
+};
 
 // ── TAB 4: API KEY MANAGER (VAULT LIST) ─────────────────────────────────────
 let userApiKeysList = [];
