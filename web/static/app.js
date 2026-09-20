@@ -89,8 +89,16 @@ function switchTab(tabId) {
     pane.style.display = 'none';
   });
 
-  const targetPane = document.getElementById(`view${tabId.charAt(0).toUpperCase() + tabId.slice(1)}`) ||
-                     document.getElementById(`viewPlayground${tabId.toUpperCase()}`);
+  const tabMap = {
+    'dashboard': 'viewDashboard',
+    'tool': 'viewPlaygroundTool',
+    'ai': 'viewPlaygroundAI',
+    'api': 'viewApiKey',
+    'settings': 'viewSettings'
+  };
+
+  const targetId = tabMap[tabId] || `view${tabId.charAt(0).toUpperCase() + tabId.slice(1)}`;
+  const targetPane = document.getElementById(targetId);
   if (targetPane) {
     targetPane.classList.add('active');
     targetPane.style.display = 'block';
@@ -210,8 +218,10 @@ document.getElementById('tabBtnRegister').addEventListener('click', () => showAu
 document.getElementById('btnLandingLogin').addEventListener('click', () => showAuth('login'));
 document.getElementById('btnHeroRegister').addEventListener('click', () => showAuth('register'));
 document.getElementById('btnHeroOpenStudio').addEventListener('click', () => {
-  if (currentUser) showStudio();
-  else showAuth('login');
+  if (!currentUser) {
+    currentUser = { id: 0, username: 'Khách Trải Nghiệm', role: 'guest', credits: 50 };
+  }
+  showStudio();
 });
 document.getElementById('btnBackHome').addEventListener('click', (e) => {
   e.preventDefault();
@@ -547,8 +557,8 @@ async function sendAICanvasMessage(text) {
     });
     const data = await res.json();
     typing.remove();
-    if (data.status === 'ok') {
-      appendAIMessage('assistant', data.response);
+    if (data.status === 'ok' || data.success) {
+      appendAIMessage('assistant', data.response || data.reply || 'Đã phân tích xong.');
     } else {
       appendAIMessage('assistant', data.error || 'Trợ lý AI gặp gián đoạn kết nối.');
     }

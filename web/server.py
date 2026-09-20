@@ -724,7 +724,7 @@ class AOVWebHandler(BaseHTTPRequestHandler):
 
         # ── 13. AI STUDIO COPILOT RAG CHAT (/api/ai/chat) ─────────────────────
         elif path == "/api/ai/chat":
-            user_msg = str(payload.get("message", "")).strip()
+            user_msg = str(payload.get("message") or payload.get("prompt") or "").strip()
             history = payload.get("history", [])
             task_id = payload.get("task_id", "")
 
@@ -741,7 +741,7 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                         }
 
             reply = chat_with_copilot(user_msg, history=history, batch_context=batch_context)
-            self._send_json({"success": True, "reply": reply})
+            self._send_json({"success": True, "status": "ok", "reply": reply, "response": reply})
             return
 
         # ── 14. ADMIN ACTIONS: ADJUST CREDITS ─────────────────────────────────
