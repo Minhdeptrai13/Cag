@@ -218,10 +218,11 @@ document.getElementById('tabBtnRegister').addEventListener('click', () => showAu
 document.getElementById('btnLandingLogin').addEventListener('click', () => showAuth('login'));
 document.getElementById('btnHeroRegister').addEventListener('click', () => showAuth('register'));
 document.getElementById('btnHeroOpenStudio').addEventListener('click', () => {
-  if (!currentUser) {
-    currentUser = { id: 0, username: 'Khách Trải Nghiệm', role: 'guest', credits: 50 };
+  if (currentUser) {
+    showStudio();
+  } else {
+    showAuth('login');
   }
-  showStudio();
 });
 document.getElementById('btnBackHome').addEventListener('click', (e) => {
   e.preventDefault();
@@ -537,6 +538,14 @@ document.querySelectorAll('.ai-prompt-btn').forEach(btn => {
   });
 });
 
+aiCanvasInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    const msg = aiCanvasInput.value.trim();
+    if (msg) sendAICanvasMessage(msg);
+  }
+});
+
 aiCanvasForm.addEventListener('submit', (e) => {
   e.preventDefault();
   const msg = aiCanvasInput.value.trim();
@@ -569,22 +578,36 @@ async function sendAICanvasMessage(text) {
 }
 
 function appendAIMessage(role, content, isTyping = false) {
-  const wrap = document.createElement('div');
-  wrap.className = `ai-bubble-msg ${role}`;
+  const row = document.createElement('div');
+  row.className = `ai-message-row ${role}`;
 
   const av = document.createElement('div');
   av.className = 'ai-msg-avatar';
-  av.textContent = role === 'user' ? 'U' : '🤖';
+  if (role === 'user') {
+    av.textContent = (currentUser && currentUser.username ? currentUser.username[0] : 'U').toUpperCase();
+  } else {
+    av.innerHTML = '<img src="/assets/garena_logo.png" style="width:20px;height:20px;object-fit:contain;" alt="AI" />';
+  }
 
-  const body = document.createElement('div');
-  body.className = 'ai-msg-content';
-  body.innerHTML = content.replace(/\n/g, '<br/>');
+  const bubble = document.createElement('div');
+  bubble.className = 'ai-msg-bubble';
 
-  wrap.appendChild(av);
-  wrap.appendChild(body);
-  aiMainChatBody.appendChild(wrap);
+  const header = document.createElement('div');
+  header.className = 'ai-sender-name';
+  header.innerHTML = role === 'user' ? 'BẠN' : 'AOV COPILOT <span class="ai-time">ONLINE</span>';
+
+  const text = document.createElement('div');
+  text.className = 'ai-msg-text';
+  text.innerHTML = content.replace(/\n/g, '<br/>');
+
+  bubble.appendChild(header);
+  bubble.appendChild(text);
+
+  row.appendChild(av);
+  row.appendChild(bubble);
+  aiMainChatBody.appendChild(row);
   aiMainChatBody.scrollTop = aiMainChatBody.scrollHeight;
-  return wrap;
+  return row;
 }
 
 // ── TAB 4: API KEY MANAGER ──────────────────────────────────────────────────

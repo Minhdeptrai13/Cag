@@ -18,7 +18,7 @@
     <!-- Navbar Public -->
     <header class="landing-nav">
       <div class="brand">
-        <img src="/assets/garena_logo.svg" alt="Garena Logo" class="brand-logo-img" />
+        <img src="/assets/garena_logo.png" alt="Garena Logo" class="brand-logo-img" />
         <div class="brand-text-col">
           <span class="brand-title">AOV STUDIO</span>
           <span class="brand-badge-pill">LUXURY SAAS</span>
@@ -105,7 +105,7 @@
     <!-- Studio Header -->
     <header class="studio-header">
       <div class="brand">
-        <img src="/assets/garena_logo.svg" alt="Garena Logo" class="brand-logo-img" />
+        <img src="/assets/garena_logo.png" alt="Garena Logo" class="brand-logo-img" />
         <div class="brand-text-col">
           <span class="brand-title">AOV STUDIO</span>
           <span class="brand-badge-pill">WORKSPACE</span>
@@ -338,55 +338,62 @@
           </div>
         </section>
 
-        <!-- ── TAB 3: PLAYGROUND AI (DEDICATED FULL CANVAS) ──────────────── -->
+        <!-- ── TAB 3: PLAYGROUND AI (STUDIO SUITE) ──────────────────────── -->
         <section id="viewPlaygroundAI" class="tab-view-pane">
-          <div class="view-header-strip">
-            <div class="strip-title-row">
-              <svg class="svg-icon icon-lg icon-violet" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"></path><path d="M12 6v6l4 2"></path></svg>
-              <div>
-                <h2>PLAYGROUND AI COPILOT (RAG ENGINE)</h2>
-                <span class="strip-sub">Trợ lý AI phân tích kết quả lô check, tra cứu skin SSS và định giá tài khoản AOV</span>
+          <div class="ai-studio-shell">
+            <!-- Studio Model Bar -->
+            <div class="ai-studio-topbar">
+              <div class="ai-model-selector">
+                <span class="ai-status-dot"></span>
+                <span class="ai-model-tag">AOV RAG Engine v3.8</span>
+                <span class="ai-model-provider">Qwen-27B Deep-Reasoning</span>
+              </div>
+              <div class="ai-studio-badges">
+                <span class="pill-chip"><svg class="svg-icon icon-xs" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg> SSS Skin Database</span>
+                <span class="pill-chip"><svg class="svg-icon icon-xs" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg> Zero Downtime</span>
               </div>
             </div>
-          </div>
 
-          <div class="ai-canvas-container">
-            <!-- Left AI Sidebar -->
-            <div class="ai-sidebar-prompts">
-              <h4>CÂU HỎI NHANH GỢI Ý</h4>
-              <button type="button" class="ai-prompt-btn" data-query="Định giá giúp tôi acc có Flo Tinh Hệ, Nak Lôi Quang Sứ và Raz Muay Thái">
+            <!-- Quick Pill Prompts -->
+            <div class="ai-pills-scroll">
+              <button type="button" class="ai-pill-btn" data-query="Định giá giúp tôi acc có Flo Tinh Hệ, Nak Lôi Quang Sứ và Raz Muay Thái">
                 💎 Định giá nick VIP bậc SSS
               </button>
-              <button type="button" class="ai-prompt-btn" data-query="Tỉ lệ acc sống và acc trắng thông tin trong lô vừa check như thế nào?">
+              <button type="button" class="ai-pill-btn" data-query="Tỉ lệ acc sống và acc trắng thông tin trong lô vừa check như thế nào?">
                 📊 Phân tích thống kê lô check
               </button>
-              <button type="button" class="ai-prompt-btn" data-query="Tra cứu skin ID của Violet Thần Long Tỉ Tỉ và Flo Kỷ Nguyên Hổ Phách">
+              <button type="button" class="ai-pill-btn" data-query="Tra cứu skin ID của Violet Thần Long Tỉ Tỉ và Flo Kỷ Nguyên Hổ Phách">
                 🏷️ Tra cứu mã Skin ID chuẩn
               </button>
-              <button type="button" class="ai-prompt-btn" data-query="Thế nào là acc trắng thông tin an toàn có thể đổi mật khẩu được ngay?">
+              <button type="button" class="ai-pill-btn" data-query="Thế nào là acc trắng thông tin an toàn có thể đổi mật khẩu được ngay?">
                 🛡️ Giải thích tiêu chuẩn acc trắng
               </button>
             </div>
 
-            <!-- Main AI Chat Canvas -->
-            <div class="ai-chat-canvas">
-              <div class="ai-canvas-messages" id="aiMainChatBody">
-                <div class="ai-bubble-msg assistant">
-                  <div class="ai-msg-avatar">🤖</div>
-                  <div class="ai-msg-content">
-                    Xin chào! Tôi là <strong>AOV Studio Copilot</strong> được tích hợp cơ sở dữ liệu RAG về hệ sinh thái Garena Liên Quân Mobile. Tôi có thể giúp bạn định giá nick, tra cứu ID skin hoặc phân tích lô check vừa xong. Bạn cần hỗ trợ gì?
+            <!-- Main Conversation Stream -->
+            <div class="ai-messages-viewport" id="aiMainChatBody">
+              <div class="ai-message-row assistant">
+                <div class="ai-msg-avatar">
+                  <img src="/assets/garena_logo.png" style="width:20px;height:20px;object-fit:contain;" alt="AI" />
+                </div>
+                <div class="ai-msg-bubble">
+                  <div class="ai-sender-name">AOV COPILOT <span class="ai-time">ONLINE</span></div>
+                  <div class="ai-msg-text">
+                    Chào bạn! Tôi là <strong>AOV Studio Copilot</strong>, hệ thống AI RAG chuyên sâu được nạp toàn bộ danh mục Skin SSS/SS, cơ chế bảo mật tài khoản Garena Liên Quân Mobile và phân tích dữ liệu lô check. Hãy chọn câu hỏi nhanh ở trên hoặc nhập yêu cầu bên dưới.
                   </div>
                 </div>
               </div>
-
-              <form id="aiCanvasForm" class="ai-canvas-input-bar">
-                <input type="text" id="aiCanvasInput" class="ai-main-input" placeholder="Hỏi AI bất kỳ điều gì về Liên Quân Mobile hoặc dữ liệu quét..." autocomplete="off" />
-                <button type="submit" class="btn btn-violet" id="btnSendAICanvas">
-                  <svg class="svg-icon" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-                  GỬI
-                </button>
-              </form>
             </div>
+
+            <!-- Docked Prompt Command Bar -->
+            <form id="aiCanvasForm" class="ai-docked-input-bar">
+              <div class="ai-input-wrapper">
+                <textarea id="aiCanvasInput" class="ai-docked-textarea" rows="1" placeholder="Nhập câu hỏi hoặc yêu cầu phân tích nick Liên Quân Mobile... (Enter để gửi)"></textarea>
+                <button type="submit" class="ai-submit-btn" id="btnSendAICanvas" title="Gửi tin nhắn">
+                  <svg class="svg-icon" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                </button>
+              </div>
+            </form>
           </div>
         </section>
 
