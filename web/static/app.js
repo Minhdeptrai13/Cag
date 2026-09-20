@@ -422,20 +422,27 @@ on(btnRunSingle, 'click', async () => {
 
     if (data.status === 'HIT') {
       singleStatusTag.className = 'status-tag hit';
-      singleStatusTag.textContent = data.is_trang ? 'HIT LIVE (TRẮNG TTT)' : 'HIT LIVE (CÓ TTT)';
-      
-      const aov = data.aov || {};
-      const sssList = data.sss_list || aov.sss_list || [];
-      const animeList = data.anime_list || aov.anime_list || [];
-      const ssList = data.ss_list || aov.ss_list || [];
-      const splusList = data.other_list || data.splus_list || aov.other_list || [];
+      const sec = data.security || {};
+      const phone = (data.masked_phone || sec.masked_phone || '').trim();
+      const hasPhone = Boolean(phone && phone !== 'Trắng');
 
-      let skinDetails = '';
-      if (sssList.length > 0) skinDetails += `<div><strong style="color:#f87171">SKIN SSS (${sssList.length}):</strong> ${escapeHtml(sssList.join(', '))}</div>`;
-      if (animeList.length > 0) skinDetails += `<div><strong style="color:#f472b6">SKIN ANIME (${animeList.length}):</strong> ${escapeHtml(animeList.join(', '))}</div>`;
-      if (ssList.length > 0) skinDetails += `<div><strong style="color:#fbbf24">SKIN SS (${ssList.length}):</strong> ${escapeHtml(ssList.join(', '))}</div>`;
-      if (splusList.length > 0) skinDetails += `<div><strong style="color:#60a5fa">SKIN S+ / HỮU HẠN (${splusList.length}):</strong> ${escapeHtml(splusList.join(', '))}</div>`;
-      if (!skinDetails && data.skins_vip) skinDetails = `<div><strong style="color:var(--gold)">SKIN VIP:</strong> ${escapeHtml(data.skins_vip)}</div>`;
+      const email = (data.masked_email || sec.masked_email || '').trim();
+      const hasEmail = Boolean(email && email !== 'Trắng');
+      const emailV = Boolean(data.email_v !== undefined ? data.email_v : sec.email_v);
+
+      const hasCccd = Boolean(data.has_cccd !== undefined ? data.has_cccd : sec.has_cccd);
+      const hasAuthen = Boolean(data.auth_2fa !== undefined ? data.auth_2fa : sec.auth_2fa);
+      const hasFb = Boolean(data.fb_linked !== undefined ? data.fb_linked : sec.fb_linked);
+
+      const tinhTrang = data.tt_info || data.tinh_trang || (data.is_trang ? 'ACC TRẮNG' : 'CÓ THÔNG TIN');
+
+      let phoneHtml = hasPhone ? `<span class="sec-val yes">YES [${escapeHtml(phone)}]</span>` : `<span class="sec-val no">NO</span>`;
+      let emailHtml = hasEmail ? (emailV ? `<span class="sec-val yes">YES [${escapeHtml(email)} - ĐÃ XT]</span>` : `<span class="sec-val warn">NO [${escapeHtml(email)} - CHƯA XT]</span>`) : `<span class="sec-val no">NO</span>`;
+      let cccdHtml = hasCccd ? `<span class="sec-val yes">YES</span>` : `<span class="sec-val no">NO</span>`;
+      let authenHtml = hasAuthen ? `<span class="sec-val yes">YES</span>` : `<span class="sec-val no">NO</span>`;
+      let fbHtml = hasFb ? `<span class="sec-val yes">YES</span>` : `<span class="sec-val no">DIE</span>`;
+
+      singleStatusTag.textContent = data.is_trang ? 'HIT LIVE (ACC TRẮNG)' : 'HIT LIVE (DÍNH THÔNG TIN)';
 
       singleBody.innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -444,8 +451,15 @@ on(btnRunSingle, 'click', async () => {
         </div>
         <div><strong>RANK:</strong> <span style="color:var(--gold)">${escapeHtml(data.rank || aov.rank || 'Unranked')}</span></div>
         <div><strong>TƯỚNG:</strong> ${data.heroes_count || aov.total_champs || 0} | <strong>SKIN:</strong> ${data.skins_count || aov.total_skins || 0}</div>
+        <div class="acc-sec-line" style="margin: 8px 0;">
+          <span class="sec-pill"><strong>SĐT:</strong> ${phoneHtml}</span>
+          <span class="sec-pill"><strong>EMAIL:</strong> ${emailHtml}</span>
+          <span class="sec-pill"><strong>CCCD:</strong> ${cccdHtml}</span>
+          <span class="sec-pill"><strong>2FA:</strong> ${authenHtml}</span>
+          <span class="sec-pill"><strong>FB:</strong> ${fbHtml}</span>
+          <span class="sec-pill"><strong>TRẠNG THÁI:</strong> <span class="sec-val ${data.is_trang ? 'status-trang' : 'warn'}">${escapeHtml(tinhTrang)}</span></span>
+        </div>
         ${skinDetails}
-        <div style="margin-top:6px;font-size:11px;color:var(--text-muted);"><strong>THÔNG TIN:</strong> ${escapeHtml(data.tt_info || '')}</div>
       `;
 
       const btnCopySingle = document.getElementById('btnCopySingleFull');
@@ -740,10 +754,30 @@ function createRowElement(item) {
       skinBlocksHtml = `<div class="acc-skins-line">★ VIP: ${escapeHtml(item.skins_vip)}</div>`;
     }
 
+    const sec = item.security || {};
+    const phone = (item.masked_phone || sec.masked_phone || '').trim();
+    const hasPhone = Boolean(phone && phone !== 'Trắng');
+
+    const email = (item.masked_email || sec.masked_email || '').trim();
+    const hasEmail = Boolean(email && email !== 'Trắng');
+    const emailV = Boolean(item.email_v !== undefined ? item.email_v : sec.email_v);
+
+    const hasCccd = Boolean(item.has_cccd !== undefined ? item.has_cccd : sec.has_cccd);
+    const hasAuthen = Boolean(item.auth_2fa !== undefined ? item.auth_2fa : sec.auth_2fa);
+    const hasFb = Boolean(item.fb_linked !== undefined ? item.fb_linked : sec.fb_linked);
+
+    const tinhTrang = item.tt_info || item.tinh_trang || (isTrang ? 'ACC TRẮNG' : 'CÓ THÔNG TIN');
+
+    let phoneHtml = hasPhone ? `<span class="sec-val yes">YES [${escapeHtml(phone)}]</span>` : `<span class="sec-val no">NO</span>`;
+    let emailHtml = hasEmail ? (emailV ? `<span class="sec-val yes">YES [${escapeHtml(email)} - ĐÃ XT]</span>` : `<span class="sec-val warn">NO [${escapeHtml(email)} - CHƯA XT]</span>`) : `<span class="sec-val no">NO</span>`;
+    let cccdHtml = hasCccd ? `<span class="sec-val yes">YES</span>` : `<span class="sec-val no">NO</span>`;
+    let authenHtml = hasAuthen ? `<span class="sec-val yes">YES</span>` : `<span class="sec-val no">NO</span>`;
+    let fbHtml = hasFb ? `<span class="sec-val yes">YES</span>` : `<span class="sec-val no">DIE</span>`;
+
     div.innerHTML = `
       <div class="row-head">
         <div style="display:flex;align-items:center;gap:8px;">
-          <span class="acc-tag ${isTrang ? 'trang' : 'hit'}">${isTrang ? 'TRẮNG TTT' : 'HIT LIVE'}</span>
+          <span class="acc-tag ${isTrang ? 'trang' : 'dinh'}">${isTrang ? 'ACC TRẮNG' : 'DÍNH THÔNG TIN'}</span>
           <code>${escapeHtml(accStr)}</code>
         </div>
         <div class="acc-actions">
@@ -752,6 +786,14 @@ function createRowElement(item) {
       </div>
       <div class="acc-info-line">
         [ ${escapeHtml(item.ingame || aov.name || 'NoName')} ] | RANK: <span style="color:var(--gold)">${escapeHtml(item.rank || aov.rank || 'None')}</span> | TƯỚNG: ${item.heroes_count !== undefined ? item.heroes_count : (aov.total_champs || 0)} | SKIN: ${item.skins_count !== undefined ? item.skins_count : (aov.total_skins || 0)}
+      </div>
+      <div class="acc-sec-line">
+        <span class="sec-pill"><strong>SĐT:</strong> ${phoneHtml}</span>
+        <span class="sec-pill"><strong>EMAIL:</strong> ${emailHtml}</span>
+        <span class="sec-pill"><strong>CCCD:</strong> ${cccdHtml}</span>
+        <span class="sec-pill"><strong>2FA:</strong> ${authenHtml}</span>
+        <span class="sec-pill"><strong>FB:</strong> ${fbHtml}</span>
+        <span class="sec-pill"><strong>TRẠNG THÁI:</strong> <span class="sec-val ${isTrang ? 'status-trang' : 'warn'}">${escapeHtml(tinhTrang)}</span></span>
       </div>
       ${skinBlocksHtml ? `<div class="acc-skins-block">${skinBlocksHtml}</div>` : ''}
     `;

@@ -196,8 +196,13 @@ def check_account(account: str, password: str, proxy=None, timeout: int = 10) ->
     result["anime_list"] = anime_list
     result["ss_list"] = ss_list
     result["other_list"] = other_list
-    result["splus_list"] = other_list
     result["tt_info"] = tinh_trang
+    result["masked_phone"] = raw.get("masked_phone", "")
+    result["masked_email"] = raw.get("masked_email", "")
+    result["email_v"] = bool(raw.get("email_verified"))
+    result["has_cccd"] = bool(raw.get("idcard", "").replace("*", "").strip())
+    result["fb_linked"] = bool(raw.get("fb_linked"))
+    result["auth_2fa"] = bool(raw.get("authenticator_enable", 0))
     result["full_info"] = format_account_full_info(result)
 
     return result

@@ -902,13 +902,51 @@ body.app-body {
   border-radius: 3px;
 }
 .acc-tag.hit { background: rgba(16, 185, 129, 0.15); color: var(--green); }
-.acc-tag.trang { background: rgba(0, 229, 255, 0.15); color: var(--cyan); }
+.acc-tag.trang { background: rgba(0, 229, 255, 0.15); color: var(--cyan); border: 1px solid rgba(0, 229, 255, 0.35); }
+.acc-tag.dinh { background: rgba(245, 158, 11, 0.18); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.35); }
 .acc-tag.invalid { background: rgba(244, 63, 94, 0.15); color: var(--red); }
 
 .acc-info-line {
   color: #fff;
   font-size: 12px;
   font-weight: 500;
+}
+.acc-sec-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 5px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.sec-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #cbd5e1;
+}
+.sec-pill strong {
+  color: #94a3b8;
+  font-weight: 600;
+}
+.sec-val.no {
+  color: #34d399;
+  font-weight: 700;
+}
+.sec-val.yes {
+  color: #f87171;
+  font-weight: 700;
+}
+.sec-val.warn {
+  color: #fbbf24;
+  font-weight: 700;
+}
+.sec-val.status-trang {
+  color: var(--cyan);
+  font-weight: 700;
 }
 .acc-actions {
   display: flex;
