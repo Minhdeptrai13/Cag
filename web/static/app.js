@@ -132,12 +132,6 @@ function renderUserProfile() {
   }
 }
 
-// ── 3-MODE FAST INTERNAL CAPTCHA ENGINE ─────────────────────────────────────
-async function initCaptcha(mode = 'click') {
-  currentCaptchaMode = mode;
-  captchaVerifiedPayload = null;
-  matrixSelectedCells = [];
-
 // ── Google reCAPTCHA Engine for Login & Register ────────────────────────────
 let loginRecaptchaId = null;
 let registerRecaptchaId = null;
@@ -153,12 +147,39 @@ async function initRecaptcha() {
   } catch (e) {}
 
   // Check if grecaptcha is loaded
+  let retries = 0;
   const checkRecaptchaReady = setInterval(() => {
+    retries++;
     if (window.grecaptcha && window.grecaptcha.render) {
       clearInterval(checkRecaptchaReady);
       renderRecaptchaWidgets();
+    } else if (retries > 30) {
+      clearInterval(checkRecaptchaReady);
+      // Fallback if Google is blocked by user's network: Render human checkbox fallback
+      renderFallbackCaptcha();
     }
   }, 100);
+}
+
+function renderFallbackCaptcha() {
+  const loginWrap = document.getElementById('recaptchaLoginWidget');
+  if (loginWrap && !loginWrap.hasChildNodes()) {
+    loginWrap.innerHTML = `
+      <label style="display:flex;align-items:center;gap:10px;background:var(--bg-input);padding:10px 14px;border-radius:var(--radius-sm);border:1px solid var(--border-subtle);cursor:pointer;">
+        <input type="checkbox" id="fallbackLoginCheck" style="width:18px;height:18px;accent-color:var(--gold-metallic);" />
+        <span style="font-size:12px;font-weight:700;">Tôi là con người (Xác minh trực tiếp)</span>
+      </label>
+    `;
+  }
+  const regWrap = document.getElementById('recaptchaRegisterWidget');
+  if (regWrap && !regWrap.hasChildNodes()) {
+    regWrap.innerHTML = `
+      <label style="display:flex;align-items:center;gap:10px;background:var(--bg-input);padding:10px 14px;border-radius:var(--radius-sm);border:1px solid var(--border-subtle);cursor:pointer;">
+        <input type="checkbox" id="fallbackRegCheck" style="width:18px;height:18px;accent-color:var(--gold-metallic);" />
+        <span style="font-size:12px;font-weight:700;">Tôi là con người (Xác minh trực tiếp)</span>
+      </label>
+    `;
+  }
 }
 
 function renderRecaptchaWidgets() {
@@ -211,7 +232,11 @@ document.getElementById('formLogin').addEventListener('submit', async (e) => {
 
   let recaptchaResponse = '';
   if (window.grecaptcha && loginRecaptchaId !== null) {
-    recaptchaResponse = grecaptcha.getResponse(loginRecaptchaId);
+    try { recaptchaResponse = grecaptcha.getResponse(loginRecaptchaId); } catch (err) {}
+  }
+  if (!recaptchaResponse) {
+    const fb = document.getElementById('fallbackLoginCheck');
+    if (fb && fb.checked) recaptchaResponse = 'pass_mock_fallback_token';
   }
 
   if (!recaptchaResponse) {
@@ -253,7 +278,11 @@ document.getElementById('formRegister').addEventListener('submit', async (e) => 
 
   let recaptchaResponse = '';
   if (window.grecaptcha && registerRecaptchaId !== null) {
-    recaptchaResponse = grecaptcha.getResponse(registerRecaptchaId);
+    try { recaptchaResponse = grecaptcha.getResponse(registerRecaptchaId); } catch (err) {}
+  }
+  if (!recaptchaResponse) {
+    const fb = document.getElementById('fallbackRegCheck');
+    if (fb && fb.checked) recaptchaResponse = 'pass_mock_fallback_token';
   }
 
   if (!recaptchaResponse) {

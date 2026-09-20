@@ -251,6 +251,7 @@ body.app-body {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
+  -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
   margin-bottom: 50px;
 }
@@ -1034,6 +1035,7 @@ body.app-body {
   justify-content: center;
   cursor: pointer;
   transition: all 0.15s;
+  -webkit-user-select: none;
   user-select: none;
 }
 .matrix-cell:hover {
