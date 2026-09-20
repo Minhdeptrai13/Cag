@@ -63,8 +63,17 @@ def check_account(account: str, password: str, proxy=None, timeout: int = 10) ->
     raw = check1_login(account, password, timeout=timeout, fetch_info=True, proxy=proxy)
     status = raw.get("status", "ERROR")
 
+    phone_display = (raw.get("aov_prefill_mobile") or raw.get("fcmobile_prefill_mobile") or raw.get("masked_phone") or "").strip()
+    mobile_bound = bool(raw.get("mobile_bound"))
+    has_phone = mobile_bound or bool(phone_display and phone_display != "Trắng")
+    if not phone_display and mobile_bound:
+        phone_display = "ĐÃ LIÊN KẾT"
+
     tinh_trang = derive_accurate_tinh_trang(raw) if status == "HIT" else "Chưa xác định"
-    is_trang = (tinh_trang == "Acc Trắng")
+    is_trang = (tinh_trang == "Acc Trắng") and not has_phone
+    if has_phone and (is_trang or tinh_trang == "Acc Trắng"):
+        is_trang = False
+        tinh_trang = "Acc Dính SĐT"
 
     from core.aov_database import classify_skins, translate_aov_rank
 
@@ -80,8 +89,8 @@ def check_account(account: str, password: str, proxy=None, timeout: int = 10) ->
         ss_list = classified["ss_list"]
         other_list = classified["other_list"]
     else:
-        total_skins = skins_dict.get("total_skins", 0) if isinstance(skins_dict, dict) else 0
-        total_champs = skins_dict.get("total_champs", 0) if isinstance(skins_dict, dict) else 0
+        total_skins = int(skins_dict.get("total_skins", 0) or 0) if isinstance(skins_dict, dict) else 0
+        total_champs = int(skins_dict.get("total_champs", 0) or 0) if isinstance(skins_dict, dict) else 0
         sss_list = skins_dict.get("sss_list", []) if isinstance(skins_dict, dict) else []
         anime_list = skins_dict.get("anime_list", []) if isinstance(skins_dict, dict) else []
         ss_list = skins_dict.get("ss_list", []) if isinstance(skins_dict, dict) else []
@@ -137,7 +146,9 @@ def check_account(account: str, password: str, proxy=None, timeout: int = 10) ->
             "cp": skins_dict.get("cp", 0) if isinstance(skins_dict, dict) else 0,
         },
         "security": {
-            "masked_phone": (raw.get("aov_prefill_mobile") or raw.get("fcmobile_prefill_mobile") or raw.get("masked_phone") or "").strip(),
+            "has_phone": has_phone,
+            "mobile_bound": mobile_bound,
+            "masked_phone": phone_display,
             "masked_email": (raw.get("masked_email") or "").strip(),
             "email_v": bool(raw.get("email_verified")) or bool(int(raw.get("email_v", 0) or 0)),
             "has_cccd": bool((raw.get("idcard") or "").replace("*", "").strip()),
@@ -162,7 +173,9 @@ def check_account(account: str, password: str, proxy=None, timeout: int = 10) ->
     result["ss_list"] = ss_list
     result["other_list"] = other_list
     result["tt_info"] = tinh_trang
-    result["masked_phone"] = result["security"]["masked_phone"]
+    result["has_phone"] = has_phone
+    result["mobile_bound"] = mobile_bound
+    result["masked_phone"] = phone_display
     result["masked_email"] = result["security"]["masked_email"]
     result["email_v"] = result["security"]["email_v"]
     result["has_cccd"] = result["security"]["has_cccd"]
@@ -211,8 +224,14 @@ def format_account_full_info(r: dict) -> str:
         email_str = f"NO [{masked_email} - CHƯA XÁC THỰC]"
 
     # SDT
+    has_phone = bool(sec.get("has_phone")) or bool(sec.get("mobile_bound"))
     masked_phone = (sec.get("masked_phone") or "").strip()
-    sdt_str = "NO" if not masked_phone or masked_phone == "Trắng" else f"YES [{masked_phone}]"
+    if masked_phone and masked_phone != "Trắng":
+        sdt_str = f"YES [{masked_phone}]"
+    elif has_phone:
+        sdt_str = "YES [ĐÃ LIÊN KẾT]"
+    else:
+        sdt_str = "NO"
 
     # CMND / CCCD
     cmnd_str = "YES" if sec.get("has_cccd") else "NO"

@@ -86,7 +86,6 @@ SKIN_SS = {
     "51010": "Liliana Lưu Thủy Thần Long",
     "51013": "Liliana Lưu Thủy Thần Long",
     # Violet
-    "11112": "Violet Thần long tỷ tỷ",
     "11113": "Violet Huyết Ma Thần",
     "11115": "Violet Thần long tỷ tỷ",
     "11118": "Violet Huyết ma thần",
@@ -167,7 +166,6 @@ SKIN_SS = {
     # Dòng Kỷ Nguyên Hổ Phách & Đặc Biệt Bậc SS
     "10714": "Zephys Kỷ Nguyên Hổ Phách",
     "50120": "Tel'annas Kỷ Nguyên Hổ Phách",
-    "52112": "Florentino Kỷ Nguyên Hổ Phách",
     "52113": "Florentino Kỷ Nguyên Hổ Phách",
     # Các Skin Bậc SS Hữu Hạn & Sự Kiện Lớn
     "10912": "Veera A.I Love you",

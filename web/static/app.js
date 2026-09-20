@@ -423,8 +423,16 @@ on(btnRunSingle, 'click', async () => {
     if (data.status === 'HIT') {
       singleStatusTag.className = 'status-tag hit';
       const sec = data.security || {};
+      const hasPhone = Boolean(
+        data.has_phone ||
+        sec.has_phone ||
+        data.mobile_bound ||
+        sec.mobile_bound ||
+        (data.masked_phone && data.masked_phone !== 'Trắng' && data.masked_phone !== 'NO') ||
+        (sec.masked_phone && sec.masked_phone !== 'Trắng' && sec.masked_phone !== 'NO')
+      );
       const phone = (data.masked_phone || sec.masked_phone || '').trim();
-      const hasPhone = Boolean(phone && phone !== 'Trắng');
+      const phoneDisplay = (phone && phone !== 'Trắng' && phone !== 'NO') ? phone : (hasPhone ? 'ĐÃ LIÊN KẾT' : '');
 
       const email = (data.masked_email || sec.masked_email || '').trim();
       const hasEmail = Boolean(email && email !== 'Trắng');
@@ -434,15 +442,16 @@ on(btnRunSingle, 'click', async () => {
       const hasAuthen = Boolean(data.auth_2fa !== undefined ? data.auth_2fa : sec.auth_2fa);
       const hasFb = Boolean(data.fb_linked !== undefined ? data.fb_linked : sec.fb_linked);
 
-      const tinhTrang = data.tt_info || data.tinh_trang || (data.is_trang ? 'ACC TRẮNG' : 'CÓ THÔNG TIN');
+      const isTrang = Boolean(data.is_trang) && !hasPhone;
+      const tinhTrang = data.tt_info || data.tinh_trang || (isTrang ? 'ACC TRẮNG' : (hasPhone ? 'Acc Dính SĐT' : 'CÓ THÔNG TIN'));
 
-      let phoneHtml = hasPhone ? `<span class="sec-val yes">YES [${escapeHtml(phone)}]</span>` : `<span class="sec-val no">NO</span>`;
+      let phoneHtml = hasPhone ? `<span class="sec-val yes">YES [${escapeHtml(phoneDisplay)}]</span>` : `<span class="sec-val no">NO</span>`;
       let emailHtml = hasEmail ? (emailV ? `<span class="sec-val yes">YES [${escapeHtml(email)} - ĐÃ XT]</span>` : `<span class="sec-val warn">NO [${escapeHtml(email)} - CHƯA XT]</span>`) : `<span class="sec-val no">NO</span>`;
       let cccdHtml = hasCccd ? `<span class="sec-val yes">YES</span>` : `<span class="sec-val no">NO</span>`;
       let authenHtml = hasAuthen ? `<span class="sec-val yes">YES</span>` : `<span class="sec-val no">NO</span>`;
       let fbHtml = hasFb ? `<span class="sec-val yes">YES</span>` : `<span class="sec-val no">DIE</span>`;
 
-      singleStatusTag.textContent = data.is_trang ? 'HIT LIVE (ACC TRẮNG)' : 'HIT LIVE (DÍNH THÔNG TIN)';
+      singleStatusTag.textContent = isTrang ? 'HIT LIVE (ACC TRẮNG)' : `HIT LIVE (${tinhTrang.toUpperCase()})`;
 
       singleBody.innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -680,11 +689,25 @@ function formatItemFullText(r) {
     emailStr = sec.email_v ? `YES [${maskedEmail} - ĐÃ XÁC THỰC]` : `NO [${maskedEmail} - CHƯA XÁC THỰC]`;
   }
 
-  const maskedPhone = (sec.masked_phone || '').trim();
-  const sdtStr = (!maskedPhone || maskedPhone === 'Trắng') ? 'NO' : `YES [${maskedPhone}]`;
-  const cmndStr = sec.has_cccd ? 'YES' : 'NO';
-  const authenStr = sec.auth_2fa ? 'YES' : 'NO';
-  const fbStr = sec.fb_linked ? 'YES' : 'DIE';
+  const hasPhone = Boolean(
+    r.has_phone ||
+    sec.has_phone ||
+    r.mobile_bound ||
+    sec.mobile_bound ||
+    (r.masked_phone && r.masked_phone !== 'Trắng' && r.masked_phone !== 'NO') ||
+    (sec.masked_phone && sec.masked_phone !== 'Trắng' && sec.masked_phone !== 'NO')
+  );
+  const maskedPhone = (r.masked_phone || sec.masked_phone || '').trim();
+  let sdtStr = 'NO';
+  if (maskedPhone && maskedPhone !== 'Trắng' && maskedPhone !== 'NO') {
+    sdtStr = `YES [${maskedPhone}]`;
+  } else if (hasPhone) {
+    sdtStr = 'YES [ĐÃ LIÊN KẾT]';
+  }
+
+  const cmndStr = (r.has_cccd || sec.has_cccd) ? 'YES' : 'NO';
+  const authenStr = (r.auth_2fa || sec.auth_2fa) ? 'YES' : 'NO';
+  const fbStr = (r.fb_linked || sec.fb_linked) ? 'YES' : 'DIE';
   const shells = r.shells || 0;
   const country = (r.country || 'VN').toUpperCase();
   const lastLogin = r.last_login || 'Chưa ghi nhận';
@@ -698,7 +721,8 @@ function formatItemFullText(r) {
   const sssStr = `${sssList.length} [${sssList.join(', ')}]`;
   const animeStr = `${animeList.length} [${animeList.join(', ')}]`;
   const splusStr = `${splusList.length} [${splusList.join(', ')}]`;
-  const trangThai = (r.tt_info || r.tinh_trang || (r.is_trang ? 'TRẮNG TTT' : 'CÓ THÔNG TIN')).toUpperCase();
+  const isTrangAcc = Boolean(r.is_trang || (r.aov && r.aov.is_trang)) && !hasPhone;
+  const trangThai = (r.tt_info || r.tinh_trang || (isTrangAcc ? 'ACC TRẮNG' : 'CÓ THÔNG TIN')).toUpperCase();
 
   return `${acc}:${pwd} | NAME :${name} | RANK : ${rankStr} | LEVEL : ${level} | HERO : ${hero} | SKIN : ${skin} | BAN : ${ban} | EMAIL : ${emailStr} | SDT : ${sdtStr} | CMND : ${cmndStr} | AUTHEN : ${authenStr} | FB : ${fbStr} | SÒ : ${shells} | QUỐC GIA : ${country} | LOGIN LẦN CUỐI : ${lastLogin} | SS : ${ssStr} | SSS : ${sssStr} | ANIME : ${animeStr} | S+ : ${splusStr} | TRẠNG THÁI : ${trangThai}`;
 }
@@ -706,7 +730,19 @@ function formatItemFullText(r) {
 function createRowElement(item) {
   const div = document.createElement('div');
   const isHit = item.status === 'HIT';
-  const isTrang = Boolean(item.is_trang || (item.aov && item.aov.is_trang));
+  const sec = item.security || {};
+
+  const hasPhone = Boolean(
+    item.has_phone ||
+    sec.has_phone ||
+    item.mobile_bound ||
+    sec.mobile_bound ||
+    (item.masked_phone && item.masked_phone !== 'Trắng' && item.masked_phone !== 'NO') ||
+    (sec.masked_phone && sec.masked_phone !== 'Trắng' && sec.masked_phone !== 'NO')
+  );
+
+  const tinhTrangRaw = item.tt_info || item.tinh_trang || '';
+  const isTrang = Boolean(item.is_trang || (item.aov && item.aov.is_trang)) && !hasPhone && (!tinhTrangRaw || tinhTrangRaw.toLowerCase() === 'acc trắng');
 
   let cls = 'acc-row ';
   if (isHit) cls += isTrang ? 'row-trang' : 'row-hit';
@@ -754,9 +790,8 @@ function createRowElement(item) {
       skinBlocksHtml = `<div class="acc-skins-line">★ VIP: ${escapeHtml(item.skins_vip)}</div>`;
     }
 
-    const sec = item.security || {};
     const phone = (item.masked_phone || sec.masked_phone || '').trim();
-    const hasPhone = Boolean(phone && phone !== 'Trắng');
+    const phoneDisplay = (phone && phone !== 'Trắng' && phone !== 'NO') ? phone : (hasPhone ? 'ĐÃ LIÊN KẾT' : '');
 
     const email = (item.masked_email || sec.masked_email || '').trim();
     const hasEmail = Boolean(email && email !== 'Trắng');
@@ -766,9 +801,9 @@ function createRowElement(item) {
     const hasAuthen = Boolean(item.auth_2fa !== undefined ? item.auth_2fa : sec.auth_2fa);
     const hasFb = Boolean(item.fb_linked !== undefined ? item.fb_linked : sec.fb_linked);
 
-    const tinhTrang = item.tt_info || item.tinh_trang || (isTrang ? 'ACC TRẮNG' : 'CÓ THÔNG TIN');
+    const tinhTrang = tinhTrangRaw || (isTrang ? 'ACC TRẮNG' : (hasPhone ? 'Acc Dính SĐT' : 'CÓ THÔNG TIN'));
 
-    let phoneHtml = hasPhone ? `<span class="sec-val yes">YES [${escapeHtml(phone)}]</span>` : `<span class="sec-val no">NO</span>`;
+    let phoneHtml = hasPhone ? `<span class="sec-val yes">YES [${escapeHtml(phoneDisplay)}]</span>` : `<span class="sec-val no">NO</span>`;
     let emailHtml = hasEmail ? (emailV ? `<span class="sec-val yes">YES [${escapeHtml(email)} - ĐÃ XT]</span>` : `<span class="sec-val warn">NO [${escapeHtml(email)} - CHƯA XT]</span>`) : `<span class="sec-val no">NO</span>`;
     let cccdHtml = hasCccd ? `<span class="sec-val yes">YES</span>` : `<span class="sec-val no">NO</span>`;
     let authenHtml = hasAuthen ? `<span class="sec-val yes">YES</span>` : `<span class="sec-val no">NO</span>`;
@@ -836,7 +871,18 @@ function createRowElement(item) {
 
 function matchesFilter(item) {
   const isHit = item.status === 'HIT';
-  const isTrang = Boolean(item.is_trang || (item.aov && item.aov.is_trang));
+  const sec = item.security || {};
+  const hasPhone = Boolean(
+    item.has_phone ||
+    sec.has_phone ||
+    item.mobile_bound ||
+    sec.mobile_bound ||
+    (item.masked_phone && item.masked_phone !== 'Trắng' && item.masked_phone !== 'NO') ||
+    (sec.masked_phone && sec.masked_phone !== 'Trắng' && sec.masked_phone !== 'NO')
+  );
+  const tinhTrang = (item.tt_info || item.tinh_trang || '').toLowerCase();
+  const isTrang = Boolean(item.is_trang || (item.aov && item.aov.is_trang)) && !hasPhone && (!tinhTrang || tinhTrang === 'acc trắng');
+
   const hasVip = Boolean(
     item.skins_vip ||
     (item.sss_list && item.sss_list.length > 0) ||
@@ -849,7 +895,7 @@ function matchesFilter(item) {
     ))
   );
 
-  if (currentFilter === 'trang' && (!isHit || !isTrang)) return false;
+  if (currentFilter === 'trang' && (!isHit || !isTrang || hasPhone)) return false;
   if (currentFilter === 'vip' && (!isHit || !hasVip)) return false;
   if (currentFilter === 'live' && !isHit) return false;
 
@@ -866,7 +912,19 @@ function updateCounters() {
   allResults.forEach(r => {
     if (r.status === 'HIT') {
       hits++;
-      if (r.is_trang || (r.aov && r.aov.is_trang)) trang++;
+      const sec = r.security || {};
+      const hasPhone = Boolean(
+        r.has_phone ||
+        sec.has_phone ||
+        r.mobile_bound ||
+        sec.mobile_bound ||
+        (r.masked_phone && r.masked_phone !== 'Trắng' && r.masked_phone !== 'NO') ||
+        (sec.masked_phone && sec.masked_phone !== 'Trắng' && sec.masked_phone !== 'NO')
+      );
+      const tinhTrang = (r.tt_info || r.tinh_trang || '').toLowerCase();
+      const isTrangAcc = Boolean(r.is_trang || (r.aov && r.aov.is_trang)) && !hasPhone && (!tinhTrang || tinhTrang === 'acc trắng');
+      if (isTrangAcc) trang++;
+
       const hasVip = Boolean(
         r.skins_vip ||
         (r.sss_list && r.sss_list.length > 0) ||
@@ -959,17 +1017,31 @@ on(btnExportTrang, 'click', () => {
     showToast('CHƯA CÓ KẾT QUẢ CHECK NÀO ĐỂ XUẤT');
     return;
   }
-  const trangs = allResults.filter(r => r.status === 'HIT' && (r.is_trang || (r.aov && r.aov.is_trang)));
+  const trangs = allResults.filter(r => {
+    if (r.status !== 'HIT') return false;
+    const sec = r.security || {};
+    const hasPhone = Boolean(
+      r.has_phone ||
+      sec.has_phone ||
+      r.mobile_bound ||
+      sec.mobile_bound ||
+      (r.masked_phone && r.masked_phone !== 'Trắng' && r.masked_phone !== 'NO') ||
+      (sec.masked_phone && sec.masked_phone !== 'Trắng' && sec.masked_phone !== 'NO')
+    );
+    const tinhTrang = (r.tt_info || r.tinh_trang || '').toLowerCase();
+    return Boolean(r.is_trang || (r.aov && r.aov.is_trang)) && !hasPhone && (!tinhTrang || tinhTrang === 'acc trắng');
+  });
+
   if (trangs.length === 0) {
-    showToast('KHÔNG CÓ TÀI KHOẢN NÀO TRẮNG TTT TRONG KẾT QUẢ');
+    showToast('KHÔNG CÓ TÀI KHOẢN NÀO TRẮNG THÔNG TIN TRONG KẾT QUẢ');
     return;
   }
-  let txt = '=== DANH SÁCH ACC AOV TRẮNG TTT (FULL CHI TIẾT) ===\n\n';
+  let txt = '=== DANH SÁCH ACC AOV TRẮNG THÔNG TIN (FULL CHI TIẾT) ===\n\n';
   trangs.forEach(r => {
     txt += formatItemFullText(r) + '\n';
   });
   downloadFile(`aov_acc_trang_full_${Date.now()}.txt`, txt);
-  showToast(`ĐÃ XUẤT ${trangs.length} ACC TRẮNG TTT`);
+  showToast(`ĐÃ XUẤT ${trangs.length} ACC TRẮNG THÔNG TIN`);
 });
 
 on(btnCopyView, 'click', () => {
