@@ -40,7 +40,7 @@ def _load_dotenv():
 _load_dotenv()
 
 from core.aov_engine import check_account, parse_combo_line, format_account_full_info
-from core.captcha import generate_captcha_challenge, verify_captcha_response
+from core.captcha import verify_google_recaptcha, generate_adaptive_challenge, GOOGLE_RECAPTCHA_SITE_KEY
 from core.ai_copilot import chat_with_copilot
 from core.db import (
     init_db, register_user, login_user, get_user_profile,
@@ -195,13 +195,11 @@ class AOVWebHandler(BaseHTTPRequestHandler):
             self._send_json(resp_data)
             return
 
-        # ── 5. Internal Captcha Challenge (Multi-mode) ────────────────────────
+        # ── 5. Captcha Challenge Endpoint (Google reCAPTCHA v2 + Adaptive) ────
         if path == "/api/captcha/new":
-            mode = query.get("mode", ["slider"])[0]
-            if mode not in ("click", "slider", "matrix"):
-                mode = "slider"
-            challenge = generate_captcha_challenge(mode)
-            self._send_json({"success": True, "challenge": challenge})
+            client_ip = self.client_address[0] if self.client_address else "127.0.0.1"
+            challenge = generate_adaptive_challenge(client_ip)
+            self._send_json({"success": True, "challenge": challenge, "site_key": challenge["site_key"]})
             return
 
         # ── 6. Admin User Directory ───────────────────────────────────────────
@@ -259,24 +257,16 @@ class AOVWebHandler(BaseHTTPRequestHandler):
             username = str(payload.get("username", "")).strip()
             password = str(payload.get("password", "")).strip()
             
-            # Verify Captcha
-            captcha_token = payload.get("captcha_token", "")
-            captcha_mode = payload.get("captcha_mode", "slider")
-            user_answer = payload.get("user_answer", {})
+            # Verify Google reCAPTCHA
+            recaptcha_token = payload.get("recaptcha_response") or payload.get("captcha_token", "")
+            client_ip = self.client_address[0] if self.client_address else ""
 
-            # Fallback for old slider fields
-            if not user_answer and "submitted_x" in payload:
-                user_answer = {
-                    "user_x": payload.get("submitted_x", 0),
-                    "track_width": payload.get("track_width", 300)
-                }
+            if not recaptcha_token:
+                self._send_json({"success": False, "error": "Vui lòng xác minh Google Captcha (Tôi không phải là người máy)!"}, 400)
+                return
 
-            if captcha_token:
-                if not verify_captcha_response(captcha_mode, captcha_token, user_answer):
-                    self._send_json({"success": False, "error": f"Xác thực bảo mật ({captcha_mode}) không chính xác! Vui lòng thử lại."}, 400)
-                    return
-            else:
-                self._send_json({"success": False, "error": "Vui lòng hoàn thành xác thực bảo mật Captcha!"}, 400)
+            if not verify_google_recaptcha(recaptcha_token, client_ip):
+                self._send_json({"success": False, "error": "Xác thực Google Captcha thất bại hoặc nghi vấn bot! Vui lòng thử lại."}, 400)
                 return
 
             res = register_user(username, password)
@@ -288,6 +278,19 @@ class AOVWebHandler(BaseHTTPRequestHandler):
         if path in ("/api/auth/login", "/api/login"):
             username = str(payload.get("username", "")).strip()
             password = str(payload.get("password", "")).strip()
+
+            # Verify Google reCAPTCHA on login
+            recaptcha_token = payload.get("recaptcha_response") or payload.get("captcha_token", "")
+            client_ip = self.client_address[0] if self.client_address else ""
+
+            if not recaptcha_token:
+                self._send_json({"success": False, "error": "Vui lòng xác minh Google Captcha trước khi đăng nhập!"}, 400)
+                return
+
+            if not verify_google_recaptcha(recaptcha_token, client_ip):
+                self._send_json({"success": False, "error": "Xác thực Google Captcha không thành công! Vui lòng thử lại."}, 400)
+                return
+
             res = login_user(username, password)
             status_code = 200 if res["success"] else 401
             self._send_json(res, status_code)

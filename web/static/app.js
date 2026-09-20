@@ -59,7 +59,6 @@ function showAuth(mode = 'login') {
     document.getElementById('tabBtnRegister').style.background = 'rgba(255,255,255,0.08)';
     document.getElementById('tabBtnLogin').style.background = 'transparent';
     document.getElementById('authTitle').textContent = 'TẠO TÀI KHOẢN';
-    initCaptcha(currentCaptchaMode);
   } else {
     document.getElementById('formLogin').style.display = 'block';
     document.getElementById('formRegister').style.display = 'none';
@@ -67,6 +66,7 @@ function showAuth(mode = 'login') {
     document.getElementById('tabBtnRegister').style.background = 'transparent';
     document.getElementById('authTitle').textContent = 'ĐĂNG NHẬP STUDIO';
   }
+  initRecaptcha();
 }
 
 function showStudio() {
@@ -138,169 +138,50 @@ async function initCaptcha(mode = 'click') {
   captchaVerifiedPayload = null;
   matrixSelectedCells = [];
 
-  const btnSubmit = document.getElementById('btnSubmitRegister');
-  if (btnSubmit) btnSubmit.disabled = true;
+// ── Google reCAPTCHA Engine for Login & Register ────────────────────────────
+let loginRecaptchaId = null;
+let registerRecaptchaId = null;
+let currentSiteKey = '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI';
 
-  // Toggle Box Views
-  document.getElementById('capBoxClick').style.display = mode === 'click' ? 'flex' : 'none';
-  document.getElementById('capBoxSlider').style.display = mode === 'slider' ? 'block' : 'none';
-  document.getElementById('capBoxMatrix').style.display = mode === 'matrix' ? 'block' : 'none';
-
-  // Highlight Mode Button
-  document.querySelectorAll('.btn-cap-mode').forEach(b => {
-    if (b.getAttribute('data-mode') === mode) b.classList.add('active');
-    else b.classList.remove('active');
-  });
-
-  // Fetch Challenge from backend
+async function initRecaptcha() {
   try {
-    const res = await fetch(`/api/captcha/new?mode=${mode}`);
+    const res = await fetch('/api/captcha/new');
     const data = await res.json();
-    if (data.success && data.challenge) {
-      currentCaptchaChallenge = data.challenge;
-      setupCaptchaUI(mode, currentCaptchaChallenge);
+    if (data.site_key) {
+      currentSiteKey = data.site_key;
+    }
+  } catch (e) {}
+
+  // Check if grecaptcha is loaded
+  const checkRecaptchaReady = setInterval(() => {
+    if (window.grecaptcha && window.grecaptcha.render) {
+      clearInterval(checkRecaptchaReady);
+      renderRecaptchaWidgets();
+    }
+  }, 100);
+}
+
+function renderRecaptchaWidgets() {
+  try {
+    const loginWrap = document.getElementById('recaptchaLoginWidget');
+    if (loginWrap && loginRecaptchaId === null) {
+      loginRecaptchaId = grecaptcha.render('recaptchaLoginWidget', {
+        'sitekey': currentSiteKey,
+        'theme': 'dark'
+      });
+    }
+
+    const regWrap = document.getElementById('recaptchaRegisterWidget');
+    if (regWrap && registerRecaptchaId === null) {
+      registerRecaptchaId = grecaptcha.render('recaptchaRegisterWidget', {
+        'sitekey': currentSiteKey,
+        'theme': 'dark'
+      });
     }
   } catch (err) {
-    console.error('Captcha fetch error:', err);
+    console.warn('reCAPTCHA render warning:', err);
   }
 }
-
-function setupCaptchaUI(mode, ch) {
-  if (mode === 'click') {
-    const clickBox = document.getElementById('capBoxClick');
-    clickBox.classList.remove('verified');
-    document.getElementById('clickCheckCircle').innerHTML = '';
-    document.getElementById('clickLabelText').textContent = 'Tôi là con người (Xác minh 1 chạm)';
-
-    const startTime = Date.now();
-    clickBox.onclick = () => {
-      const elapsed = Date.now() - startTime;
-      captchaVerifiedPayload = {
-        captcha_mode: 'click',
-        captcha_token: ch.token,
-        user_answer: { elapsed_ms: elapsed }
-      };
-      clickBox.classList.add('verified');
-      document.getElementById('clickCheckCircle').innerHTML = '✓';
-      document.getElementById('clickLabelText').textContent = 'Xác minh thành công';
-      document.getElementById('btnSubmitRegister').disabled = false;
-      showToast('ĐÃ XÁC MINH BẢO MẬT!');
-    };
-
-  } else if (mode === 'slider') {
-    const track = document.getElementById('sliderMagTrack');
-    const thumb = document.getElementById('sliderMagThumb');
-    const notch = document.getElementById('sliderMagNotch');
-    const statusText = document.getElementById('sliderStatusText');
-
-    thumb.style.left = '4px';
-    notch.classList.remove('matched');
-    statusText.textContent = 'Kéo viên bi vàng sang ô tím:';
-
-    const trackWidth = track.clientWidth || 340;
-    const targetX = Math.round(ch.target_ratio * (trackWidth - 44));
-    notch.style.left = `${targetX}px`;
-
-    let isDragging = false;
-    let startX = 0;
-    let currentThumbX = 4;
-
-    const startDrag = (e) => {
-      isDragging = true;
-      startX = e.type.startsWith('touch') ? e.touches[0].clientX : e.clientX;
-      document.addEventListener('mousemove', moveDrag);
-      document.addEventListener('touchmove', moveDrag, { passive: false });
-      document.addEventListener('mouseup', endDrag);
-      document.addEventListener('touchend', endDrag);
-    };
-
-    const moveDrag = (e) => {
-      if (!isDragging) return;
-      if (e.cancelable && e.type.startsWith('touch')) e.preventDefault();
-      const clientX = e.type.startsWith('touch') ? e.touches[0].clientX : e.clientX;
-      const deltaX = clientX - startX;
-      const maxLeft = trackWidth - 40;
-      currentThumbX = Math.max(4, Math.min(4 + deltaX, maxLeft));
-      thumb.style.left = `${currentThumbX}px`;
-
-      if (Math.abs(currentThumbX - targetX) <= 16) notch.classList.add('matched');
-      else notch.classList.remove('matched');
-    };
-
-    const endDrag = () => {
-      if (!isDragging) return;
-      isDragging = false;
-      document.removeEventListener('mousemove', moveDrag);
-      document.removeEventListener('touchmove', moveDrag);
-      document.removeEventListener('mouseup', endDrag);
-      document.removeEventListener('touchend', endDrag);
-
-      if (Math.abs(currentThumbX - targetX) <= 16) {
-        notch.classList.add('matched');
-        statusText.textContent = '✓ Đã khớp vị trí thành công';
-        statusText.style.color = 'var(--green-neon)';
-        captchaVerifiedPayload = {
-          captcha_mode: 'slider',
-          captcha_token: ch.token,
-          user_answer: { user_x: currentThumbX, track_width: trackWidth }
-        };
-        document.getElementById('btnSubmitRegister').disabled = false;
-        showToast('XÁC THỰC THANH TRƯỢT THÀNH CÔNG!');
-      } else {
-        thumb.style.transition = 'left 0.2s ease';
-        thumb.style.left = '4px';
-        setTimeout(() => { thumb.style.transition = ''; }, 220);
-      }
-    };
-
-    thumb.onmousedown = startDrag;
-    thumb.ontouchstart = startDrag;
-
-  } else if (mode === 'matrix') {
-    const promptText = document.getElementById('matrixPromptText');
-    const gridBox = document.getElementById('matrixGridBox');
-
-    promptText.innerHTML = `<span>Chọn tất cả ô chứa: <strong>${ch.target_name} ${ch.target_icon}</strong></span>`;
-    gridBox.innerHTML = '';
-    matrixSelectedCells = [];
-
-    (ch.grid || []).forEach(cell => {
-      const cellEl = document.createElement('div');
-      cellEl.className = 'matrix-cell';
-      cellEl.textContent = cell.icon;
-      cellEl.setAttribute('data-id', cell.cell_id);
-
-      cellEl.onclick = () => {
-        const cid = parseInt(cell.cell_id, 10);
-        if (matrixSelectedCells.includes(cid)) {
-          matrixSelectedCells = matrixSelectedCells.filter(x => x !== cid);
-          cellEl.classList.remove('selected');
-        } else {
-          matrixSelectedCells.push(cid);
-          cellEl.classList.add('selected');
-        }
-
-        if (matrixSelectedCells.length >= 2) {
-          captchaVerifiedPayload = {
-            captcha_mode: 'matrix',
-            captcha_token: ch.token,
-            user_answer: matrixSelectedCells
-          };
-          document.getElementById('btnSubmitRegister').disabled = false;
-        }
-      };
-      gridBox.appendChild(cellEl);
-    });
-  }
-}
-
-// Mode Buttons Bindings
-document.querySelectorAll('.btn-cap-mode').forEach(b => {
-  b.addEventListener('click', () => {
-    const m = b.getAttribute('data-mode');
-    initCaptcha(m);
-  });
-});
 
 // ── Auth Forms Handling ─────────────────────────────────────────────────────
 document.getElementById('tabBtnLogin').addEventListener('click', () => showAuth('login'));
@@ -322,17 +203,31 @@ document.getElementById('btnStudioLogout').addEventListener('click', () => {
   showToast('ĐÃ ĐĂNG XUẤT KHỎI HỆ THỐNG');
 });
 
-// Submit Login
+// Submit Login with Google reCAPTCHA
 document.getElementById('formLogin').addEventListener('submit', async (e) => {
   e.preventDefault();
   const username = document.getElementById('loginUser').value.trim();
   const password = document.getElementById('loginPass').value;
 
+  let recaptchaResponse = '';
+  if (window.grecaptcha && loginRecaptchaId !== null) {
+    recaptchaResponse = grecaptcha.getResponse(loginRecaptchaId);
+  }
+
+  if (!recaptchaResponse) {
+    showToast('Vui lòng tích vào ô Tôi không phải là người máy!');
+    return;
+  }
+
   try {
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
+      body: JSON.stringify({
+        username,
+        password,
+        recaptcha_response: recaptchaResponse
+      })
     });
     const data = await res.json();
     if (data.success) {
@@ -342,20 +237,27 @@ document.getElementById('formLogin').addEventListener('submit', async (e) => {
       showToast(`XIN CHÀO ${currentUser.username.toUpperCase()}!`);
     } else {
       showToast(data.error || 'Đăng nhập thất bại');
+      if (window.grecaptcha && loginRecaptchaId !== null) grecaptcha.reset(loginRecaptchaId);
     }
   } catch (err) {
     showToast('Lỗi kết nối máy chủ');
+    if (window.grecaptcha && loginRecaptchaId !== null) grecaptcha.reset(loginRecaptchaId);
   }
 });
 
-// Submit Register with 3-Mode Captcha
+// Submit Register with Google reCAPTCHA
 document.getElementById('formRegister').addEventListener('submit', async (e) => {
   e.preventDefault();
   const username = document.getElementById('regUser').value.trim();
   const password = document.getElementById('regPass').value;
 
-  if (!captchaVerifiedPayload) {
-    showToast('Vui lòng hoàn thành xác minh bảo mật Captcha!');
+  let recaptchaResponse = '';
+  if (window.grecaptcha && registerRecaptchaId !== null) {
+    recaptchaResponse = grecaptcha.getResponse(registerRecaptchaId);
+  }
+
+  if (!recaptchaResponse) {
+    showToast('Vui lòng tích vào ô xác minh Tôi không phải là người máy!');
     return;
   }
 
@@ -366,7 +268,7 @@ document.getElementById('formRegister').addEventListener('submit', async (e) => 
       body: JSON.stringify({
         username,
         password,
-        ...captchaVerifiedPayload
+        recaptcha_response: recaptchaResponse
       })
     });
     const data = await res.json();
@@ -377,11 +279,11 @@ document.getElementById('formRegister').addEventListener('submit', async (e) => 
       showToast('ĐĂNG KÝ THÀNH CÔNG! BẠN ĐƯỢC TẶNG 50 CREDITS');
     } else {
       showToast(data.error || 'Đăng ký thất bại');
-      initCaptcha(currentCaptchaMode);
+      if (window.grecaptcha && registerRecaptchaId !== null) grecaptcha.reset(registerRecaptchaId);
     }
   } catch (err) {
     showToast('Lỗi máy chủ');
-    initCaptcha(currentCaptchaMode);
+    if (window.grecaptcha && registerRecaptchaId !== null) grecaptcha.reset(registerRecaptchaId);
   }
 });
 

@@ -6,6 +6,8 @@
   <title>AOV Studio - Garena Core Engine & AI Playground</title>
   <link rel="icon" type="image/svg+xml" href="/assets/garena_logo.svg" />
   <link rel="stylesheet" href="/style.css?v=3.0" />
+  <!-- Google reCAPTCHA v2 Enterprise Client -->
+  <script src="https://www.google.com/recaptcha/api.js?render=explicit" async defer></script>
 </head>
 <body class="app-body">
 
@@ -529,11 +531,17 @@ print(response.json())
           <label style="font-size:11px;font-family:var(--font-mono);color:var(--text-muted);display:block;margin-bottom:6px;">USERNAME</label>
           <input type="text" id="loginUser" required placeholder="Tên tài khoản..." style="width:100%;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:10px 14px;color:#fff;outline:none;" />
         </div>
-        <div style="margin-bottom:20px;">
+        <div style="margin-bottom:14px;">
           <label style="font-size:11px;font-family:var(--font-mono);color:var(--text-muted);display:block;margin-bottom:6px;">PASSWORD</label>
           <input type="password" id="loginPass" required placeholder="Mật khẩu..." style="width:100%;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:10px 14px;color:#fff;outline:none;" />
         </div>
-        <button type="submit" class="btn btn-primary-gold" style="width:100%;">ĐĂNG NHẬP VÀO STUDIO</button>
+        
+        <!-- Google reCAPTCHA Container for Login -->
+        <div style="margin-bottom:18px;display:flex;justify-content:center;">
+          <div id="recaptchaLoginWidget"></div>
+        </div>
+
+        <button type="submit" class="btn btn-primary-gold" id="btnSubmitLogin" style="width:100%;">ĐĂNG NHẬP VÀO STUDIO</button>
       </form>
 
       <!-- Register Form -->
@@ -547,47 +555,12 @@ print(response.json())
           <input type="password" id="regPass" required placeholder="Mật khẩu..." style="width:100%;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:10px 14px;color:#fff;outline:none;" />
         </div>
 
-        <!-- 3-Mode Fast Captcha Container -->
-        <div class="captcha-container-card">
-          <div class="captcha-mode-selector">
-            <span style="font-size:10px;font-family:var(--font-mono);color:var(--text-muted);margin-right:auto;align-self:center;">BẢO MẬT:</span>
-            <button type="button" class="btn-cap-mode active" data-mode="click">1-Click</button>
-            <button type="button" class="btn-cap-mode" data-mode="slider">Kéo trượt</button>
-            <button type="button" class="btn-cap-mode" data-mode="matrix">Chọn hình</button>
-          </div>
-
-          <!-- Mode 1: 1-Click Smart -->
-          <div id="capBoxClick" class="captcha-click-box">
-            <div style="display:flex;align-items:center;gap:10px;">
-              <div class="click-check-circle" id="clickCheckCircle"></div>
-              <span style="font-size:12px;font-weight:700;" id="clickLabelText">Tôi là con người (Xác minh 1 chạm)</span>
-            </div>
-            <span style="font-size:10px;font-family:var(--font-mono);color:var(--gold-metallic);">FAST SECURE</span>
-          </div>
-
-          <!-- Mode 2: Slider Magnetic -->
-          <div id="capBoxSlider" style="display:none;">
-            <div style="font-size:11px;font-family:var(--font-mono);color:var(--text-muted);margin-bottom:6px;" id="sliderStatusText">Kéo viên bi vàng sang ô tím:</div>
-            <div class="slider-magnetic-track" id="sliderMagTrack">
-              <div class="slider-target-notch" id="sliderMagNotch"></div>
-              <div class="slider-magnetic-thumb" id="sliderMagThumb">
-                <svg class="svg-icon icon-sm" viewBox="0 0 24 24" style="stroke:#000;"><polyline points="9 18 15 12 9 6"></polyline></svg>
-              </div>
-            </div>
-          </div>
-
-          <!-- Mode 3: Matrix Icon Question -->
-          <div id="capBoxMatrix" style="display:none;">
-            <div class="matrix-question-prompt" id="matrixPromptText">
-              <span>Đang tải câu hỏi...</span>
-            </div>
-            <div class="matrix-grid-box" id="matrixGridBox" style="margin-top:8px;">
-              <!-- 6 Cells dynamic -->
-            </div>
-          </div>
+        <!-- Google reCAPTCHA Container for Register -->
+        <div style="margin-bottom:18px;display:flex;justify-content:center;">
+          <div id="recaptchaRegisterWidget"></div>
         </div>
 
-        <button type="submit" class="btn btn-primary-gold" id="btnSubmitRegister" disabled style="width:100%;margin-top:10px;">
+        <button type="submit" class="btn btn-primary-gold" id="btnSubmitRegister" style="width:100%;margin-top:4px;">
           TẠO TÀI KHOẢN (+50 CREDITS)
         </button>
       </form>
