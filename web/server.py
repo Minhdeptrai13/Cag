@@ -29,28 +29,15 @@ if sys.platform == "win32":
         pass
 
 from core.aov_engine import check_account, parse_combo_line, format_account_full_info
-from core.captcha import generate_slider_challenge, verify_slider_response
+from core.captcha import generate_captcha_challenge, verify_captcha_response
 from core.ai_copilot import chat_with_copilot
 from core.db import (
-    init_db,
-    register_user,
-    login_user,
-    get_user_profile,
-    validate_api_key,
-    deduct_credit,
-    add_credits,
-    generate_new_api_key,
-    revoke_api_key,
-    get_user_keys,
-    save_check_history,
-    get_user_history,
-    clear_user_history,
-    redeem_giftcode,
-    admin_get_all_users,
-    admin_adjust_credits,
-    admin_update_role,
-    admin_list_giftcodes,
-    admin_create_giftcode,
+    init_db, register_user, login_user, get_user_profile,
+    validate_api_key, deduct_credit, add_credits,
+    generate_new_api_key, revoke_api_key, get_user_keys,
+    save_check_history, get_user_history, clear_user_history,
+    redeem_giftcode, admin_get_all_users, admin_adjust_credits,
+    admin_update_role, admin_list_giftcodes, admin_create_giftcode,
     admin_delete_giftcode
 )
 
@@ -197,9 +184,12 @@ class AOVWebHandler(BaseHTTPRequestHandler):
             self._send_json(resp_data)
             return
 
-        # ── 5. Internal Captcha Challenge ─────────────────────────────────────
+        # ── 5. Internal Captcha Challenge (Multi-mode) ────────────────────────
         if path == "/api/captcha/new":
-            challenge = generate_slider_challenge()
+            mode = query.get("mode", ["slider"])[0]
+            if mode not in ("click", "slider", "matrix"):
+                mode = "slider"
+            challenge = generate_captcha_challenge(mode)
             self._send_json({"success": True, "challenge": challenge})
             return
 
@@ -260,13 +250,23 @@ class AOVWebHandler(BaseHTTPRequestHandler):
             
             # Verify Captcha
             captcha_token = payload.get("captcha_token", "")
-            submitted_x = payload.get("submitted_x", 0)
-            user_target_x = payload.get("target_x", 0)
+            captcha_mode = payload.get("captcha_mode", "slider")
+            user_answer = payload.get("user_answer", {})
+
+            # Fallback for old slider fields
+            if not user_answer and "submitted_x" in payload:
+                user_answer = {
+                    "user_x": payload.get("submitted_x", 0),
+                    "track_width": payload.get("track_width", 300)
+                }
 
             if captcha_token:
-                if not verify_slider_response(captcha_token, submitted_x, user_target_x):
-                    self._send_json({"success": False, "error": "Xác thực bảo mật (Captcha kéo trượt) không hợp lệ! Vui lòng thử lại."}, 400)
+                if not verify_captcha_response(captcha_mode, captcha_token, user_answer):
+                    self._send_json({"success": False, "error": f"Xác thực bảo mật ({captcha_mode}) không chính xác! Vui lòng thử lại."}, 400)
                     return
+            else:
+                self._send_json({"success": False, "error": "Vui lòng hoàn thành xác thực bảo mật Captcha!"}, 400)
+                return
 
             res = register_user(username, password)
             status_code = 200 if res["success"] else 400
