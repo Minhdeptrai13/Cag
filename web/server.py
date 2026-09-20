@@ -270,6 +270,15 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                 is_done = should_stop or (done >= total and total > 0) or (not is_running)
                 status_text = "STOPPED" if should_stop else ("DONE" if is_done else "RUNNING")
 
+                start_ts = task.get("start_time") or time.time()
+                end_ts = task.get("end_time") or (time.time() if not is_done else time.time())
+                if is_done and not task.get("end_time"):
+                    task["end_time"] = time.time()
+                    end_ts = task["end_time"]
+
+                elapsed_sec = max(0.1, (end_ts - start_ts) if is_done else (time.time() - start_ts))
+                speed = round(done / elapsed_sec, 2) if elapsed_sec > 0 else 0.0
+
                 resp_data = {
                     "task_id": task_id,
                     "total": total,
@@ -281,6 +290,8 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                     "is_running": is_running and not should_stop,
                     "is_done": is_done,
                     "was_stopped": should_stop,
+                    "elapsed_sec": round(elapsed_sec, 1),
+                    "speed": speed,
                     "status": status_text,
                     "results": all_res,
                     "new_results": new_slice,
@@ -688,6 +699,8 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                 "invalid": 0,
                 "is_running": True,
                 "should_stop": False,
+                "start_time": time.time(),
+                "end_time": None,
                 "results": [],
                 "all_hits": [],
             }
@@ -881,6 +894,9 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                 "trang": 0,
                 "invalid": 0,
                 "is_running": True,
+                "should_stop": False,
+                "start_time": time.time(),
+                "end_time": None,
                 "results": [],
                 "all_hits": [],
             }

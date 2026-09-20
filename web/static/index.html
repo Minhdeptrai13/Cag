@@ -367,14 +367,18 @@
                 </div>
               </div>
 
-              <!-- Stream Progress -->
-              <div id="batchProgressBox" style="display:none;margin-bottom:10px;">
-                <div style="display:flex;justify-content:space-between;font-size:11px;font-family:var(--font-mono);margin-bottom:4px;">
-                  <span id="batchProgStatus" style="color:var(--gold-light);">Đang khởi động luồng...</span>
-                  <span id="batchProgRatio">0%</span>
+              <!-- Stream Progress & Realtime Timer -->
+              <div id="batchProgressBox" style="display:none;margin-bottom:12px;background:rgba(255,255,255,0.02);padding:10px 12px;border-radius:var(--radius-md);border:1px solid rgba(255,255,255,0.06);">
+                <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;font-family:var(--font-mono);margin-bottom:6px;">
+                  <span id="batchProgStatus" style="color:var(--gold-light);font-weight:700;">Đang khởi động luồng...</span>
+                  <div style="display:flex;align-items:center;gap:12px;">
+                    <span id="batchTimerBadge" style="color:var(--cyan-neon);font-size:11px;">⏱️ 00:00</span>
+                    <span id="batchSpeedBadge" style="color:var(--text-secondary);font-size:11px;">0 acc/s</span>
+                    <span id="batchProgRatio" style="font-weight:700;color:#fff;">0%</span>
+                  </div>
                 </div>
                 <div style="height:6px;background:rgba(255,255,255,0.08);border-radius:var(--radius-pill);overflow:hidden;">
-                  <div id="batchProgBar" style="width:0%;height:100%;background:linear-gradient(90deg,var(--violet-neon),var(--gold-metallic));"></div>
+                  <div id="batchProgBar" style="width:0%;height:100%;background:linear-gradient(90deg,var(--violet-neon),var(--gold-metallic));transition:width 0.2s ease;"></div>
                 </div>
               </div>
 

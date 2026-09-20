@@ -497,10 +497,23 @@ btnStartBatch.addEventListener('click', async () => {
 });
 
 let consecutivePollErrors = 0;
+let batchStartTime = null;
+let batchTimerInterval = null;
+let lastRenderedCount = 0;
+
+function formatElapsedDuration(ms) {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+}
 
 function pollBatchProgress(taskId) {
   clearInterval(pollInterval);
+  clearInterval(batchTimerInterval);
   consecutivePollErrors = 0;
+  batchStartTime = Date.now();
+  lastRenderedCount = 0;
 
   // Make sure stop button is visible and enabled
   if (btnStopBatch) {
@@ -511,6 +524,18 @@ function pollBatchProgress(taskId) {
   btnStartBatch.disabled = true;
   btnStartBatch.style.display = 'none';
 
+  // Live timer tick every 500ms
+  const timerBadge = document.getElementById('batchTimerBadge');
+  const speedBadge = document.getElementById('batchSpeedBadge');
+  if (timerBadge) timerBadge.textContent = '⏱️ 00:00';
+  if (speedBadge) speedBadge.textContent = '0 acc/s';
+
+  batchTimerInterval = setInterval(() => {
+    if (!batchStartTime) return;
+    const elapsed = Date.now() - batchStartTime;
+    if (timerBadge) timerBadge.textContent = `⏱️ ${formatElapsedDuration(elapsed)}`;
+  }, 500);
+
   pollInterval = setInterval(async () => {
     try {
       const res = await fetch(`/api/batch/status?task_id=${taskId}`);
@@ -518,6 +543,7 @@ function pollBatchProgress(taskId) {
         consecutivePollErrors++;
         if (consecutivePollErrors >= 15) {
           clearInterval(pollInterval);
+          clearInterval(batchTimerInterval);
           btnStartBatch.disabled = false;
           btnStartBatch.style.display = 'inline-flex';
           btnStartBatch.textContent = 'BẮT ĐẦU QUÉT';
@@ -533,37 +559,51 @@ function pollBatchProgress(taskId) {
       const progress = data.progress !== undefined ? data.progress : (data.done || 0);
       const pct = total > 0 ? Math.round((progress / total) * 100) : 0;
 
+      // Calculate speed (acc/second)
+      const elapsedSec = batchStartTime ? Math.max(0.5, (Date.now() - batchStartTime) / 1000) : 1;
+      const speed = (progress / elapsedSec).toFixed(1);
+      if (speedBadge) speedBadge.textContent = `${speed} acc/s`;
+
       document.getElementById('batchProgRatio').textContent = `${pct}% (${progress}/${total})`;
       document.getElementById('batchProgBar').style.width = `${pct}%`;
 
       if (data.was_stopped) {
         document.getElementById('batchProgStatus').textContent = `ĐÃ DỪNG (${progress}/${total})`;
       } else if (data.is_done) {
-        document.getElementById('batchProgStatus').textContent = 'ĐÃ HOÀN TẤT!';
+        document.getElementById('batchProgStatus').textContent = `HOÀN TẤT TRONG ${formatElapsedDuration(Date.now() - batchStartTime)}!`;
       } else {
-        document.getElementById('batchProgStatus').textContent = `Đang quét tài khoản (${progress}/${total})...`;
+        document.getElementById('batchProgStatus').textContent = `Đang quét (${progress}/${total})...`;
       }
 
-      if (data.results && Array.isArray(data.results) && data.results.length > 0) {
+      // Optimize rendering: Only re-render if data length changed
+      if (data.results && Array.isArray(data.results)) {
         allResults = data.results;
-        try {
-          renderFilteredResults();
-        } catch (rErr) {
-          console.error('Render batch results error:', rErr);
+        if (allResults.length !== lastRenderedCount || data.is_done) {
+          lastRenderedCount = allResults.length;
+          try {
+            renderFilteredResults();
+          } catch (rErr) {
+            console.error('Render batch results error:', rErr);
+          }
         }
       }
 
       // ONLY finish and hide btnStopBatch when actually done or stopped!
       if (data.is_done) {
         clearInterval(pollInterval);
+        clearInterval(batchTimerInterval);
+        const finalElapsed = Date.now() - batchStartTime;
+        if (timerBadge) timerBadge.textContent = `⏱️ ${formatElapsedDuration(finalElapsed)}`;
+        if (speedBadge) speedBadge.textContent = `${(progress / Math.max(0.5, finalElapsed / 1000)).toFixed(1)} acc/s`;
+
         btnStartBatch.disabled = false;
         btnStartBatch.style.display = 'inline-flex';
         btnStartBatch.textContent = 'BẮT ĐẦU QUÉT';
         if (btnStopBatch) btnStopBatch.style.display = 'none';
         if (data.was_stopped) {
-          showToast(`ĐÃ DỪNG TIẾN TRÌNH QUÉT (${progress}/${total})`);
+          showToast(`ĐÃ DỪNG QUÉT (${progress}/${total}) sau ${formatElapsedDuration(finalElapsed)}`);
         } else {
-          showToast('ĐÃ QUÉT XONG TOÀN BỘ DANH SÁCH!');
+          showToast(`ĐÃ QUÉT XONG TOÀN BỘ (${total} acc) TRONG ${formatElapsedDuration(finalElapsed)}!`);
         }
       }
     } catch (e) {
@@ -571,6 +611,7 @@ function pollBatchProgress(taskId) {
       consecutivePollErrors++;
       if (consecutivePollErrors >= 15) {
         clearInterval(pollInterval);
+        clearInterval(batchTimerInterval);
         btnStartBatch.disabled = false;
         btnStartBatch.style.display = 'inline-flex';
         btnStartBatch.textContent = 'BẮT ĐẦU QUÉT';
@@ -762,7 +803,18 @@ function renderFilteredResults() {
     return;
   }
 
-  batchResultsList.innerHTML = filtered.map(r => renderAccountCard(r)).join('');
+  // Optimize DOM for 500+ threads: render newest 300 cards smoothly to prevent browser freeze
+  const MAX_DOM_RENDER = 300;
+  let itemsToRender = filtered;
+  let noteHtml = '';
+  if (filtered.length > MAX_DOM_RENDER) {
+    itemsToRender = filtered.slice(-MAX_DOM_RENDER);
+    noteHtml = `<div style="text-align:center;padding:6px;font-size:11px;color:var(--gold-light);background:rgba(255,255,255,0.03);border-radius:4px;margin-bottom:8px;">
+      Đang hiển thị 300 kết quả mới nhất (Tổng: ${filtered.length}). Nút "COPY KẾT QUẢ" & "XUẤT ACC TRẮNG" vẫn xuất đầy đủ 100% tài khoản.
+    </div>`;
+  }
+
+  batchResultsList.innerHTML = noteHtml + itemsToRender.map(r => renderAccountCard(r)).join('');
 }
 
 document.querySelectorAll('.f-tab').forEach(b => {
