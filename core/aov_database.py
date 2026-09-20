@@ -12,18 +12,15 @@ Contains mappings for:
 SKIN_SSS = {
     "10620": "Krixi Phù thủy thời không",
     "11101": "Violet Thứ nguyên vệ thần",
-    "11107": "Violet Thứ nguyên vệ thần",
     "11119": "Violet Vọng nguyệt Long Cơ",
     "11607": "Butterfly Phượng Cửu Thiên",
     "12912": "Triệu Vân Minh Chung Long Đế",
     "13011": "Airi Bích hải thánh nữ",
     "13014": "Airi Thứ nguyên Vệ thần",
-    "13015": "Airi Thứ nguyên Vệ thần",
     "13116": "Murad Tuyệt thế thần binh",
     "13118": "Murad Thánh Luân Kiếm Thánh",
     "13210": "Hayate Tu Di Thánh Đế",
     "13314": "Valhein Thứ nguyên vệ thần",
-    "13315": "Valhein Thứ nguyên vệ thần",
     "13613": "Ilumia Lưỡng Nghi Long Hậu",
     "14111": "Lauriel Thứ nguyên vệ thần",
     "15009": "Nakroth thứ nguyên vệ thần",
@@ -51,7 +48,6 @@ SKIN_SS = {
     # Yorn
     "11202": "Yorn Thế Tử Nguyệt Tộc",
     "11204": "Yorn Long thần soái",
-    "11205": "Yorn Long thần soái",
     # Tel'Annas
     "50111": "Tel'Annas Vũ khúc yêu hồ",
     "50117": "Tel'Annas Thiên Vũ Thần Long",
@@ -83,7 +79,6 @@ SKIN_SS = {
     # Liliana
     "51003": "Liliana Nguyệt mị ly",
     "51005": "Liliana Tân nguyệt mị ly",
-    "51010": "Liliana Lưu Thủy Thần Long",
     "51013": "Liliana Lưu Thủy Thần Long",
     # Violet
     "11113": "Violet Huyết Ma Thần",
@@ -93,7 +88,6 @@ SKIN_SS = {
     "11604": "Butterfly Nữ Quái Nổi Loạn",
     "11611": "Butterfly Thánh nữ khởi nguyên",
     "11612": "Butterfly Kim Ngư Thần Nữ",
-    "11616": "Butterfly Thánh nữ khởi nguyên",
     # Maloch
     "12304": "Maloch Đại Tướng Robot",
     # Lữ Bố
@@ -104,7 +98,6 @@ SKIN_SS = {
     "16711": "Ngộ Không Thần Giáp Xích Diễm",
     "16712": "Ngộ Không Tề Thiên Võ Thánh",
     # Omen
-    "50604": "Omen Đao phủ tận thế",
     "50605": "Omen Đao phủ tận thế",
     # Capheny
     "52404": "Capheny Kimono",
@@ -162,7 +155,6 @@ SKIN_SS = {
     "16703": "Ngộ Không Siêu Việt",
     "16705": "Ngộ Không Siêu Việt 2.0",
     "13107": "Murad Siêu Việt 2.0",
-    "13108": "Murad Siêu Việt 2.0",
     # Dòng Kỷ Nguyên Hổ Phách & Đặc Biệt Bậc SS
     "10714": "Zephys Kỷ Nguyên Hổ Phách",
     "50120": "Tel'annas Kỷ Nguyên Hổ Phách",
@@ -218,8 +210,8 @@ SKIN_ANIME = {
     # Sword Art Online (SAO)
     "53701": "Allain Kirito Hắc kiếm sĩ",
     "53702": "Allain Kirito",
-    "11610": "Butterfly Asuna Tia chớp",
-    "11611": "Butterfly Stacia",
+    "11609": "Butterfly Asuna Tia chớp",
+    "11610": "Butterfly Stacia",
     # Kimetsu no Yaiba (Demon Slayer)
     "54402": "Yan Tanjiro Kamado",
     "53107": "Keera Nezuko Kamado",
