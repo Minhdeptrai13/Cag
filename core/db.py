@@ -96,21 +96,8 @@ def init_db():
             )
         """)
 
-        # Default Admin if not exists
-        admin = conn.execute("SELECT id FROM users WHERE username = 'admin'").fetchone()
-        if not admin:
-            salt = secrets.token_hex(16)
-            pwd_hash = _hash_password("admin123", salt)
-            cur = conn.execute(
-                "INSERT INTO users (username, password_hash, role, credits, created_at) VALUES (?, ?, ?, ?, ?)",
-                ("admin", f"{salt}${pwd_hash}", "admin", 999999, int(time.time()))
-            )
-            admin_id = cur.lastrowid
-            admin_key = f"aov_live_admin_{secrets.token_hex(12)}"
-            conn.execute(
-                "INSERT INTO api_keys (user_id, api_key, name, status, created_at) VALUES (?, ?, 'Admin Master Key', 'active', ?)",
-                (admin_id, admin_key, int(time.time()))
-            )
+        # Remove hardcoded admin creation so first real registered user becomes Root Owner
+        # (Preserve existing tables and giftcodes)
 
         # Default Giftcodes for testing/freebies if not exists
         default_codes = [
@@ -153,12 +140,12 @@ def register_user(username: str, password: str) -> dict:
                 (username, full_hash, assigned_role, initial_credits, now)
             )
             user_id = cur.lastrowid
-            # Create default API Key for new user
             key_prefix = "aov_owner_" if is_first_user else "aov_live_"
             key_val = f"{key_prefix}{secrets.token_hex(16)}"
+            key_name = 'Master Key' if is_first_user else 'Default Key'
             conn.execute(
-                "INSERT INTO api_keys (user_id, api_key, name, status, created_at) VALUES (?, ?, 'Master Key' if is_first_user else 'Default Key', 'active', ?)",
-                (user_id, key_val, now)
+                "INSERT INTO api_keys (user_id, api_key, name, status, created_at) VALUES (?, ?, ?, 'active', ?)",
+                (user_id, key_val, key_name, now)
             )
         msg = "Đăng ký thành công tài khoản ROOT OWNER (Chủ sở hữu tối cao)!" if is_first_user else "Đăng ký thành công! Bạn nhận được 50 lượt check miễn phí."
         return {
