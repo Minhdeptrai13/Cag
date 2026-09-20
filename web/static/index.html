@@ -30,6 +30,15 @@
         </div>
       </div>
       <div class="nav-actions">
+        <div class="header-controls">
+          <button type="button" class="btn btn-icon-pill" id="btnToggleTheme" title="Chuyển chế độ Sáng / Tối">
+            <span class="theme-icon-dark">🌙</span>
+            <span class="theme-icon-light" style="display:none;">☀️</span>
+          </button>
+          <button type="button" class="btn btn-pill-lang" id="btnToggleLang" title="Change Language">
+            <span class="lang-text">VN</span>
+          </button>
+        </div>
         <button type="button" class="btn btn-ghost" id="btnLandingDocs">
           <svg class="icon-svg icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -38,7 +47,7 @@
             <line x1="16" y1="17" x2="8" y2="17"></line>
             <polyline points="10 9 9 9 8 9"></polyline>
           </svg>
-          API DOCS
+          <span data-i18n="landing_api_docs">API DOCS</span>
         </button>
         <button type="button" class="btn btn-primary" id="btnLandingLogin">
           <svg class="icon-svg icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -46,7 +55,7 @@
             <polyline points="10 17 15 12 10 7"></polyline>
             <line x1="15" y1="12" x2="3" y2="12"></line>
           </svg>
-          ĐĂNG NHẬP / ĐĂNG KÝ
+          <span data-i18n="landing_auth_btn">ĐĂNG NHẬP / ĐĂNG KÝ</span>
         </button>
       </div>
     </header>
@@ -162,6 +171,17 @@
       </div>
 
       <div class="header-user-meta">
+        <button type="button" class="btn btn-icon-pill" id="btnStudioTheme" title="Chuyển chế độ Sáng / Tối">
+          <span class="theme-icon-dark">🌙</span>
+          <span class="theme-icon-light" style="display:none;">☀️</span>
+        </button>
+        <button type="button" class="btn btn-pill-lang" id="btnStudioLang" title="Change Language">
+          <span class="lang-text">VN</span>
+        </button>
+        <button type="button" class="btn btn-ai-sparkle" id="btnOpenAICopilot" title="Mở Trợ lý AI Studio Copilot RAG">
+          <span class="ai-sparkle-dot">✨</span>
+          <span>AI COPILOT</span>
+        </button>
         <div class="user-chip">
           <span class="user-avatar" id="studioUserAvatar">U</span>
           <span class="user-name" id="studioUsername">User</span>
@@ -174,7 +194,7 @@
             <polyline points="16 17 21 12 16 7"></polyline>
             <line x1="21" y1="12" x2="9" y2="12"></line>
           </svg>
-          ĐĂNG XUẤT
+          <span data-i18n="logout_btn">ĐĂNG XUẤT</span>
         </button>
       </div>
     </header>
@@ -215,7 +235,14 @@
               <line x1="12" y1="6" x2="12" y2="8"></line>
               <line x1="12" y1="16" x2="12" y2="18"></line>
             </svg>
-            <span class="nav-label">Quota & Giftcode</span>
+            <span class="nav-label" data-i18n="nav_billing">Quota & Giftcode</span>
+          </button>
+          <button type="button" class="nav-item nav-admin-item" data-tab="admin" id="tabNavAdmin" style="display:none;">
+            <svg class="icon-svg nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+            </svg>
+            <span class="nav-label" data-i18n="nav_admin">Admin Master</span>
+            <span class="badge-role-owner">VIP</span>
           </button>
         </nav>
 
@@ -546,6 +573,101 @@
             </div>
           </div>
         </section>
+
+        <!-- ── TAB 5: ADMIN MASTER CONTROL PANEL ────────────────────────── -->
+        <section id="tabAdmin" class="tab-pane" style="display:none;">
+          <div class="tab-header-strip">
+            <div class="strip-left">
+              <h2>ADMIN MASTER DASHBOARD</h2>
+              <span class="strip-subtitle">Quản trị tối cao: Phân quyền vai trò, kiểm soát Credits & Quản lý Mã quà tặng</span>
+            </div>
+            <div class="strip-right">
+              <button type="button" class="btn btn-sm btn-ghost" id="btnRefreshAdminData">
+                <svg class="icon-svg icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M23 4v6h-6"></path>
+                  <path d="M1 20v-6h6"></path>
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                </svg>
+                LÀM MỚI DỮ LIỆU
+              </button>
+            </div>
+          </div>
+
+          <div class="admin-grid">
+            <!-- Left: User Management -->
+            <div class="studio-card admin-users-card">
+              <div class="card-header-flex">
+                <h3>DANH SÁCH TÀI KHOẢN HỆ THỐNG</h3>
+                <span class="user-count-badge" id="adminUserCount">0 Người dùng</span>
+              </div>
+              <p class="text-muted">Chỉ Root Owner mới có quyền thăng/hạ cấp Admin hoặc đổi quyền tối cao.</p>
+
+              <div class="table-responsive">
+                <table class="admin-table" id="adminUsersTable">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>USERNAME</th>
+                      <th>ROLE</th>
+                      <th>CREDITS</th>
+                      <th>API KEY</th>
+                      <th>HÀNH ĐỘNG</th>
+                    </tr>
+                  </thead>
+                  <tbody id="adminUsersTbody">
+                    <!-- Dynamic loaded -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Right: Giftcode Management -->
+            <div class="studio-card admin-giftcodes-card">
+              <h3>TẠO & QUẢN LÝ GIFTCODE</h3>
+              <p class="text-muted">Tạo các voucher tặng credits cho người dùng hoặc sự kiện.</p>
+
+              <form id="adminCreateGiftcodeForm" class="admin-create-code-form">
+                <div class="form-row-2">
+                  <div class="form-group">
+                    <label>MÃ GIFTCODE</label>
+                    <input type="text" id="newGiftcodeCode" required placeholder="VD: VIP2026_1000" style="text-transform:uppercase;" />
+                  </div>
+                  <div class="form-group">
+                    <label>CREDITS TẶNG</label>
+                    <input type="number" id="newGiftcodeCredits" required min="1" value="100" />
+                  </div>
+                </div>
+                <div class="form-row-2">
+                  <div class="form-group">
+                    <label>LƯỢT DÙNG TỐI ĐA</label>
+                    <input type="number" id="newGiftcodeMaxUses" required min="1" value="50" />
+                  </div>
+                  <div class="form-group" style="display:flex;align-items:flex-end;">
+                    <button type="submit" class="btn btn-primary btn-block" id="btnAdminSubmitGiftcode">TẠO MÃ NGAY</button>
+                  </div>
+                </div>
+              </form>
+              <div class="form-error" id="adminGiftcodeError" style="display:none;"></div>
+
+              <h4 style="margin-top:20px;margin-bottom:10px;font-size:13px;letter-spacing:0.5px;color:var(--text-muted);">DANH SÁCH GIFTCODE HIỆN TẠI</h4>
+              <div class="table-responsive">
+                <table class="admin-table" id="adminGiftcodesTable">
+                  <thead>
+                    <tr>
+                      <th>CODE</th>
+                      <th>CREDITS</th>
+                      <th>ĐÃ DÙNG / TỐI ĐA</th>
+                      <th>HÀNH ĐỘNG</th>
+                    </tr>
+                  </thead>
+                  <tbody id="adminGiftcodesTbody">
+                    <!-- Dynamic loaded -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
       </main>
     </div>
   </div>
@@ -668,8 +790,24 @@
               <input type="password" id="regPass" required placeholder="Tối thiểu 4 ký tự..." autocomplete="new-password" />
             </div>
           </div>
+          <!-- Internal Interactive Slider Captcha -->
+          <div class="captcha-box-wrap" id="captchaBox">
+            <div class="captcha-header">
+              <span class="captcha-label">BẢO MẬT: KÉO THANH TRƯỢT ĐẾN TÂM ĐIỂM</span>
+              <span class="captcha-status" id="captchaStatusText">Chưa xác thực</span>
+            </div>
+            <div class="slider-track" id="sliderTrack">
+              <div class="slider-target-notch" id="sliderTargetNotch"></div>
+              <div class="slider-fill" id="sliderFill"></div>
+              <div class="slider-thumb" id="sliderThumb">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="icon-thumb">
+                  <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+              </div>
+            </div>
+          </div>
           <div class="form-error" id="regError" style="display:none;"></div>
-          <button type="submit" class="btn btn-primary btn-block btn-auth-submit" id="btnSubmitRegister">
+          <button type="submit" class="btn btn-primary btn-block btn-auth-submit" id="btnSubmitRegister" disabled>
             TẠO TÀI KHOẢN (+50 CREDITS FREE)
             <svg class="icon-svg icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -681,6 +819,80 @@
           </div>
         </form>
       </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- 4. AI STUDIO COPILOT RAG DRAWER WIDGET                                  -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <div class="ai-copilot-drawer" id="aiCopilotDrawer">
+    <div class="ai-copilot-header">
+      <div class="ai-header-title">
+        <span class="ai-pulse-dot"></span>
+        <div class="ai-title-text">
+          <span class="ai-main-label">AOV STUDIO COPILOT</span>
+          <span class="ai-model-tag">Qwen 3.8 + RAG Engine</span>
+        </div>
+      </div>
+      <div class="ai-header-actions">
+        <button type="button" class="btn-icon-close" id="btnCloseAICopilot" title="Đóng trợ lý AI">✕</button>
+      </div>
+    </div>
+
+    <!-- Suggested Quick Prompts (Google AI Studio style chips) -->
+    <div class="ai-quick-prompts">
+      <button type="button" class="ai-prompt-chip" data-query="Định giá giúp tôi acc có Flo Tinh Hệ, Nak Lôi Quang Sứ và Raz Muay Thái">💎 Định giá acc VIP</button>
+      <button type="button" class="ai-prompt-chip" data-query="Tỉ lệ acc sống trong lô vừa check thế nào?">📊 Phân tích lô check</button>
+      <button type="button" class="ai-prompt-chip" data-query="Skin Violet Thần Long Tỉ Tỉ và Flo Kỷ Nguyên Hổ Phách id là gì?">🏷️ Tra cứu Skin ID</button>
+      <button type="button" class="ai-prompt-chip" data-query="Acc trắng thông tin trong AOV có đặc điểm gì?">🛡️ Giải thích acc trắng</button>
+    </div>
+
+    <!-- Chat Messages Scrollable Area -->
+    <div class="ai-chat-body" id="aiChatBody">
+      <div class="ai-message assistant">
+        <div class="msg-avatar">🤖</div>
+        <div class="msg-bubble">
+          Chào bạn! Tôi là <strong>AOV Studio Copilot</strong>, trợ lý AI tích hợp kiến thức RAG về hệ thống Liên Quân Mobile, kho skin SSS/SS và theo dõi trực tiếp kết quả lô check của bạn. Bạn muốn tôi hỗ trợ gì?
+        </div>
+      </div>
+    </div>
+
+    <!-- Input Bar -->
+    <div class="ai-chat-footer">
+      <form id="aiChatForm" class="ai-input-wrap">
+        <input type="text" id="aiChatInput" placeholder="Hỏi AI về skin, định giá nick hoặc kết quả quét..." autocomplete="off" />
+        <button type="submit" class="btn btn-ai-send" id="btnSendAIChat">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" class="icon-send">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Admin Adjust Credits -->
+  <div class="modal-backdrop" id="modalAdminCredits" style="display:none;">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>ĐIỀU CHỈNH CREDITS TÀI KHOẢN</h3>
+        <button type="button" class="btn-close-modal" id="btnCloseModalCredits">✕</button>
+      </div>
+      <form id="formAdminAdjustCredits">
+        <div class="form-group">
+          <label>TÀI KHOẢN ĐƯỢC CHỈNH</label>
+          <input type="text" id="modalTargetUsername" readonly class="input-readonly" />
+        </div>
+        <div class="form-group">
+          <label>SỐ LƯỢNG CREDITS CỘNG THÊM (HOẶC TRỪ NẾU ÂM)</label>
+          <input type="number" id="modalCreditsDelta" required placeholder="VD: 500 hoặc -100" />
+        </div>
+        <div class="form-error" id="modalCreditsError" style="display:none;"></div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" id="btnCancelModalCredits">HỦY</button>
+          <button type="submit" class="btn btn-primary" id="btnSaveModalCredits">XÁC NHẬN CẬP NHẬT</button>
+        </div>
+      </form>
     </div>
   </div>
 

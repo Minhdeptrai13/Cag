@@ -142,26 +142,34 @@ def register_user(username: str, password: str) -> dict:
         full_hash = f"{salt}${pwd_hash}"
         now = int(time.time())
         with conn:
+            # Check if this is the very first account registered
+            row = conn.execute("SELECT COUNT(*) as count FROM users").fetchone()
+            is_first_user = (row["count"] == 0) if row else False
+            assigned_role = "owner" if is_first_user else "user"
+            initial_credits = 999999 if is_first_user else 50
+
             cur = conn.execute(
-                "INSERT INTO users (username, password_hash, role, credits, created_at) VALUES (?, ?, 'user', 50, ?)",
-                (username, full_hash, now)
+                "INSERT INTO users (username, password_hash, role, credits, created_at) VALUES (?, ?, ?, ?, ?)",
+                (username, full_hash, assigned_role, initial_credits, now)
             )
             user_id = cur.lastrowid
             # Create default API Key for new user
-            key_val = f"aov_live_{secrets.token_hex(16)}"
+            key_prefix = "aov_owner_" if is_first_user else "aov_live_"
+            key_val = f"{key_prefix}{secrets.token_hex(16)}"
             conn.execute(
-                "INSERT INTO api_keys (user_id, api_key, name, status, created_at) VALUES (?, ?, 'Default Key', 'active', ?)",
+                "INSERT INTO api_keys (user_id, api_key, name, status, created_at) VALUES (?, ?, 'Master Key' if is_first_user else 'Default Key', 'active', ?)",
                 (user_id, key_val, now)
             )
+        msg = "Đăng ký thành công tài khoản ROOT OWNER (Chủ sở hữu tối cao)!" if is_first_user else "Đăng ký thành công! Bạn nhận được 50 lượt check miễn phí."
         return {
             "success": True,
             "status": "ok",
-            "message": "Đăng ký thành công! Bạn nhận được 50 lượt check miễn phí.",
+            "message": msg,
             "user": {
                 "id": user_id,
                 "username": username,
-                "role": "user",
-                "credits": 50,
+                "role": assigned_role,
+                "credits": initial_credits,
                 "api_key": key_val,
                 "key": key_val
             }
@@ -441,3 +449,129 @@ def redeem_giftcode(user_id: int, code_str: str) -> dict:
         }
     finally:
         conn.close()
+
+
+def admin_get_all_users(requester_id: int) -> dict:
+    """Return all users for Root Owner / Admin panel"""
+    conn = get_db()
+    try:
+        req = conn.execute("SELECT role FROM users WHERE id = ?", (requester_id,)).fetchone()
+        if not req or req["role"] not in ("owner", "admin"):
+            return {"success": False, "error": "Bạn không có quyền quản trị!"}
+
+        rows = conn.execute("SELECT id, username, role, credits, created_at FROM users ORDER BY id ASC").fetchall()
+        users = [dict(r) for r in rows]
+        return {"success": True, "users": users}
+    finally:
+        conn.close()
+
+
+def admin_adjust_credits(requester_id: int, target_user_id: int, amount: int) -> dict:
+    """Adjust credits of a user (Owner and Admin can do this)"""
+    conn = get_db()
+    try:
+        req = conn.execute("SELECT role FROM users WHERE id = ?", (requester_id,)).fetchone()
+        if not req or req["role"] not in ("owner", "admin"):
+            return {"success": False, "error": "Bạn không có quyền quản trị!"}
+
+        target = conn.execute("SELECT id, username, credits, role FROM users WHERE id = ?", (target_user_id,)).fetchone()
+        if not target:
+            return {"success": False, "error": "Không tìm thấy người dùng!"}
+
+        # Admin cannot reduce credits of Owner
+        if req["role"] == "admin" and target["role"] == "owner":
+            return {"success": False, "error": "Admin không có quyền can thiệp tài khoản Root Owner!"}
+
+        with conn:
+            conn.execute("UPDATE users SET credits = MAX(0, credits + ?) WHERE id = ?", (amount, target_user_id))
+            updated = conn.execute("SELECT credits FROM users WHERE id = ?", (target_user_id,)).fetchone()
+
+        return {
+            "success": True,
+            "message": f"Đã cập nhật Credits cho {target['username']}: {'+' if amount >= 0 else ''}{amount}",
+            "new_credits": updated["credits"]
+        }
+    finally:
+        conn.close()
+
+
+def admin_update_role(requester_id: int, target_user_id: int, new_role: str) -> dict:
+    """Promote or Demote roles. ONLY ROOT OWNER can do this."""
+    conn = get_db()
+    try:
+        req = conn.execute("SELECT role FROM users WHERE id = ?", (requester_id,)).fetchone()
+        if not req or req["role"] != "owner":
+            return {"success": False, "error": "CHỈ ROOT OWNER mới có quyền thăng cấp hoặc hạ cấp Admin!"}
+
+        if target_user_id == requester_id:
+            return {"success": False, "error": "Không thể tự thay đổi quyền của chính Root Owner!"}
+
+        if new_role not in ("admin", "user"):
+            return {"success": False, "error": "Quyền không hợp lệ (chỉ được cấp admin hoặc user)!"}
+
+        target = conn.execute("SELECT id, username, role FROM users WHERE id = ?", (target_user_id,)).fetchone()
+        if not target:
+            return {"success": False, "error": "Không tìm thấy người dùng!"}
+
+        with conn:
+            conn.execute("UPDATE users SET role = ? WHERE id = ?", (new_role, target_user_id))
+
+        return {
+            "success": True,
+            "message": f"Đã cập nhật quyền của {target['username']} thành [{new_role.upper()}]!"
+        }
+    finally:
+        conn.close()
+
+
+def admin_list_giftcodes(requester_id: int) -> dict:
+    """List all giftcodes for admin panel"""
+    conn = get_db()
+    try:
+        req = conn.execute("SELECT role FROM users WHERE id = ?", (requester_id,)).fetchone()
+        if not req or req["role"] not in ("owner", "admin"):
+            return {"success": False, "error": "Bạn không có quyền quản trị!"}
+
+        rows = conn.execute("SELECT * FROM giftcodes ORDER BY id DESC").fetchall()
+        return {"success": True, "giftcodes": [dict(r) for r in rows]}
+    finally:
+        conn.close()
+
+
+def admin_create_giftcode(requester_id: int, code: str, credits: int, max_uses: int) -> dict:
+    """Create a new giftcode"""
+    conn = get_db()
+    try:
+        req = conn.execute("SELECT role FROM users WHERE id = ?", (requester_id,)).fetchone()
+        if not req or req["role"] not in ("owner", "admin"):
+            return {"success": False, "error": "Bạn không có quyền quản trị!"}
+
+        code = code.strip().upper()
+        if not code or credits <= 0 or max_uses <= 0:
+            return {"success": False, "error": "Thông tin giftcode không hợp lệ!"}
+
+        now = int(time.time())
+        with conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO giftcodes (code, credits, max_uses, used_count, created_at) VALUES (?, ?, ?, 0, ?)",
+                (code, credits, max_uses, now)
+            )
+        return {"success": True, "message": f"Đã tạo thành công Giftcode [{code}] với +{credits} Credits!"}
+    finally:
+        conn.close()
+
+
+def admin_delete_giftcode(requester_id: int, code: str) -> dict:
+    """Delete a giftcode"""
+    conn = get_db()
+    try:
+        req = conn.execute("SELECT role FROM users WHERE id = ?", (requester_id,)).fetchone()
+        if not req or req["role"] not in ("owner", "admin"):
+            return {"success": False, "error": "Bạn không có quyền quản trị!"}
+
+        with conn:
+            conn.execute("DELETE FROM giftcodes WHERE code = ?", (code.strip().upper(),))
+        return {"success": True, "message": f"Đã xóa Giftcode [{code}]!"}
+    finally:
+        conn.close()
+

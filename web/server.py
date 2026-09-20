@@ -29,6 +29,8 @@ if sys.platform == "win32":
         pass
 
 from core.aov_engine import check_account, parse_combo_line, format_account_full_info
+from core.captcha import generate_slider_challenge, verify_slider_response
+from core.ai_copilot import chat_with_copilot
 from core.db import (
     init_db,
     register_user,
@@ -43,7 +45,13 @@ from core.db import (
     save_check_history,
     get_user_history,
     clear_user_history,
-    redeem_giftcode
+    redeem_giftcode,
+    admin_get_all_users,
+    admin_adjust_credits,
+    admin_update_role,
+    admin_list_giftcodes,
+    admin_create_giftcode,
+    admin_delete_giftcode
 )
 
 # Initialize Database on server start
@@ -189,7 +197,27 @@ class AOVWebHandler(BaseHTTPRequestHandler):
             self._send_json(resp_data)
             return
 
-        # ── 5. Static Files Serving ───────────────────────────────────────────
+        # ── 5. Internal Captcha Challenge ─────────────────────────────────────
+        if path == "/api/captcha/new":
+            challenge = generate_slider_challenge()
+            self._send_json({"success": True, "challenge": challenge})
+            return
+
+        # ── 6. Admin User Directory ───────────────────────────────────────────
+        if path == "/api/admin/users":
+            requester_id = int(query.get("user_id", [0])[0] or 0)
+            res = admin_get_all_users(requester_id)
+            self._send_json(res, 200 if res["success"] else 403)
+            return
+
+        # ── 7. Admin Giftcode Directory ───────────────────────────────────────
+        if path == "/api/admin/giftcodes":
+            requester_id = int(query.get("user_id", [0])[0] or 0)
+            res = admin_list_giftcodes(requester_id)
+            self._send_json(res, 200 if res["success"] else 403)
+            return
+
+        # ── 8. Static Files Serving ───────────────────────────────────────────
         if path in ("/", "/index.html"):
             file_path = os.path.join(STATIC_DIR, "index.html")
         else:
@@ -229,6 +257,17 @@ class AOVWebHandler(BaseHTTPRequestHandler):
         if path in ("/api/auth/register", "/api/register"):
             username = str(payload.get("username", "")).strip()
             password = str(payload.get("password", "")).strip()
+            
+            # Verify Captcha
+            captcha_token = payload.get("captcha_token", "")
+            submitted_x = payload.get("submitted_x", 0)
+            user_target_x = payload.get("target_x", 0)
+
+            if captcha_token:
+                if not verify_slider_response(captcha_token, submitted_x, user_target_x):
+                    self._send_json({"success": False, "error": "Xác thực bảo mật (Captcha kéo trượt) không hợp lệ! Vui lòng thử lại."}, 400)
+                    return
+
             res = register_user(username, password)
             status_code = 200 if res["success"] else 400
             self._send_json(res, status_code)
@@ -667,6 +706,64 @@ class AOVWebHandler(BaseHTTPRequestHandler):
 
             threading.Thread(target=run_file_batch, daemon=True).start()
             self._send_json({"task_id": task_id, "total": len(combos)})
+            return
+
+        # ── 13. AI STUDIO COPILOT RAG CHAT (/api/ai/chat) ─────────────────────
+        elif path == "/api/ai/chat":
+            user_msg = str(payload.get("message", "")).strip()
+            history = payload.get("history", [])
+            task_id = payload.get("task_id", "")
+
+            batch_context = None
+            if task_id:
+                with _TASKS_LOCK:
+                    t = _TASKS.get(task_id)
+                    if t:
+                        batch_context = {
+                            "total": t.get("total", 0),
+                            "hits": t.get("hits", 0),
+                            "trang": t.get("trang", 0),
+                            "recent_hits": t.get("all_hits", [])[-10:]
+                        }
+
+            reply = chat_with_copilot(user_msg, history=history, batch_context=batch_context)
+            self._send_json({"success": True, "reply": reply})
+            return
+
+        # ── 14. ADMIN ACTIONS: ADJUST CREDITS ─────────────────────────────────
+        elif path == "/api/admin/adjust-credits":
+            requester_id = int(payload.get("requester_id", 0))
+            target_id = int(payload.get("target_id", 0))
+            amount = int(payload.get("amount", 0))
+            res = admin_adjust_credits(requester_id, target_id, amount)
+            self._send_json(res, 200 if res["success"] else 400)
+            return
+
+        # ── 15. ADMIN ACTIONS: UPDATE ROLE (OWNER ONLY) ───────────────────────
+        elif path == "/api/admin/update-role":
+            requester_id = int(payload.get("requester_id", 0))
+            target_id = int(payload.get("target_id", 0))
+            new_role = str(payload.get("role", "")).strip()
+            res = admin_update_role(requester_id, target_id, new_role)
+            self._send_json(res, 200 if res["success"] else 400)
+            return
+
+        # ── 16. ADMIN ACTIONS: CREATE GIFTCODE ────────────────────────────────
+        elif path == "/api/admin/create-giftcode":
+            requester_id = int(payload.get("requester_id", 0))
+            code = str(payload.get("code", "")).strip()
+            credits = int(payload.get("credits", 0))
+            max_uses = int(payload.get("max_uses", 0))
+            res = admin_create_giftcode(requester_id, code, credits, max_uses)
+            self._send_json(res, 200 if res["success"] else 400)
+            return
+
+        # ── 17. ADMIN ACTIONS: DELETE GIFTCODE ────────────────────────────────
+        elif path == "/api/admin/delete-giftcode":
+            requester_id = int(payload.get("requester_id", 0))
+            code = str(payload.get("code", "")).strip()
+            res = admin_delete_giftcode(requester_id, code)
+            self._send_json(res, 200 if res["success"] else 400)
             return
 
         self._send_json({"error": "Unknown endpoint"}, 404)

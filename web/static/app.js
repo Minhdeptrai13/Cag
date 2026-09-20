@@ -171,6 +171,7 @@ function showAuthView(mode = 'login') {
     if (tabLoginBtn) tabLoginBtn.classList.remove('active');
     if (loginForm) loginForm.style.display = 'none';
     if (registerForm) registerForm.style.display = 'flex';
+    initSliderCaptcha();
   } else {
     if (tabLoginBtn) tabLoginBtn.classList.add('active');
     if (tabRegisterBtn) tabRegisterBtn.classList.remove('active');
@@ -186,6 +187,7 @@ function showStudioView() {
   renderUserHeader();
   loadUserApiKeys();
   updateCodeSnippets();
+  checkAdminPrivileges();
 }
 
 function renderUserHeader() {
@@ -196,6 +198,18 @@ function renderUserHeader() {
   if (studioUserAvatar) studioUserAvatar.textContent = (currentUser.username || 'U')[0].toUpperCase();
   if (quotaBigNumber) quotaBigNumber.textContent = (currentUser.credits !== undefined && currentUser.credits !== null ? currentUser.credits : 0);
   if (quotaTierLabel) quotaTierLabel.textContent = (currentUser.role || 'FREE').toUpperCase() + ' PLAN';
+  checkAdminPrivileges();
+}
+
+function checkAdminPrivileges() {
+  const tabNavAdmin = document.getElementById('tabNavAdmin');
+  if (tabNavAdmin) {
+    if (currentUser && (currentUser.role === 'owner' || currentUser.role === 'admin')) {
+      tabNavAdmin.style.display = 'flex';
+    } else {
+      tabNavAdmin.style.display = 'none';
+    }
+  }
 }
 
 async function refreshUserMeta() {
@@ -309,18 +323,32 @@ on(loginForm, 'submit', async (e) => {
   }
 });
 
-// Register Submit
+// Register Submit with Internal Slider Captcha
 on(registerForm, 'submit', async (e) => {
   e.preventDefault();
   if (regError) regError.style.display = 'none';
   const username = document.getElementById('regUser').value.trim();
   const password = document.getElementById('regPass').value;
 
+  if (!captchaVerifiedData) {
+    if (regError) {
+      regError.textContent = 'Vui lòng kéo thanh trượt để xác thực bảo mật trước khi đăng ký!';
+      regError.style.display = 'block';
+    }
+    return;
+  }
+
   try {
     const res = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
+      body: JSON.stringify({
+        username,
+        password,
+        captcha_token: captchaVerifiedData.token,
+        slider_x: captchaVerifiedData.user_x,
+        track_width: captchaVerifiedData.track_width
+      })
     });
     const data = await res.json();
     if (data.success || data.status === 'ok') {
@@ -334,12 +362,14 @@ on(registerForm, 'submit', async (e) => {
         regError.textContent = data.error || data.message || 'Đăng ký thất bại!';
         regError.style.display = 'block';
       }
+      initSliderCaptcha(); // Reset captcha on failure
     }
   } catch (err) {
     if (regError) {
       regError.textContent = 'Lỗi kết nối đến máy chủ';
       regError.style.display = 'block';
     }
+    initSliderCaptcha();
   }
 });
 
@@ -370,6 +400,8 @@ function switchTab(tabName) {
     loadCheckHistory(currentHistFilter);
   } else if (tabName === 'api') {
     loadUserApiKeys();
+  } else if (tabName === 'admin') {
+    loadAdminDashboard();
   }
 }
 
@@ -1497,38 +1529,540 @@ window.fillCode = function(code) {
   }
 };
 
-on(redeemStudioForm, 'submit', async (e) => {
-  e.preventDefault();
-  if (!currentUser) return;
-  if (redeemStudioError) redeemStudioError.style.display = 'none';
-  const code = redeemStudioInput.value.trim();
+// ── Slider Captcha Engine ──────────────────────────────────────────────────
+let captchaVerifiedData = null;
+let currentChallenge = null;
+
+async function initSliderCaptcha() {
+  const captchaBox = document.getElementById('captchaBox');
+  const sliderTrack = document.getElementById('sliderTrack');
+  const sliderThumb = document.getElementById('sliderThumb');
+  const sliderFill = document.getElementById('sliderFill');
+  const sliderTargetNotch = document.getElementById('sliderTargetNotch');
+  const captchaStatusText = document.getElementById('captchaStatusText');
+  const btnSubmitRegister = document.getElementById('btnSubmitRegister');
+
+  if (!captchaBox || !sliderTrack || !sliderThumb) return;
+
+  captchaVerifiedData = null;
+  if (btnSubmitRegister) btnSubmitRegister.disabled = true;
+  if (sliderTargetNotch) sliderTargetNotch.classList.remove('matched');
+  if (captchaStatusText) {
+    captchaStatusText.textContent = 'Đang tạo thử thách...';
+    captchaStatusText.classList.remove('verified');
+  }
+
+  // Reset positions
+  sliderThumb.style.left = '4px';
+  if (sliderFill) sliderFill.style.width = '0px';
 
   try {
-    const res = await fetch('/api/user/redeem', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: currentUser.id, code })
-    });
+    const res = await fetch('/api/captcha/new');
     const data = await res.json();
-    if (data.success || data.status === 'ok') {
-      currentUser.credits = (data.new_credits !== undefined && data.new_credits !== null ? data.new_credits : (currentUser.credits + data.credits_added));
-      localStorage.setItem('aov_user', JSON.stringify(currentUser));
-      renderUserHeader();
-      redeemStudioInput.value = '';
-      showToast(data.message || `KÍCH HOẠT THÀNH CÔNG +${data.credits_added} CREDITS!`);
-    } else {
-      if (redeemStudioError) {
-        redeemStudioError.textContent = data.error || data.message || 'Mã Giftcode không hợp lệ!';
-        redeemStudioError.style.display = 'block';
+    if (data.status === 'ok') {
+      currentChallenge = data;
+      // Position target notch based on target_ratio
+      const trackWidth = sliderTrack.clientWidth || 320;
+      const notchX = Math.round(data.target_ratio * (trackWidth - 40));
+      if (sliderTargetNotch) {
+        sliderTargetNotch.style.left = `${notchX}px`;
+        sliderTargetNotch.style.display = 'block';
+      }
+      if (captchaStatusText) {
+        captchaStatusText.textContent = 'Kéo hình tròn đến tâm điểm vàng';
       }
     }
   } catch (err) {
-    if (redeemStudioError) {
-      redeemStudioError.textContent = 'Lỗi kết nối máy chủ';
-      redeemStudioError.style.display = 'block';
-    }
+    console.error('Captcha fetch error:', err);
+    if (captchaStatusText) captchaStatusText.textContent = 'Lỗi tải mã bảo mật';
   }
+
+  // Bind drag events
+  let isDragging = false;
+  let startMouseX = 0;
+  let currentThumbX = 4;
+
+  const onStart = (e) => {
+    if (!currentChallenge || captchaVerifiedData) return;
+    isDragging = true;
+    startMouseX = e.type.startsWith('touch') ? e.touches[0].clientX : e.clientX;
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('mouseup', onEnd);
+    document.addEventListener('touchend', onEnd);
+  };
+
+  const onMove = (e) => {
+    if (!isDragging) return;
+    if (e.cancelable && e.type.startsWith('touch')) e.preventDefault();
+    const clientX = e.type.startsWith('touch') ? e.touches[0].clientX : e.clientX;
+    const deltaX = clientX - startMouseX;
+    const trackWidth = sliderTrack.clientWidth || 320;
+    const maxLeft = trackWidth - 36;
+    let newLeft = Math.max(4, Math.min(4 + deltaX, maxLeft));
+
+    sliderThumb.style.left = `${newLeft}px`;
+    if (sliderFill) sliderFill.style.width = `${newLeft}px`;
+    currentThumbX = newLeft;
+
+    // Check proximity to notch
+    const targetX = currentChallenge.target_ratio * (trackWidth - 40);
+    if (Math.abs(newLeft - targetX) <= 15) {
+      if (sliderTargetNotch) sliderTargetNotch.classList.add('matched');
+    } else {
+      if (sliderTargetNotch) sliderTargetNotch.classList.remove('matched');
+    }
+  };
+
+  const onEnd = () => {
+    if (!isDragging) return;
+    isDragging = false;
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('mouseup', onEnd);
+    document.removeEventListener('touchend', onEnd);
+
+    const trackWidth = sliderTrack.clientWidth || 320;
+    const targetX = currentChallenge.target_ratio * (trackWidth - 40);
+
+    if (Math.abs(currentThumbX - targetX) <= 16) {
+      // Verified!
+      captchaVerifiedData = {
+        token: currentChallenge.token,
+        user_x: currentThumbX,
+        track_width: trackWidth
+      };
+      if (captchaStatusText) {
+        captchaStatusText.textContent = '✓ ĐÃ XÁC THỰC THÀNH CÔNG';
+        captchaStatusText.classList.add('verified');
+      }
+      if (sliderTargetNotch) sliderTargetNotch.classList.add('matched');
+      if (btnSubmitRegister) btnSubmitRegister.disabled = false;
+      showToast('XÁC THỰC BẢO MẬT THÀNH CÔNG!');
+    } else {
+      // Failed, spring back
+      sliderThumb.style.transition = 'left 0.2s ease';
+      sliderThumb.style.left = '4px';
+      if (sliderFill) {
+        sliderFill.style.transition = 'width 0.2s ease';
+        sliderFill.style.width = '0px';
+      }
+      setTimeout(() => {
+        sliderThumb.style.transition = '';
+        if (sliderFill) sliderFill.style.transition = '';
+      }, 250);
+      if (captchaStatusText) captchaStatusText.textContent = 'Chưa khớp, vui lòng thử lại';
+    }
+  };
+
+  sliderThumb.onmousedown = onStart;
+  sliderThumb.ontouchstart = onStart;
+}
+
+// ── Theme & Language Engine ────────────────────────────────────────────────
+let currentTheme = localStorage.getItem('aov_theme') || 'dark';
+let currentLang = localStorage.getItem('aov_lang') || 'vi';
+
+const translations = {
+  vi: {
+    landing_api_docs: 'API DOCS',
+    landing_auth_btn: 'ĐĂNG NHẬP / ĐĂNG KÝ',
+    logout_btn: 'ĐĂNG XUẤT',
+    nav_checker: 'Checker Studio',
+    nav_api: 'API Playground',
+    nav_history: 'History Logs',
+    nav_billing: 'Quota & Giftcode',
+    nav_admin: 'Admin Master'
+  },
+  en: {
+    landing_api_docs: 'REST API DOCS',
+    landing_auth_btn: 'SIGN IN / REGISTER',
+    logout_btn: 'SIGN OUT',
+    nav_checker: 'Checker Studio',
+    nav_api: 'API Playground',
+    nav_history: 'Audit Logs',
+    nav_billing: 'Credits & Billing',
+    nav_admin: 'Master Admin'
+  }
+};
+
+function applyTheme(theme) {
+  currentTheme = theme;
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('aov_theme', theme);
+
+  const darkIcons = document.querySelectorAll('.theme-icon-dark');
+  const lightIcons = document.querySelectorAll('.theme-icon-light');
+
+  if (theme === 'light') {
+    darkIcons.forEach(el => el.style.display = 'none');
+    lightIcons.forEach(el => el.style.display = 'inline');
+  } else {
+    darkIcons.forEach(el => el.style.display = 'inline');
+    lightIcons.forEach(el => el.style.display = 'none');
+  }
+}
+
+function applyLanguage(lang) {
+  currentLang = lang;
+  localStorage.setItem('aov_lang', lang);
+
+  const langPills = document.querySelectorAll('.lang-text');
+  langPills.forEach(el => el.textContent = lang.toUpperCase());
+
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (translations[lang] && translations[lang][key]) {
+      el.textContent = translations[lang][key];
+    }
+  });
+}
+
+// Bind Theme / Lang switches
+const btnToggleTheme = document.getElementById('btnToggleTheme');
+const btnStudioTheme = document.getElementById('btnStudioTheme');
+const btnToggleLang = document.getElementById('btnToggleLang');
+const btnStudioLang = document.getElementById('btnStudioLang');
+
+if (btnToggleTheme) btnToggleTheme.addEventListener('click', () => applyTheme(currentTheme === 'dark' ? 'light' : 'dark'));
+if (btnStudioTheme) btnStudioTheme.addEventListener('click', () => applyTheme(currentTheme === 'dark' ? 'light' : 'dark'));
+if (btnToggleLang) btnToggleLang.addEventListener('click', () => applyLanguage(currentLang === 'vi' ? 'en' : 'vi'));
+if (btnStudioLang) btnStudioLang.addEventListener('click', () => applyLanguage(currentLang === 'vi' ? 'en' : 'vi'));
+
+// ── AI Studio Copilot RAG Drawer Engine ─────────────────────────────────────
+const aiCopilotDrawer = document.getElementById('aiCopilotDrawer');
+const btnOpenAICopilot = document.getElementById('btnOpenAICopilot');
+const btnCloseAICopilot = document.getElementById('btnCloseAICopilot');
+const aiChatForm = document.getElementById('aiChatForm');
+const aiChatInput = document.getElementById('aiChatInput');
+const aiChatBody = document.getElementById('aiChatBody');
+const aiPromptChips = document.querySelectorAll('.ai-prompt-chip');
+
+function toggleAICopilot(open = true) {
+  if (!aiCopilotDrawer) return;
+  if (open) {
+    aiCopilotDrawer.classList.add('open');
+    if (aiChatInput) aiChatInput.focus();
+  } else {
+    aiCopilotDrawer.classList.remove('open');
+  }
+}
+
+if (btnOpenAICopilot) btnOpenAICopilot.addEventListener('click', () => toggleAICopilot(true));
+if (btnCloseAICopilot) btnCloseAICopilot.addEventListener('click', () => toggleAICopilot(false));
+
+aiPromptChips.forEach(chip => {
+  chip.addEventListener('click', () => {
+    const query = chip.getAttribute('data-query');
+    if (query && aiChatInput) {
+      aiChatInput.value = query;
+      sendAIMessage(query);
+    }
+  });
 });
+
+async function sendAIMessage(prompt) {
+  if (!prompt || !prompt.trim()) return;
+  appendChatMessage('user', prompt);
+  if (aiChatInput) aiChatInput.value = '';
+
+  const typingMsg = appendChatMessage('assistant', 'Đang suy nghĩ và đối soát dữ liệu RAG...', true);
+
+  try {
+    const res = await fetch('/api/ai/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt: prompt,
+        task_id: activeTaskId || ''
+      })
+    });
+    const data = await res.json();
+    if (typingMsg) typingMsg.remove();
+
+    if (data.status === 'ok') {
+      appendChatMessage('assistant', data.response);
+    } else {
+      appendChatMessage('assistant', data.error || 'Trợ lý AI gặp sự cố kết nối.');
+    }
+  } catch (err) {
+    if (typingMsg) typingMsg.remove();
+    appendChatMessage('assistant', 'Lỗi kết nối tới AI Copilot.');
+  }
+}
+
+function appendChatMessage(role, text, isTyping = false) {
+  if (!aiChatBody) return null;
+  const msgEl = document.createElement('div');
+  msgEl.className = `ai-message ${role}`;
+  if (isTyping) msgEl.classList.add('typing-indicator');
+
+  const avatar = document.createElement('div');
+  avatar.className = 'msg-avatar';
+  avatar.textContent = role === 'user' ? 'U' : '🤖';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
+  bubble.innerHTML = text.replace(/\n/g, '<br/>');
+
+  msgEl.appendChild(avatar);
+  msgEl.appendChild(bubble);
+  aiChatBody.appendChild(msgEl);
+  aiChatBody.scrollTop = aiChatBody.scrollHeight;
+  return msgEl;
+}
+
+if (aiChatForm) {
+  aiChatForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const val = aiChatInput.value.trim();
+    if (val) sendAIMessage(val);
+  });
+}
+
+// ── Admin Master Dashboard Engine ──────────────────────────────────────────
+const adminUsersTbody = document.getElementById('adminUsersTbody');
+const adminGiftcodesTbody = document.getElementById('adminGiftcodesTbody');
+const adminUserCount = document.getElementById('adminUserCount');
+const btnRefreshAdminData = document.getElementById('btnRefreshAdminData');
+const adminCreateGiftcodeForm = document.getElementById('adminCreateGiftcodeForm');
+const modalAdminCredits = document.getElementById('modalAdminCredits');
+const modalTargetUsername = document.getElementById('modalTargetUsername');
+const modalCreditsDelta = document.getElementById('modalCreditsDelta');
+const formAdminAdjustCredits = document.getElementById('formAdminAdjustCredits');
+const btnCloseModalCredits = document.getElementById('btnCloseModalCredits');
+const btnCancelModalCredits = document.getElementById('btnCancelModalCredits');
+let adminSelectedUser = null;
+
+async function loadAdminDashboard() {
+  if (!currentUser) return;
+  await Promise.all([loadAdminUsers(), loadAdminGiftcodes()]);
+}
+
+async function loadAdminUsers() {
+  if (!adminUsersTbody) return;
+  try {
+    const res = await fetch(`/api/admin/users?admin_id=${currentUser.id}`);
+    const data = await res.json();
+    if (data.status === 'ok') {
+      const users = data.users || [];
+      if (adminUserCount) adminUserCount.textContent = `${users.length} Người dùng`;
+      adminUsersTbody.innerHTML = '';
+
+      users.forEach(u => {
+        const tr = document.createElement('tr');
+        const roleBadgeClass = u.role === 'owner' ? 'badge-role-owner' : (u.role === 'admin' ? 'badge-role-admin' : 'badge-role-user');
+
+        let actionsHtml = `<div class="action-btn-group">
+          <button class="btn btn-sm btn-ghost btn-adj-cr" data-username="${u.username}">+ CR</button>`;
+
+        if (currentUser.role === 'owner' && u.role !== 'owner') {
+          if (u.role === 'admin') {
+            actionsHtml += `<button class="btn btn-sm btn-ghost btn-demote" data-uid="${u.id}">Hạ User</button>`;
+          } else {
+            actionsHtml += `<button class="btn btn-sm btn-ghost btn-promote" data-uid="${u.id}">Lên Admin</button>`;
+          }
+        }
+        actionsHtml += `</div>`;
+
+        tr.innerHTML = `
+          <td>#${u.id}</td>
+          <td><strong>${escapeHtml(u.username)}</strong></td>
+          <td><span class="${roleBadgeClass}">${(u.role || 'user').toUpperCase()}</span></td>
+          <td><code>${u.credits.toLocaleString()} CR</code></td>
+          <td><code style="font-size:11px;">${escapeHtml(u.api_key || '-')}</code></td>
+          <td>${actionsHtml}</td>
+        `;
+        adminUsersTbody.appendChild(tr);
+      });
+
+      // Bind dynamic actions
+      adminUsersTbody.querySelectorAll('.btn-adj-cr').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const uname = btn.getAttribute('data-username');
+          openAdjustCreditsModal(uname);
+        });
+      });
+
+      adminUsersTbody.querySelectorAll('.btn-promote').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const uid = btn.getAttribute('data-uid');
+          await updateAdminRole(uid, 'admin');
+        });
+      });
+
+      adminUsersTbody.querySelectorAll('.btn-demote').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const uid = btn.getAttribute('data-uid');
+          await updateAdminRole(uid, 'user');
+        });
+      });
+    }
+  } catch (e) {
+    console.error('Load admin users error:', e);
+  }
+}
+
+async function updateAdminRole(targetUserId, newRole) {
+  if (!confirm(`Xác nhận đổi quyền người dùng #${targetUserId} thành ${newRole.toUpperCase()}?`)) return;
+  try {
+    const res = await fetch('/api/admin/update-role', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        admin_id: currentUser.id,
+        target_user_id: targetUserId,
+        new_role: newRole
+      })
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      showToast('ĐÃ CẬP NHẬT PHÂN QUYỀN!');
+      loadAdminUsers();
+    } else {
+      showToast(data.error || 'Thao tác thất bại');
+    }
+  } catch (err) {
+    showToast('Lỗi máy chủ');
+  }
+}
+
+function openAdjustCreditsModal(username) {
+  adminSelectedUser = username;
+  if (modalTargetUsername) modalTargetUsername.value = username;
+  if (modalCreditsDelta) modalCreditsDelta.value = '100';
+  if (modalAdminCredits) modalAdminCredits.style.display = 'flex';
+}
+
+function closeAdjustCreditsModal() {
+  if (modalAdminCredits) modalAdminCredits.style.display = 'none';
+}
+
+if (btnCloseModalCredits) btnCloseModalCredits.addEventListener('click', closeAdjustCreditsModal);
+if (btnCancelModalCredits) btnCancelModalCredits.addEventListener('click', closeAdjustCreditsModal);
+
+if (formAdminAdjustCredits) {
+  formAdminAdjustCredits.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!adminSelectedUser || !currentUser) return;
+    const delta = parseInt(modalCreditsDelta.value, 10);
+    try {
+      const res = await fetch('/api/admin/adjust-credits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          admin_id: currentUser.id,
+          target_username: adminSelectedUser,
+          credits_delta: delta
+        })
+      });
+      const data = await res.json();
+      if (data.status === 'ok') {
+        showToast(`ĐÃ CẬP NHẬT CREDITS CHO ${adminSelectedUser}!`);
+        closeAdjustCreditsModal();
+        loadAdminUsers();
+        refreshUserMeta();
+      } else {
+        showToast(data.error || 'Cập nhật thất bại');
+      }
+    } catch (err) {
+      showToast('Lỗi kết nối máy chủ');
+    }
+  });
+}
+
+async function loadAdminGiftcodes() {
+  if (!adminGiftcodesTbody) return;
+  try {
+    const res = await fetch(`/api/admin/giftcodes?admin_id=${currentUser.id}`);
+    const data = await res.json();
+    if (data.status === 'ok') {
+      const codes = data.giftcodes || [];
+      adminGiftcodesTbody.innerHTML = '';
+      codes.forEach(c => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><code>${escapeHtml(c.code)}</code></td>
+          <td><strong style="color:var(--green);">+${c.credits} CR</strong></td>
+          <td>${c.used_count || 0} / ${c.max_uses}</td>
+          <td>
+            <button class="btn btn-sm btn-ghost btn-del-giftcode" data-code="${escapeHtml(c.code)}" style="color:var(--red);">Xóa</button>
+          </td>
+        `;
+        adminGiftcodesTbody.appendChild(tr);
+      });
+
+      adminGiftcodesTbody.querySelectorAll('.btn-del-giftcode').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const code = btn.getAttribute('data-code');
+          if (!confirm(`Xóa giftcode ${code}?`)) return;
+          try {
+            const res = await fetch('/api/admin/delete-giftcode', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ admin_id: currentUser.id, code })
+            });
+            const d = await res.json();
+            if (d.status === 'ok') {
+              showToast(`ĐÃ XÓA MÃ ${code}`);
+              loadAdminGiftcodes();
+            } else {
+              showToast(d.error || 'Xóa thất bại');
+            }
+          } catch (e) {
+            showToast('Lỗi máy chủ');
+          }
+        });
+      });
+    }
+  } catch (e) {
+    console.error('Load giftcodes error:', e);
+  }
+}
+
+if (adminCreateGiftcodeForm) {
+  adminCreateGiftcodeForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!currentUser) return;
+    const code = document.getElementById('newGiftcodeCode').value.trim().toUpperCase();
+    const credits = parseInt(document.getElementById('newGiftcodeCredits').value, 10);
+    const maxUses = parseInt(document.getElementById('newGiftcodeMaxUses').value, 10);
+
+    try {
+      const res = await fetch('/api/admin/create-giftcode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          admin_id: currentUser.id,
+          code,
+          credits,
+          max_uses: maxUses
+        })
+      });
+      const data = await res.json();
+      if (data.status === 'ok') {
+        showToast(`TẠO MÃ ${code} THÀNH CÔNG!`);
+        document.getElementById('newGiftcodeCode').value = '';
+        loadAdminGiftcodes();
+      } else {
+        showToast(data.error || 'Tạo mã thất bại');
+      }
+    } catch (err) {
+      showToast('Lỗi máy chủ');
+    }
+  });
+}
+
+if (btnRefreshAdminData) {
+  btnRefreshAdminData.addEventListener('click', () => {
+    loadAdminDashboard();
+    showToast('ĐÃ LÀM MỚI DỮ LIỆU ADMIN');
+  });
+}
+
+// Init theme & language on startup
+applyTheme(currentTheme);
+applyLanguage(currentLang);
 
 // Bootstrap
 initApp();
