@@ -228,16 +228,18 @@ class AOVWebHandler(BaseHTTPRequestHandler):
 
         # ── 6. Admin User Directory ───────────────────────────────────────────
         if path == "/api/admin/users":
-            requester_id = int(query.get("user_id", [0])[0] or 0)
+            raw_uid = query.get("user_id", ["0"])[0]
+            requester_id = int(raw_uid) if raw_uid.isdigit() else 0
             res = admin_get_all_users(requester_id)
-            self._send_json(res, 200 if res["success"] else 403)
+            self._send_json(res, 200 if res.get("success") else 403)
             return
 
         # ── 7. Admin Giftcode Directory ───────────────────────────────────────
         if path == "/api/admin/giftcodes":
-            requester_id = int(query.get("user_id", [0])[0] or 0)
+            raw_uid = query.get("user_id", ["0"])[0]
+            requester_id = int(raw_uid) if raw_uid.isdigit() else 0
             res = admin_list_giftcodes(requester_id)
-            self._send_json(res, 200 if res["success"] else 403)
+            self._send_json(res, 200 if res.get("success") else 403)
             return
 
         # ── 8. Static Files Serving ───────────────────────────────────────────
