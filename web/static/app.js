@@ -774,10 +774,12 @@ function createRowElement(item) {
     let authenHtml = hasAuthen ? `<span class="sec-val yes">YES</span>` : `<span class="sec-val no">NO</span>`;
     let fbHtml = hasFb ? `<span class="sec-val yes">YES</span>` : `<span class="sec-val no">DIE</span>`;
 
+    const tagText = isTrang ? 'ACC TRẮNG' : (tinhTrang ? tinhTrang.toUpperCase() : 'DÍNH THÔNG TIN');
+
     div.innerHTML = `
       <div class="row-head">
         <div style="display:flex;align-items:center;gap:8px;">
-          <span class="acc-tag ${isTrang ? 'trang' : 'dinh'}">${isTrang ? 'ACC TRẮNG' : 'DÍNH THÔNG TIN'}</span>
+          <span class="acc-tag ${isTrang ? 'trang' : 'dinh'}">${escapeHtml(tagText)}</span>
           <code>${escapeHtml(accStr)}</code>
         </div>
         <div class="acc-actions">

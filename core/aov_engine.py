@@ -46,45 +46,10 @@ def parse_combo_line(line: str) -> tuple[str, str]:
 
 
 def derive_accurate_tinh_trang(raw: dict) -> str:
-    """Derive market account condition matching Telegram bot standards."""
-    phone = (raw.get("masked_phone") or "").replace("*", "").strip()
-    has_phone = bool(phone) or bool(raw.get("mobile_bound"))
-
-    email_verified = bool(raw.get("email_verified"))
-    masked_email = (raw.get("masked_email") or "").strip()
-
-    has_cccd = bool(raw.get("idcard", "").replace("*", "").strip())
-    has_authen = bool(raw.get("authenticator_enable", 0))
-    has_fb = bool(raw.get("fb_linked"))
-    is_banned = str(raw.get("aov_banned", "")).upper() in ("CO", "YES", "TRUE", "BAN")
-
-    if not has_phone and not has_cccd and not has_authen and not email_verified and not has_fb:
-        base = "Acc Trắng"
-    elif has_phone and not has_cccd and not has_authen and not email_verified and not has_fb:
-        base = "Acc Dính Mỗi Số"
-    elif not has_phone and not has_cccd and not has_authen and email_verified and not has_fb:
-        base = "Acc Dính Mỗi Mail"
-    elif has_phone and email_verified and (has_cccd or has_authen):
-        base = "ACC FULL"
-    else:
-        parts = []
-        if has_phone:
-            parts.append("SĐT")
-        if email_verified:
-            parts.append("Mail")
-        elif masked_email:
-            parts.append("Mail (Chưa XT)")
-        if has_cccd:
-            parts.append("CCCD")
-        if has_authen:
-            parts.append("2FA")
-        if has_fb:
-            parts.append("FB")
-        base = f"Acc Dính {' + '.join(parts)}" if parts else "Acc Trắng"
-
-    if is_banned:
-        base += " [BAN]"
-    return base
+    """Derive account condition using the exact proven algorithm from Check1.py."""
+    if not raw or raw.get("status") != "HIT":
+        return "Chưa xác định"
+    return check1_derive_tinh_trang(raw)
 
 
 def check_account(account: str, password: str, proxy=None, timeout: int = 10) -> dict:
@@ -99,7 +64,7 @@ def check_account(account: str, password: str, proxy=None, timeout: int = 10) ->
     status = raw.get("status", "ERROR")
 
     tinh_trang = derive_accurate_tinh_trang(raw) if status == "HIT" else "Chưa xác định"
-    is_trang = (tinh_trang == "Acc Trắng" or "Acc Trắng" in tinh_trang)
+    is_trang = (tinh_trang == "Acc Trắng")
 
     from core.aov_database import classify_skins, translate_aov_rank
 
@@ -172,12 +137,12 @@ def check_account(account: str, password: str, proxy=None, timeout: int = 10) ->
             "cp": skins_dict.get("cp", 0) if isinstance(skins_dict, dict) else 0,
         },
         "security": {
-            "masked_phone": raw.get("masked_phone", ""),
-            "masked_email": raw.get("masked_email", ""),
-            "email_v": bool(raw.get("email_verified")),
-            "has_cccd": bool(raw.get("idcard", "").replace("*", "").strip()),
+            "masked_phone": (raw.get("aov_prefill_mobile") or raw.get("fcmobile_prefill_mobile") or raw.get("masked_phone") or "").strip(),
+            "masked_email": (raw.get("masked_email") or "").strip(),
+            "email_v": bool(raw.get("email_verified")) or bool(int(raw.get("email_v", 0) or 0)),
+            "has_cccd": bool((raw.get("idcard") or "").replace("*", "").strip()),
             "fb_linked": bool(raw.get("fb_linked")),
-            "auth_2fa": bool(raw.get("authenticator_enable", 0)),
+            "auth_2fa": bool(raw.get("authenticator_enable", 0)) or bool(raw.get("two_step_verify", 0)),
         },
     }
 
@@ -197,12 +162,12 @@ def check_account(account: str, password: str, proxy=None, timeout: int = 10) ->
     result["ss_list"] = ss_list
     result["other_list"] = other_list
     result["tt_info"] = tinh_trang
-    result["masked_phone"] = raw.get("masked_phone", "")
-    result["masked_email"] = raw.get("masked_email", "")
-    result["email_v"] = bool(raw.get("email_verified"))
-    result["has_cccd"] = bool(raw.get("idcard", "").replace("*", "").strip())
-    result["fb_linked"] = bool(raw.get("fb_linked"))
-    result["auth_2fa"] = bool(raw.get("authenticator_enable", 0))
+    result["masked_phone"] = result["security"]["masked_phone"]
+    result["masked_email"] = result["security"]["masked_email"]
+    result["email_v"] = result["security"]["email_v"]
+    result["has_cccd"] = result["security"]["has_cccd"]
+    result["fb_linked"] = result["security"]["fb_linked"]
+    result["auth_2fa"] = result["security"]["auth_2fa"]
     result["full_info"] = format_account_full_info(result)
 
     return result
