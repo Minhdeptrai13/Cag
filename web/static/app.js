@@ -218,24 +218,31 @@ async function refreshUserMeta() {
   }
 }
 
+// ── Safe Event Helper ────────────────────────────────────────────────────────
+function on(el, event, handler) {
+  if (el && typeof el.addEventListener === 'function') {
+    el.addEventListener(event, handler);
+  }
+}
+
 // Navigation & Auth Buttons
-(btnLandingLogin && btnLandingLogin.addEventListener)('click', (e) => {
+on(btnLandingLogin, 'click', (e) => {
   e.preventDefault();
   showAuthView('login');
 });
 
-(btnHeroOpenStudio && btnHeroOpenStudio.addEventListener)('click', (e) => {
+on(btnHeroOpenStudio, 'click', (e) => {
   e.preventDefault();
   if (currentUser) showStudioView();
   else showAuthView('login');
 });
 
-(btnHeroRegister && btnHeroRegister.addEventListener)('click', (e) => {
+on(btnHeroRegister, 'click', (e) => {
   e.preventDefault();
   showAuthView('register');
 });
 
-(btnLandingDocs && btnLandingDocs.addEventListener)('click', (e) => {
+on(btnLandingDocs, 'click', (e) => {
   e.preventDefault();
   if (currentUser) {
     showStudioView();
@@ -245,31 +252,31 @@ async function refreshUserMeta() {
   }
 });
 
-(btnBackToLanding && btnBackToLanding.addEventListener)('click', (e) => {
+on(btnBackToLanding, 'click', (e) => {
   e.preventDefault();
   showLandingView();
 });
 
-(tabLoginBtn && tabLoginBtn.addEventListener)('click', () => {
+on(tabLoginBtn, 'click', () => {
   showAuthView('login');
 });
 
-(tabRegisterBtn && tabRegisterBtn.addEventListener)('click', () => {
+on(tabRegisterBtn, 'click', () => {
   showAuthView('register');
 });
 
-(linkSwitchToRegister && linkSwitchToRegister.addEventListener)('click', (e) => {
+on(linkSwitchToRegister, 'click', (e) => {
   e.preventDefault();
   showAuthView('register');
 });
 
-(linkSwitchToLogin && linkSwitchToLogin.addEventListener)('click', (e) => {
+on(linkSwitchToLogin, 'click', (e) => {
   e.preventDefault();
   showAuthView('login');
 });
 
 // Login Submit
-(loginForm && loginForm.addEventListener)('submit', async (e) => {
+on(loginForm, 'submit', async (e) => {
   e.preventDefault();
   if (loginError) loginError.style.display = 'none';
   const username = document.getElementById('loginUser').value.trim();
@@ -303,7 +310,7 @@ async function refreshUserMeta() {
 });
 
 // Register Submit
-(registerForm && registerForm.addEventListener)('submit', async (e) => {
+on(registerForm, 'submit', async (e) => {
   e.preventDefault();
   if (regError) regError.style.display = 'none';
   const username = document.getElementById('regUser').value.trim();
@@ -336,7 +343,7 @@ async function refreshUserMeta() {
   }
 });
 
-(btnStudioLogout && btnStudioLogout.addEventListener)('click', () => {
+on(btnStudioLogout, 'click', () => {
   currentUser = null;
   currentApiKey = null;
   localStorage.removeItem('aov_user');
@@ -374,14 +381,14 @@ navItems.forEach(btn => {
 });
 
 // ── Mode Switcher (Batch Stream vs Single Quick Test) ───────────────────────
-(btnModeBatch && btnModeBatch.addEventListener)('click', () => {
+on(btnModeBatch, 'click', () => {
   btnModeBatch.classList.add('active');
   btnModeSingle.classList.remove('active');
   batchStreamPane.style.display = 'grid';
   singleTestPane.style.display = 'none';
 });
 
-(btnModeSingle && btnModeSingle.addEventListener)('click', () => {
+on(btnModeSingle, 'click', () => {
   btnModeSingle.classList.add('active');
   btnModeBatch.classList.remove('active');
   batchStreamPane.style.display = 'none';
@@ -389,7 +396,7 @@ navItems.forEach(btn => {
 });
 
 // ── Single Quick Test ───────────────────────────────────────────────────────
-(btnRunSingle && btnRunSingle.addEventListener)('click', async () => {
+on(btnRunSingle, 'click', async () => {
   const acc = singleAcc.value.trim();
   const pwd = singlePass.value.trim();
   if (!acc || !pwd) {
@@ -441,25 +448,25 @@ navItems.forEach(btn => {
 
 // ── Batch Stream Checker ────────────────────────────────────────────────────
 const btnSelectFile = document.getElementById('btnSelectFile');
-(btnSelectFile && btnSelectFile.addEventListener)('click', (e) => {
+on(btnSelectFile, 'click', (e) => {
   e.preventDefault();
   e.stopPropagation();
   if (fileInput) fileInput.click();
 });
 
-(fileInput && fileInput.addEventListener)('change', (e) => {
+on(fileInput, 'change', (e) => {
   const file = e.target.files[0];
   if (file) handleLoadedFile(file);
 });
 
-(uploadZone && uploadZone.addEventListener)('dragover', (e) => {
+on(uploadZone, 'dragover', (e) => {
   e.preventDefault();
   uploadZone.classList.add('dragover');
 });
-(uploadZone && uploadZone.addEventListener)('dragleave', () => {
+on(uploadZone, 'dragleave', () => {
   uploadZone.classList.remove('dragover');
 });
-(uploadZone && uploadZone.addEventListener)('drop', (e) => {
+on(uploadZone, 'drop', (e) => {
   e.preventDefault();
   uploadZone.classList.remove('dragover');
   const file = e.dataTransfer.files[0];
@@ -476,14 +483,14 @@ function handleLoadedFile(file) {
   reader.readAsText(file);
 }
 
-(btnClearBatch && btnClearBatch.addEventListener)('click', () => {
+on(btnClearBatch, 'click', () => {
   batchText.value = '';
   if (fileChosen) fileChosen.textContent = '';
   if (fileInput) fileInput.value = '';
   showToast('ĐÃ XÓA TRẮNG');
 });
 
-(btnStartBatch && btnStartBatch.addEventListener)('click', async () => {
+on(btnStartBatch, 'click', async () => {
   const text = batchText.value.trim();
   if (!text) {
     showToast('VUI LÒNG DÁN COMBO HOẶC CHỌN FILE .TXT');
@@ -681,7 +688,7 @@ tabFilters.forEach(btn => {
   });
 });
 
-(filterSearch && filterSearch.addEventListener)('input', (e) => {
+on(filterSearch, 'input', (e) => {
   currentSearch = e.target.value.toLowerCase().trim();
   renderFilteredBatchList();
 });
@@ -710,7 +717,7 @@ function downloadFile(filename, content) {
   URL.revokeObjectURL(url);
 }
 
-(btnExportAll && btnExportAll.addEventListener)('click', () => {
+on(btnExportAll, 'click', () => {
   if (!allResults || allResults.length === 0) {
     showToast('CHƯA CÓ KẾT QUẢ CHECK NÀO ĐỂ XUẤT');
     return;
@@ -747,7 +754,7 @@ function downloadFile(filename, content) {
   }
 });
 
-(btnExportTrang && btnExportTrang.addEventListener)('click', () => {
+on(btnExportTrang, 'click', () => {
   if (!allResults || allResults.length === 0) {
     showToast('CHƯA CÓ KẾT QUẢ CHECK NÀO ĐỂ XUẤT');
     return;
@@ -770,7 +777,7 @@ function downloadFile(filename, content) {
   showToast(`ĐÃ XUẤT ${trangs.length} ACC TRẮNG TTT`);
 });
 
-(btnCopyView && btnCopyView.addEventListener)('click', () => {
+on(btnCopyView, 'click', () => {
   let list = allResults.filter(matchesFilter);
   if (list.length === 0 && allResults.length > 0) {
     list = allResults;
@@ -805,14 +812,14 @@ async function loadUserApiKeys() {
   }
 }
 
-(btnCopyApiKey && btnCopyApiKey.addEventListener)('click', () => {
+on(btnCopyApiKey, 'click', () => {
   if (displayApiKey && displayApiKey.value) {
     navigator.clipboard.writeText(displayApiKey.value);
     showToast('ĐÃ COPY API KEY!');
   }
 });
 
-(btnGenNewApiKey && btnGenNewApiKey.addEventListener)('click', async () => {
+on(btnGenNewApiKey, 'click', async () => {
   if (!currentUser) return;
   if (!confirm('Bạn có chắc chắn muốn tạo API Key mới không?')) return;
   try {
@@ -834,7 +841,7 @@ async function loadUserApiKeys() {
 });
 
 // Interactive API Tester
-(btnSendTestApi && btnSendTestApi.addEventListener)('click', async () => {
+on(btnSendTestApi, 'click', async () => {
   const combo = testComboInput.value.trim();
   if (!combo) {
     showToast('HÃY NHẬP TÀI KHOẢN TEST (user:pass)');
@@ -986,7 +993,7 @@ echo $response;
   if (snippetCode) snippetCode.textContent = code;
 }
 
-(btnCopySnippet && btnCopySnippet.addEventListener)('click', () => {
+on(btnCopySnippet, 'click', () => {
   if (snippetCode) {
     navigator.clipboard.writeText(snippetCode.textContent);
     showToast('ĐÃ COPY CODE MẪU!');
@@ -995,7 +1002,7 @@ echo $response;
 
 // ── Check History Logs ──────────────────────────────────────────────────────
 histFilterBtns.forEach(btn => {
-  btn.addEventListener('click', () => {
+  on(btn, 'click', () => {
     histFilterBtns.forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     currentHistFilter = btn.getAttribute('data-hist-filter') || 'all';
@@ -1003,7 +1010,7 @@ histFilterBtns.forEach(btn => {
   });
 });
 
-(btnRefreshHistory && btnRefreshHistory.addEventListener)('click', () => loadCheckHistory(currentHistFilter));
+on(btnRefreshHistory, 'click', () => loadCheckHistory(currentHistFilter));
 
 async function loadCheckHistory(filter = 'all') {
   if (!currentUser) return;
@@ -1049,7 +1056,7 @@ function renderHistoryTable(items) {
   historyTableBody.innerHTML = html;
 }
 
-(btnExportHistory && btnExportHistory.addEventListener)('click', async () => {
+on(btnExportHistory, 'click', async () => {
   if (!currentUser) {
     showToast('VUI LÒNG ĐĂNG NHẬP ĐỂ XUẤT LỊCH SỬ');
     return;
@@ -1090,7 +1097,7 @@ function renderHistoryTable(items) {
   showToast(`ĐÃ XUẤT ${currentHistoryList.length} DÒNG LỊCH SỬ`);
 });
 
-(btnClearHistory && btnClearHistory.addEventListener)('click', async () => {
+on(btnClearHistory, 'click', async () => {
   if (!currentUser) return;
   if (!confirm('Bạn có chắc chắn muốn xóa toàn bộ lịch sử check của mình?')) return;
   try {
@@ -1117,7 +1124,7 @@ window.fillCode = function(code) {
   }
 };
 
-(redeemStudioForm && redeemStudioForm.addEventListener)('submit', async (e) => {
+on(redeemStudioForm, 'submit', async (e) => {
   e.preventDefault();
   if (!currentUser) return;
   if (redeemStudioError) redeemStudioError.style.display = 'none';
