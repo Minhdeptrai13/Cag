@@ -4,3 +4,4 @@ Pillow>=9.0.0
 opencv-python-headless>=4.5.0
 numpy>=1.20.0
 ddddocr>=1.4.0
+freellmpool>=0.13.0

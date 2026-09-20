@@ -10,9 +10,33 @@ import time
 
 from core.aov_database import SKIN_SSS, SKIN_SS, SKIN_ANIME
 
+# ── Multi-Tier Zero-Key Public AI Gateways ────────────────────────────────
+KILO_GATEWAY_URL = "https://api.kilo.ai/api/gateway/chat/completions"
+KILO_MODELS = ["kilo-auto/free", "qwen/qwen3.8-27b:free", "inclusionai/ling-3.0-flash-vl:free"]
+
+LLMTECH_GATEWAY_URL = "https://api.llmtech.eu/v1/chat/completions"
+LLMTECH_MODEL = "nvidia/Qwen3.8-27B-NVFP4"
+LLMTECH_PUBLIC_KEY = "lt-trial-ba1ef28c6d32ed6980678d8d"
+
 QWEN_ENDPOINT = "https://free.empero.org/v1/chat/completions"
 QWEN_MODEL = "Qwen/Qwen3.8-27B-FP8"
 QWEN_KEY = "free"
+
+INVALID_AI_PATTERNS = [
+    "doesn't have enough credits",
+    "does not have enough credits",
+    "error from provider",
+    "rate limit exceeded",
+    "user safety: safe",
+    "model is currently unavailable",
+    "account behind this api key"
+]
+
+def is_valid_ai_reply(text: str) -> bool:
+    if not text or len(str(text).strip()) < 5:
+        return False
+    lower = str(text).lower()
+    return not any(pat in lower for pat in INVALID_AI_PATTERNS)
 
 
 def build_system_rag_prompt(batch_context: dict = None) -> str:
@@ -57,8 +81,34 @@ NHIỆM VỤ CỦA BẠN:
 """
 
 
+# ── Dynamic Keyless LLM Pool via freellmpool ──────────────────────────────
+_FREE_LLM_POOL = None
+_POOL_INIT_TRIED = False
+
+def get_free_llm_pool():
+    global _FREE_LLM_POOL, _POOL_INIT_TRIED
+    if _FREE_LLM_POOL is None and not _POOL_INIT_TRIED:
+        _POOL_INIT_TRIED = True
+        try:
+            from freellmpool import Pool
+            from freellmpool.config import configured_providers
+            providers = configured_providers()
+            if providers:
+                _FREE_LLM_POOL = Pool(providers, routing="fair")
+                print(f"[AI Copilot] freellmpool initialized with {len(providers)} keyless providers.", flush=True)
+        except Exception as e:
+            print(f"[AI Copilot] freellmpool init notice: {e}", flush=True)
+    return _FREE_LLM_POOL
+
+
 def chat_with_copilot(user_message: str, history: list = None, batch_context: dict = None) -> str:
-    """Send message to Qwen 3.8 with RAG system prompt and auto-fallback"""
+    """
+    Tier-1: Kilo Code Anonymous Free Gateway (200 req/hour, Zero API Key required)
+    Tier-2: LLM Tech Public Quota Pool (2M tokens/day with public trial key)
+    Tier-3: freellmpool (Multi-provider routing pool)
+    Tier-4: External Qwen Fallback
+    Tier-5: Native Offline AOV RAG Knowledge Engine (Zero Downtime Guarantee)
+    """
     system_prompt = build_system_rag_prompt(batch_context)
 
     messages = [{"role": "system", "content": system_prompt}]
@@ -67,31 +117,94 @@ def chat_with_copilot(user_message: str, history: list = None, batch_context: di
             messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
     messages.append({"role": "user", "content": user_message})
 
-    # 1. Try Qwen 3.8 endpoint
-    body = {
-        "model": QWEN_MODEL,
-        "messages": messages,
-        "temperature": 0.7,
-        "max_tokens": 1024
-    }
+    # 1. TIER-1: Kilo Code Anonymous Gateway (kilo-auto/free & qwen)
+    for model_id in KILO_MODELS:
+        try:
+            payload = {
+                "model": model_id,
+                "messages": messages,
+                "max_tokens": 1024,
+                "temperature": 0.7
+            }
+            req = urllib.request.Request(
+                KILO_GATEWAY_URL,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={
+                    "Content-Type": "application/json",
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AOV-Copilot/2.0"
+                }
+            )
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                reply = data["choices"][0]["message"]["content"].strip()
+                if is_valid_ai_reply(reply):
+                    return reply
+        except Exception as err:
+            pass
 
-    req = urllib.request.Request(
-        QWEN_ENDPOINT,
-        data=json.dumps(body).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {QWEN_KEY}",
-            "User-Agent": "AOV-Studio/2.0"
-        }
-    )
-
+    # 2. TIER-2: LLM Tech Public Provider (Qwen 3.8 NVFP4)
     try:
-        with urllib.request.urlopen(req, timeout=12) as resp:
+        payload = {
+            "model": LLMTECH_MODEL,
+            "messages": messages,
+            "max_tokens": 1024,
+            "temperature": 0.7
+        }
+        req = urllib.request.Request(
+            LLMTECH_GATEWAY_URL,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {LLMTECH_PUBLIC_KEY}",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AOV-Copilot/2.0"
+            }
+        )
+        with urllib.request.urlopen(req, timeout=9) as resp:
             data = json.loads(resp.read().decode("utf-8"))
-            return data["choices"][0]["message"]["content"].strip()
-    except Exception as e:
-        # 2. Intelligent Offline Fallback Engine (Zero downtime)
-        return generate_offline_rag_response(user_message, batch_context)
+            reply = data["choices"][0]["message"]["content"].strip()
+            if is_valid_ai_reply(reply):
+                return reply
+    except Exception as err:
+        pass
+
+    # 3. TIER-3: freellmpool (Keyless LLM Pool with community routes)
+    pool = get_free_llm_pool()
+    if pool:
+        try:
+            res = pool.chat(messages, max_tokens=1024)
+            reply_text = getattr(res, "text", None) or getattr(res, "content", "")
+            if is_valid_ai_reply(reply_text):
+                return str(reply_text).strip()
+        except Exception as err:
+            pass
+
+    # 4. TIER-4: Legacy Qwen endpoint
+    try:
+        body = {
+            "model": QWEN_MODEL,
+            "messages": messages,
+            "temperature": 0.7,
+            "max_tokens": 1024
+        }
+        req = urllib.request.Request(
+            QWEN_ENDPOINT,
+            data=json.dumps(body).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {QWEN_KEY}",
+                "User-Agent": "AOV-Studio/2.0"
+            }
+        )
+        with urllib.request.urlopen(req, timeout=7) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            reply = data["choices"][0]["message"]["content"].strip()
+            if is_valid_ai_reply(reply):
+                return reply
+    except Exception:
+        pass
+
+    # 5. TIER-5: Native Instant AOV RAG Knowledge Engine (Always online)
+    return generate_offline_rag_response(user_message, batch_context)
 
 
 def generate_offline_rag_response(prompt: str, batch_context: dict) -> str:
