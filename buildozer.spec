@@ -5,9 +5,10 @@ package.name = aovchecker
 package.domain = org.garena.aov
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,html,css,js,json,txt
-source.exclude_dirs = bin, .buildozer, .git, results, __pycache__, scratch
+source.exclude_dirs = bin, .buildozer, .git, results, __pycache__, scratch, .github
+source.exclude_patterns = *.db, *.zip, *.log, *.pyc
 version = 1.0.0
-requirements = python3,requests,urllib3,pillow
+requirements = python3,requests,urllib3,certifi,chardet,idna
 
 # Webview bootstrap - Tự động tải giao diện Web UI local lên Android WebView
 p4a.bootstrap = webview
@@ -20,11 +21,14 @@ fullscreen = 0
 # Android permissions
 android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE,ACCESS_NETWORK_STATE
 
-# Target Android API
+# Target Android API & NDK
 android.api = 33
 android.minapi = 21
-android.archs = arm64-v8a, armeabi-v7a
+android.ndk_api = 21
+android.archs = arm64-v8a
 android.allow_backup = True
+android.accept_sdk_license = True
+android.skip_update = False
 
 [buildozer]
 log_level = 2

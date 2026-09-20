@@ -3,120 +3,456 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AOV BATCH PRO CHECKER</title>
+  <title>AOV Studio Playground - Garena & AOV SaaS Platform</title>
   <link rel="stylesheet" href="/style.css" />
 </head>
-<body>
-  <div class="layout">
-    <!-- Top Bar -->
-    <header class="topbar">
+<body class="app-body">
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- 1. LANDING VIEW (DÀNH CHO KHÁCH CHƯA ĐĂNG NHẬP)                        -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <div id="landingView" class="landing-container">
+    <!-- Navbar Public -->
+    <header class="landing-nav">
       <div class="brand">
-        <span class="brand-tag">AOV</span>
-        <span class="brand-title">BATCH CHECKER PRO</span>
-        <span class="brand-status">ONLINE</span>
+        <span class="brand-badge">AOV</span>
+        <span class="brand-title">STUDIO</span>
+        <span class="brand-version">PLAYGROUND</span>
       </div>
-      <div class="top-counters">
-        <div class="count-pill pill-total">TOTAL: <strong id="statTotal">0</strong></div>
-        <div class="count-pill pill-hit">HIT: <strong id="statHits">0</strong></div>
-        <div class="count-pill pill-trang">TRANG TTT: <strong id="statTrang">0</strong></div>
-        <div class="count-pill pill-vip">SKIN VIP: <strong id="statSkinVIP">0</strong></div>
-      </div>
-      <!-- User / Auth Header Area -->
-      <div class="user-bar">
-        <div id="authGuestView" class="auth-box">
-          <button class="btn-auth-nav" id="btnOpenAuthModal">DANG NHAP / DANG KY</button>
-        </div>
-        <div id="authUserView" class="auth-box" style="display:none;">
-          <div class="user-pill">
-            <span class="user-badge" id="navUsername">Tris</span>
-            <span class="credit-badge"><strong id="navCredits">50</strong> CR</span>
-          </div>
-          <button class="btn-api-nav" id="btnOpenApiModal">API KEYS</button>
-          <button class="btn-logout-nav" id="btnLogout">THOAT</button>
-        </div>
+      <div class="nav-actions">
+        <button class="btn btn-ghost" id="btnLandingDocs">API DOCS</button>
+        <button class="btn btn-primary" id="btnLandingLogin">ĐĂNG NHẬP / ĐĂNG KÝ</button>
       </div>
     </header>
 
-    <!-- Main 2-Column Grid -->
-    <div class="workspace">
-      <!-- Left Panel: Input & Controls -->
-      <aside class="panel-left">
-        <div class="panel-header">
-          <h2>INPUT COMBO LIST</h2>
-          <div class="thread-picker">
-            <span>LUONG:</span>
-            <input type="number" id="threadInput" min="1" max="50" value="10" />
-          </div>
-        </div>
+    <!-- Hero Showcase -->
+    <main class="landing-hero">
+      <div class="hero-badge">
+        <span class="dot-live"></span> NỀN TẢNG AOV CHECKER & DEVELOPER API GATEWAY THẾ HỆ MỚI
+      </div>
+      <h1 class="hero-title">
+        Nền Tảng Quét Tài Khoản & <br />
+        <span class="gradient-text">API Dịch Vụ Cho Lập Trình Viên</span>
+      </h1>
+      <p class="hero-subtitle">
+        Khám phá môi trường Studio Playground tối tân: Tốc độ quét 100+ luồng song song,
+        tự động phân tích full thông tin Rank, Tướng, Skin SS/SSS/Anime, bóc tách Trắng TTT sạch sẽ,
+        tích hợp tức thì vào Telegram Bot, Discord và ứng dụng riêng qua REST API.
+      </p>
 
-        <div class="drop-zone" id="uploadZone">
-          <input type="file" id="fileInput" accept=".txt" style="display:none;" />
-          <span class="drop-text">[ KEO THA HOAC CLICK DE CHON FILE .TXT ]</span>
-          <span class="file-name" id="fileChosen"></span>
-        </div>
+      <div class="hero-cta-group">
+        <button class="btn btn-hero btn-hero-glow" id="btnHeroOpenStudio">
+          <span class="icon">🚀</span> MỞ PLAYGROUND STUDIO
+        </button>
+        <button class="btn btn-hero btn-hero-outline" id="btnHeroRegister">
+          <span class="icon">✨</span> TẠO TÀI KHOẢN (+50 CREDITS FREE)
+        </button>
+      </div>
 
-        <div class="textarea-wrap">
-          <textarea id="batchText" spellcheck="false" placeholder="Dan danh sach tai khoan vao day (1 acc / dong):&#10;user:pass&#10;user|pass&#10;user;pass&#10;user/pass&#10;user pass"></textarea>
+      <!-- Feature Grid Showcase -->
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="card-icon">⚡</div>
+          <h3>Check Đa Luồng Siêu Tốc</h3>
+          <p>Tối ưu hóa đa luồng non-blocking, nạp file text hàng chục nghìn tài khoản, bóc tách kết quả tức thì.</p>
         </div>
+        <div class="feature-card">
+          <div class="card-icon">🎯</div>
+          <h3>Độ Chuẩn Xác 100%</h3>
+          <p>Nhận diện chính xác 100% toàn bộ tướng và skin Liên Quân mới nhất: SSS, Anime, Evo, Thứ Nguyên Vệ Thần.</p>
+        </div>
+        <div class="feature-card">
+          <div class="card-icon">🔌</div>
+          <h3>Developer REST API</h3>
+          <p>Cung cấp API Key riêng biệt, gọi API kiểm tra tài khoản chỉ với 3 dòng code Python, Node.js hoặc cURL.</p>
+        </div>
+      </div>
 
-        <div class="ctrl-btns">
-          <button class="btn btn-run" id="btnStartBatch">
-            <span id="btnBatchText">BAT DAU CHECK</span>
-            <span id="btnBatchLoader" style="display:none;">DANG CHAY LUONG...</span>
+      <!-- Live Terminal Simulation Preview -->
+      <div class="preview-terminal">
+        <div class="terminal-bar">
+          <span class="term-dot red"></span>
+          <span class="term-dot yellow"></span>
+          <span class="term-dot green"></span>
+          <span class="term-title">aov_studio_core_stream.log</span>
+        </div>
+        <div class="terminal-body">
+          <div class="term-line green">[200 OK] user_vip_88:pass99 | STATUS: HIT | INGAME: 亗TriệuVân亗 | RANK: Cao Thủ (28★)</div>
+          <div class="term-line cyan">  ↳ TƯỚNG: 118 | SKIN: 342 | TRẮNG TTT: [ CHƯA ĐĂNG KÝ ]</div>
+          <div class="term-line yellow">  ↳ VIP SKINS: [ Raz Muay Thái, Tel'Annas Thứ Nguyên, Nakroth Lôi Quang Sứ ]</div>
+          <div class="term-line muted">[401 ERR] test_acc_01:wrongpass | STATUS: INVALID | DETAIL: Mật khẩu không chính xác</div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- 2. STUDIO VIEW (DÀNH CHO NGƯỜI DÙNG ĐÃ ĐĂNG NHẬP)                     -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <div id="studioView" class="studio-container" style="display:none;">
+    <!-- Studio Header -->
+    <header class="studio-header">
+      <div class="brand">
+        <span class="brand-badge">AOV</span>
+        <span class="brand-title">STUDIO</span>
+        <span class="brand-status">PLAYGROUND</span>
+      </div>
+
+      <div class="header-user-meta">
+        <div class="user-chip">
+          <span class="user-avatar" id="studioUserAvatar">U</span>
+          <span class="user-name" id="studioUsername">User</span>
+          <span class="role-tag" id="studioUserRole">FREE</span>
+          <span class="credit-pill"><strong id="studioCredits">50</strong> CR</span>
+        </div>
+        <button class="btn btn-sm btn-ghost" id="btnStudioLogout">ĐĂNG XUẤT</button>
+      </div>
+    </header>
+
+    <!-- Studio Layout (Sidebar + Main View) -->
+    <div class="studio-layout">
+      <!-- Sidebar Navigation (Google AI Studio Style) -->
+      <aside class="studio-sidebar">
+        <nav class="sidebar-nav">
+          <button class="nav-item active" data-tab="checker">
+            <span class="nav-icon">⚡</span>
+            <span class="nav-label">Checker Studio</span>
           </button>
-          <button class="btn btn-clear" id="btnClearBatch">XOA</button>
-        </div>
+          <button class="nav-item" data-tab="api">
+            <span class="nav-icon">🔑</span>
+            <span class="nav-label">API Playground</span>
+          </button>
+          <button class="nav-item" data-tab="history">
+            <span class="nav-icon">📜</span>
+            <span class="nav-label">History Logs</span>
+          </button>
+          <button class="nav-item" data-tab="billing">
+            <span class="nav-icon">💎</span>
+            <span class="nav-label">Quota & Giftcode</span>
+          </button>
+        </nav>
 
-        <!-- Progress Indicator -->
-        <div class="progress-box" id="progressWrap" style="display:none;">
-          <div class="progress-labels">
-            <span id="progressStatus">Dang xu ly...</span>
-            <span id="progressRatio">0/0 (0%)</span>
-          </div>
-          <div class="progress-bar">
-            <div class="progress-fill" id="progressBarFill" style="width:0%;"></div>
+        <div class="sidebar-footer">
+          <div class="quick-status">
+            <span class="status-dot"></span>
+            <span>REST API: <code>/api/v1/check</code></span>
           </div>
         </div>
       </aside>
 
-      <!-- Right Panel: Live Feed & Output Operations -->
-      <main class="panel-right">
-        <div class="panel-header">
-          <div class="output-tabs">
-            <button class="tab-filter active" data-filter="all">TAT CA (<span id="countFilterAll">0</span>)</button>
-            <button class="tab-filter" data-filter="trang">ACC TRANG (<span id="countFilterTrang">0</span>)</button>
-            <button class="tab-filter" data-filter="vip">SKIN VIP (<span id="countFilterVip">0</span>)</button>
-            <button class="tab-filter" data-filter="live">HIT LIVE (<span id="countFilterLive">0</span>)</button>
+      <!-- Main Workspace -->
+      <main class="studio-workspace">
+        <!-- ── TAB 1: CHECKER STUDIO ──────────────────────────────────────── -->
+        <section id="tabChecker" class="tab-pane active">
+          <div class="tab-header-strip">
+            <div class="strip-left">
+              <h2>CHECKER PLAYGROUND</h2>
+              <span class="strip-subtitle">Quét tài khoản đa luồng hoặc test đơn lẻ trực tiếp</span>
+            </div>
+            <div class="strip-right">
+              <div class="mode-toggle">
+                <button class="mode-btn active" id="btnModeBatch">BATCH STREAM</button>
+                <button class="mode-btn" id="btnModeSingle">QUICK TEST ĐƠN</button>
+              </div>
+            </div>
           </div>
-          <div class="action-btns">
-            <button class="btn-tool" id="btnCopyView">COPY DANG XEM</button>
-            <button class="btn-tool" id="btnExportTrang">LUU ACC TRANG (.TXT)</button>
-            <button class="btn-tool btn-tool-primary" id="btnExportAll">LUU TAT CA HIT (.TXT)</button>
-          </div>
-        </div>
 
-        <!-- Search Filter Bar -->
-        <div class="filter-row">
-          <input type="text" id="filterSearch" placeholder="Loc nhanh: ingame, rank, tuong, skin sss, anime..." />
-        </div>
+          <!-- Mode A: Batch Stream Pane -->
+          <div id="batchStreamPane" class="playground-grid">
+            <!-- Left Input -->
+            <div class="pane-column pane-input">
+              <div class="pane-topbar">
+                <span class="pane-title">INPUT COMBO</span>
+                <div class="thread-control">
+                  <span>LUỒNG:</span>
+                  <input type="number" id="threadInput" min="1" max="50" value="10" />
+                </div>
+              </div>
 
-        <!-- Live Accounts Feed Stream -->
-        <div class="live-stream" id="batchResultsList">
-          <div class="empty-state" id="emptyState">
-            [ CHUA CO DU LIEU - HAY NHAP COMBO VA BAM BAT DAU CHECK ]
+              <div class="drop-zone" id="uploadZone">
+                <input type="file" id="fileInput" accept=".txt" style="display:none;" />
+                <span class="drop-text">[ KÉO THẢ HOẶC CLICK CHỌN FILE .TXT ]</span>
+                <span class="file-name" id="fileChosen"></span>
+              </div>
+
+              <div class="textarea-wrap">
+                <textarea id="batchText" spellcheck="false" placeholder="Dán danh sách tài khoản vào đây (1 tài khoản / dòng):&#10;user:pass&#10;user|pass&#10;user;pass&#10;user/pass&#10;user pass"></textarea>
+              </div>
+
+              <div class="pane-actions">
+                <button class="btn btn-run" id="btnStartBatch">
+                  <span id="btnBatchText">BẮT ĐẦU QUÉT</span>
+                  <span id="btnBatchLoader" style="display:none;">ĐANG CHẠY LUỒNG...</span>
+                </button>
+                <button class="btn btn-ghost" id="btnClearBatch">XÓA TRẮNG</button>
+              </div>
+
+              <div class="progress-box" id="progressWrap" style="display:none;">
+                <div class="progress-labels">
+                  <span id="progressStatus">Đang xử lý...</span>
+                  <span id="progressRatio">0/0 (0%)</span>
+                </div>
+                <div class="progress-bar">
+                  <div class="progress-fill" id="progressBarFill" style="width:0%;"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Stream Output -->
+            <div class="pane-column pane-output">
+              <div class="pane-topbar">
+                <div class="filter-tabs">
+                  <button class="tab-filter active" data-filter="all">TẤT CẢ (<span id="countFilterAll">0</span>)</button>
+                  <button class="tab-filter" data-filter="trang">TRẮNG TTT (<span id="countFilterTrang">0</span>)</button>
+                  <button class="tab-filter" data-filter="vip">SKIN VIP (<span id="countFilterVip">0</span>)</button>
+                  <button class="tab-filter" data-filter="live">HIT LIVE (<span id="countFilterLive">0</span>)</button>
+                </div>
+                <div class="export-actions">
+                  <button class="btn-sm btn-ghost" id="btnCopyView">COPY ĐANG XEM</button>
+                  <button class="btn-sm btn-ghost" id="btnExportTrang">LƯU ACC TRẮNG (.TXT)</button>
+                  <button class="btn-sm btn-primary" id="btnExportAll">LƯU TẤT CẢ HIT (.TXT)</button>
+                </div>
+              </div>
+
+              <div class="search-bar">
+                <input type="text" id="filterSearch" placeholder="Lọc nhanh: ingame, rank, tướng, skin sss, anime..." />
+              </div>
+
+              <div class="stream-console" id="batchResultsList">
+                <div class="empty-state" id="emptyState">
+                  [ CHƯA CÓ DỮ LIỆU - DÁN COMBO VÀ BẤM BẮT ĐẦU ĐỂ XEM STREAM ]
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
+
+          <!-- Mode B: Quick Single Test Pane -->
+          <div id="singleTestPane" class="single-test-pane" style="display:none;">
+            <div class="single-card">
+              <h3>KIỂM TRA NHANH 1 TÀI KHOẢN</h3>
+              <p class="text-muted">Nhập tài khoản và mật khẩu để xem phân tích chi tiết thông số Liên Quân.</p>
+              
+              <div class="single-form">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>TÀI KHOẢN:</label>
+                    <input type="text" id="singleAcc" placeholder="Nhập username / email..." />
+                  </div>
+                  <div class="form-group">
+                    <label>MẬT KHẨU:</label>
+                    <input type="password" id="singlePass" placeholder="Nhập password..." />
+                  </div>
+                </div>
+                <button class="btn btn-run" id="btnRunSingle">
+                  <span id="singleBtnText">KIỂM TRA TÀI KHOẢN (TRỪ 1 CR)</span>
+                  <span id="singleBtnLoader" style="display:none;">ĐANG KẾT NỐI GARENA...</span>
+                </button>
+              </div>
+
+              <div class="single-result-box" id="singleResultBox" style="display:none;">
+                <div class="card-result-header" id="singleHeader">
+                  <span class="status-tag" id="singleStatusTag">HIT</span>
+                  <span class="single-acc-label" id="singleAccLabel">acc:pwd</span>
+                </div>
+                <div class="card-result-body" id="singleBody"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── TAB 2: API PLAYGROUND & CODE ───────────────────────────────── -->
+        <section id="tabApi" class="tab-pane">
+          <div class="tab-header-strip">
+            <div>
+              <h2>DEVELOPER API PLAYGROUND</h2>
+              <span class="strip-subtitle">Tích hợp và kiểm thử trực tiếp REST API vào Bot hoặc Ứng dụng</span>
+            </div>
+          </div>
+
+          <div class="api-playground-layout">
+            <!-- Left: Key Management & Interactive Tester -->
+            <div class="api-col-left">
+              <!-- API Key Box -->
+              <div class="studio-card">
+                <h3>API KEY CỦA BẠN</h3>
+                <p class="text-muted">Sử dụng API Key này để xác thực qua Header <code>Authorization: Bearer &lt;KEY&gt;</code>.</p>
+                <div class="api-key-inline">
+                  <input type="text" id="displayApiKey" readonly value="Loading..." />
+                  <button class="btn btn-primary" id="btnCopyApiKey">COPY KEY</button>
+                  <button class="btn btn-ghost" id="btnGenNewApiKey">TẠO KEY MỚI</button>
+                </div>
+              </div>
+
+              <!-- Interactive API Tester (Postman style) -->
+              <div class="studio-card">
+                <div class="card-header-flex">
+                  <h3>TEST API TRỰC TIẾP (INTERACTIVE TESTER)</h3>
+                  <span class="method-tag post">POST</span>
+                </div>
+                <p class="text-muted">Gửi request kiểm tra tài khoản thử nghiệm và xem JSON response trực tiếp.</p>
+                
+                <div class="form-group">
+                  <label>ENDPOINT URL:</label>
+                  <input type="text" id="testApiEndpoint" readonly value="/api/v1/check" class="input-mono" />
+                </div>
+
+                <div class="form-group">
+                  <label>TÀI KHOẢN TEST (ACCOUNT COMBO):</label>
+                  <input type="text" id="testComboInput" placeholder="VD: user123:pass456" class="input-mono" />
+                </div>
+
+                <button class="btn btn-run" id="btnSendTestApi">
+                  <span id="testApiBtnText">GỬI REQUEST TEST (TRỪ 1 CR)</span>
+                  <span id="testApiBtnLoader" style="display:none;">ĐANG GỬI REQUEST...</span>
+                </button>
+
+                <div class="test-response-wrap" id="testResponseWrap" style="display:none;">
+                  <div class="response-header">
+                    <span>RESPONSE JSON</span>
+                    <span id="testLatency">0 ms</span>
+                  </div>
+                  <pre class="response-body"><code id="testResponseCode">{}</code></pre>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: Code Snippets in Multi-languages -->
+            <div class="api-col-right">
+              <div class="studio-card">
+                <div class="code-header-bar">
+                  <div class="code-tabs">
+                    <button class="code-tab active" data-lang="python">Python</button>
+                    <button class="code-tab" data-lang="curl">cURL</button>
+                    <button class="code-tab" data-lang="nodejs">Node.js</button>
+                    <button class="code-tab" data-lang="golang">Golang</button>
+                    <button class="code-tab" data-lang="php">PHP</button>
+                  </div>
+                  <button class="btn-sm btn-ghost" id="btnCopySnippet">COPY CODE</button>
+                </div>
+
+                <div class="code-container">
+                  <pre><code id="snippetCode"># Loading code sample...</code></pre>
+                </div>
+              </div>
+
+              <!-- Batch API Docs -->
+              <div class="studio-card">
+                <div class="card-header-flex">
+                  <h3>BATCH API ENDPOINT</h3>
+                  <span class="method-tag post">POST</span>
+                </div>
+                <p class="text-muted">Quét danh sách hàng loạt qua API: <code>/api/v1/check-batch</code></p>
+                <pre class="code-mini"><code>curl -X POST https://YOUR_DOMAIN/api/v1/check-batch \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"combos": ["acc1:pass1", "acc2:pass2"], "threads": 10}'</code></pre>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── TAB 3: HISTORY LOGS ────────────────────────────────────────── -->
+        <section id="tabHistory" class="tab-pane">
+          <div class="tab-header-strip">
+            <div>
+              <h2>LỊCH SỬ KIỂM TRA TÀI KHOẢN (<span id="histCount">0</span>)</h2>
+              <span class="strip-subtitle">Dữ liệu tài khoản đã check của bạn được lưu an toàn trên SQLite</span>
+            </div>
+            <div class="strip-right">
+              <button class="btn-sm btn-ghost" id="btnRefreshHistory">LÀM MỚI</button>
+              <button class="btn-sm btn-primary" id="btnExportHistory">XUẤT TẤT CẢ (.TXT)</button>
+              <button class="btn-sm btn-danger" id="btnClearHistory">XÓA LỊCH SỬ</button>
+            </div>
+          </div>
+
+          <div class="history-controls">
+            <div class="filter-tabs">
+              <button class="tab-filter active" data-hist-filter="all">TẤT CẢ</button>
+              <button class="tab-filter" data-hist-filter="hit">HIT LIVE</button>
+              <button class="tab-filter" data-hist-filter="trang">ACC TRẮNG TTT</button>
+              <button class="tab-filter" data-hist-filter="invalid">SAI PASS / DIE</button>
+            </div>
+          </div>
+
+          <div class="history-table-container">
+            <table class="studio-table">
+              <thead>
+                <tr>
+                  <th>TÀI KHOẢN</th>
+                  <th>TRẠNG THÁI</th>
+                  <th>RANK</th>
+                  <th>TƯỚNG</th>
+                  <th>SKIN</th>
+                  <th>TRẮNG TTT</th>
+                  <th>THỜI GIAN</th>
+                </tr>
+              </thead>
+              <tbody id="historyTableBody">
+                <tr><td colspan="7" class="text-center">[ ĐANG TẢI LỊCH SỬ... ]</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- ── TAB 4: QUOTA & BILLING ─────────────────────────────────────── -->
+        <section id="tabBilling" class="tab-pane">
+          <div class="tab-header-strip">
+            <div>
+              <h2>QUOTA & NẠP LƯỢT CHECK</h2>
+              <span class="strip-subtitle">Quản lý số dư credits và nạp mã giftcode để tiếp tục sử dụng</span>
+            </div>
+          </div>
+
+          <div class="billing-grid">
+            <!-- Balance Card -->
+            <div class="studio-card quota-card">
+              <div class="quota-head">
+                <span class="quota-label">SỐ DƯ CREDITS HIỆN TẠI</span>
+                <span class="quota-tier" id="quotaTierLabel">FREE PLAN</span>
+              </div>
+              <div class="quota-num">
+                <span id="quotaBigNumber">50</span>
+                <small>LƯỢT CHECK</small>
+              </div>
+              <p class="text-muted">Mỗi lần check đơn lẻ hoặc gọi Developer API sẽ trừ 1 Credit từ số dư của bạn.</p>
+            </div>
+
+            <!-- Giftcode Redeem Card -->
+            <div class="studio-card">
+              <h3>NẠP GIFTCODE TĂNG CREDITS</h3>
+              <p class="text-muted">
+                Nhập mã quà tặng hoặc voucher do Admin cung cấp để nạp thêm lượt check.
+              </p>
+
+              <div class="sample-codes-box">
+                <span>MÃ DÙNG THỬ SẴN CÓ:</span>
+                <div class="tags-row">
+                  <code class="code-tag" onclick="fillCode('AOV2026')">AOV2026 (+100)</code>
+                  <code class="code-tag" onclick="fillCode('TRIZ_VIP')">TRIZ_VIP (+500)</code>
+                  <code class="code-tag" onclick="fillCode('PROCHECKER')">PROCHECKER (+50)</code>
+                </div>
+              </div>
+
+              <form id="redeemStudioForm" class="redeem-form-inline">
+                <input type="text" id="redeemStudioInput" required placeholder="Nhập mã giftcode..." style="text-transform:uppercase;" />
+                <button type="submit" class="btn btn-primary" id="btnSubmitRedeemStudio">NẠP CODE</button>
+              </form>
+              <div class="form-error" id="redeemStudioError" style="display:none;"></div>
+            </div>
+          </div>
+        </section>
       </main>
     </div>
   </div>
 
-  <!-- Auth Modal -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- 3. AUTH MODAL (LOGIN / REGISTER)                                      -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
   <div class="modal-overlay" id="authModal" style="display:none;">
     <div class="modal-card">
       <div class="modal-header">
         <div class="modal-tabs">
-          <button class="modal-tab active" id="tabLoginBtn">DANG NHAP</button>
-          <button class="modal-tab" id="tabRegisterBtn">DANG KY (+50 CREDITS)</button>
+          <button class="modal-tab active" id="tabLoginBtn">ĐĂNG NHẬP</button>
+          <button class="modal-tab" id="tabRegisterBtn">ĐĂNG KÝ (+50 CR)</button>
         </div>
         <button class="btn-modal-close" id="btnCloseAuthModal">&times;</button>
       </div>
@@ -124,90 +460,30 @@
       <!-- Login Form -->
       <form class="modal-body" id="loginForm">
         <div class="form-group">
-          <label>TAI KHOAN:</label>
-          <input type="text" id="loginUser" required placeholder="Nhap username..." autocomplete="username" />
+          <label>TÀI KHOẢN:</label>
+          <input type="text" id="loginUser" required placeholder="Nhập username..." autocomplete="username" />
         </div>
         <div class="form-group">
-          <label>MAT KHAU:</label>
-          <input type="password" id="loginPass" required placeholder="Nhap password..." autocomplete="current-password" />
+          <label>MẬT KHẨU:</label>
+          <input type="password" id="loginPass" required placeholder="Nhập password..." autocomplete="current-password" />
         </div>
         <div class="form-error" id="loginError" style="display:none;"></div>
-        <button type="submit" class="btn btn-run" id="btnSubmitLogin">DANG NHAP HE THONG</button>
+        <button type="submit" class="btn btn-run" id="btnSubmitLogin">VÀO PLAYGROUND STUDIO</button>
       </form>
 
       <!-- Register Form -->
       <form class="modal-body" id="registerForm" style="display:none;">
         <div class="form-group">
-          <label>TAI KHOAN:</label>
-          <input type="text" id="regUser" required placeholder="Toi thieu 3 ky tu..." autocomplete="username" />
+          <label>TÀI KHOẢN:</label>
+          <input type="text" id="regUser" required placeholder="Tối thiểu 3 ký tự..." autocomplete="username" />
         </div>
         <div class="form-group">
-          <label>MAT KHAU:</label>
-          <input type="password" id="regPass" required placeholder="Toi thieu 4 ky tu..." autocomplete="new-password" />
+          <label>MẬT KHẨU:</label>
+          <input type="password" id="regPass" required placeholder="Tối thiểu 4 ký tự..." autocomplete="new-password" />
         </div>
         <div class="form-error" id="regError" style="display:none;"></div>
-        <button type="submit" class="btn btn-run" id="btnSubmitRegister">TAO TAI KHOAN (+50 CREDITS)</button>
+        <button type="submit" class="btn btn-run" id="btnSubmitRegister">TẠO TÀI KHOẢN (+50 CREDITS MIỄN PHÍ)</button>
       </form>
-    </div>
-  </div>
-
-  <!-- API Key & Developer Modal -->
-  <div class="modal-overlay" id="apiModal" style="display:none;">
-    <div class="modal-card modal-card-lg">
-      <div class="modal-header">
-        <div class="modal-title">DEVELOPER REST API & API KEYS</div>
-        <button class="btn-modal-close" id="btnCloseApiModal">&times;</button>
-      </div>
-      <div class="modal-body modal-body-scroll">
-        <div class="api-key-section">
-          <label>API KEY DANG SU DUNG:</label>
-          <div class="api-key-box">
-            <input type="text" id="displayApiKey" readonly value="Loading..." />
-            <button class="btn-tool" id="btnCopyApiKey">COPY KEY</button>
-            <button class="btn-tool" id="btnGenNewApiKey">TAO KEY MOI</button>
-          </div>
-          <small class="text-muted">Moi lan goi Developer API se tru 1 Credit tu tai khoan cua ban.</small>
-        </div>
-
-        <div class="api-docs-section">
-          <h3>ENDPOINT CHECKER: <code>POST /api/v1/check</code></h3>
-          <p>Tich hop tool check truc tiep vao bot Telegram, Discord, Tool Auto hoac script Python cua ban.</p>
-          
-          <div class="doc-block">
-            <div class="doc-head">HEADER AUTHENTICATION:</div>
-            <pre><code>Authorization: Bearer YOUR_API_KEY
-Content-Type: application/json</code></pre>
-          </div>
-
-          <div class="doc-block">
-            <div class="doc-head">JSON PAYLOAD:</div>
-            <pre><code>{
-  "account": "user123:password456"
-}</code></pre>
-          </div>
-
-          <div class="doc-block">
-            <div class="doc-head">EXAMPLE CURL REQUEST:</div>
-            <pre><code id="curlExample">curl -X POST https://YOUR_DOMAIN/api/v1/check \
-  -H "Authorization: Bearer YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"account":"user123:password456"}'</code></pre>
-          </div>
-
-          <div class="doc-block">
-            <div class="doc-head">PYTHON EXAMPLE:</div>
-            <pre><code>import requests
-
-res = requests.post("https://YOUR_DOMAIN/api/v1/check", headers={
-    "Authorization": "Bearer YOUR_API_KEY"
-}, json={"account": "user123:password456"})
-
-data = res.json()
-print("Status:", data.get("status"))
-print("Line:", data.get("line"))</code></pre>
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 

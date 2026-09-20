@@ -1,34 +1,66 @@
 /**
- * AOV Batch Pro Checker - Pure Monospace Stream Engine
+ * AOV Studio Playground - Master Frontend Engine
+ * Handles Landing View, Studio Workspace, Interactive API Tester,
+ * Multi-thread Batch Checker, Check History, and Billing/Giftcodes.
  */
 
-// Global State
+// ── Global App State ────────────────────────────────────────────────────────
+let currentUser = null;
+let currentApiKey = null;
+let activeTaskId = null;
+let pollInterval = null;
 let allResults = [];
 let currentFilter = 'all';
 let currentSearch = '';
-let activeTaskId = null;
-let pollInterval = null;
+let currentHistoryList = [];
+let currentHistFilter = 'all';
+let currentSnippetLang = 'python';
 
-// DOM Elements
-const statTotal = document.getElementById('statTotal');
-const statHits = document.getElementById('statHits');
-const statTrang = document.getElementById('statTrang');
-const statSkinVIP = document.getElementById('statSkinVIP');
+// ── DOM References ──────────────────────────────────────────────────────────
+const landingView = document.getElementById('landingView');
+const studioView = document.getElementById('studioView');
+const authModal = document.getElementById('authModal');
+const toast = document.getElementById('toast');
 
-const countFilterAll = document.getElementById('countFilterAll');
-const countFilterTrang = document.getElementById('countFilterTrang');
-const countFilterVip = document.getElementById('countFilterVip');
-const countFilterLive = document.getElementById('countFilterLive');
+// Landing Elements
+const btnLandingLogin = document.getElementById('btnLandingLogin');
+const btnLandingDocs = document.getElementById('btnLandingDocs');
+const btnHeroOpenStudio = document.getElementById('btnHeroOpenStudio');
+const btnHeroRegister = document.getElementById('btnHeroRegister');
+
+// Studio Header
+const studioUsername = document.getElementById('studioUsername');
+const studioUserRole = document.getElementById('studioUserRole');
+const studioCredits = document.getElementById('studioCredits');
+const studioUserAvatar = document.getElementById('studioUserAvatar');
+const btnStudioLogout = document.getElementById('btnStudioLogout');
+
+// Sidebar Nav
+const navItems = document.querySelectorAll('.nav-item');
+const tabPanes = document.querySelectorAll('.tab-pane');
+
+// Auth Form
+const btnCloseAuthModal = document.getElementById('btnCloseAuthModal');
+const tabLoginBtn = document.getElementById('tabLoginBtn');
+const tabRegisterBtn = document.getElementById('tabRegisterBtn');
+const loginForm = document.getElementById('loginForm');
+const registerForm = document.getElementById('registerForm');
+const loginError = document.getElementById('loginError');
+const regError = document.getElementById('regError');
+
+// Checker Studio DOM
+const btnModeBatch = document.getElementById('btnModeBatch');
+const btnModeSingle = document.getElementById('btnModeSingle');
+const batchStreamPane = document.getElementById('batchStreamPane');
+const singleTestPane = document.getElementById('singleTestPane');
 
 const threadInput = document.getElementById('threadInput');
 const uploadZone = document.getElementById('uploadZone');
 const fileInput = document.getElementById('fileInput');
 const fileChosen = document.getElementById('fileChosen');
 const batchText = document.getElementById('batchText');
-
 const btnStartBatch = document.getElementById('btnStartBatch');
 const btnClearBatch = document.getElementById('btnClearBatch');
-
 const progressWrap = document.getElementById('progressWrap');
 const progressStatus = document.getElementById('progressStatus');
 const progressRatio = document.getElementById('progressRatio');
@@ -37,74 +69,390 @@ const progressBarFill = document.getElementById('progressBarFill');
 const batchResultsList = document.getElementById('batchResultsList');
 const filterSearch = document.getElementById('filterSearch');
 const tabFilters = document.querySelectorAll('.tab-filter');
-
+const countFilterAll = document.getElementById('countFilterAll');
+const countFilterTrang = document.getElementById('countFilterTrang');
+const countFilterVip = document.getElementById('countFilterVip');
+const countFilterLive = document.getElementById('countFilterLive');
 const btnCopyView = document.getElementById('btnCopyView');
 const btnExportTrang = document.getElementById('btnExportTrang');
 const btnExportAll = document.getElementById('btnExportAll');
 
-const toast = document.getElementById('toast');
+// Single Quick Test DOM
+const singleAcc = document.getElementById('singleAcc');
+const singlePass = document.getElementById('singlePass');
+const btnRunSingle = document.getElementById('btnRunSingle');
+const singleResultBox = document.getElementById('singleResultBox');
+const singleHeader = document.getElementById('singleHeader');
+const singleStatusTag = document.getElementById('singleStatusTag');
+const singleAccLabel = document.getElementById('singleAccLabel');
+const singleBody = document.getElementById('singleBody');
 
-// ── Toast Helper ─────────────────────────────────────────────────────────────
-function showToast(text, ms = 2500) {
-  toast.textContent = text;
+// API Playground DOM
+const displayApiKey = document.getElementById('displayApiKey');
+const btnCopyApiKey = document.getElementById('btnCopyApiKey');
+const btnGenNewApiKey = document.getElementById('btnGenNewApiKey');
+const testComboInput = document.getElementById('testComboInput');
+const btnSendTestApi = document.getElementById('btnSendTestApi');
+const testResponseWrap = document.getElementById('testResponseWrap');
+const testResponseCode = document.getElementById('testResponseCode');
+const testLatency = document.getElementById('testLatency');
+const codeTabs = document.querySelectorAll('.code-tab');
+const snippetCode = document.getElementById('snippetCode');
+const btnCopySnippet = document.getElementById('btnCopySnippet');
+
+// History DOM
+const histCount = document.getElementById('histCount');
+const btnRefreshHistory = document.getElementById('btnRefreshHistory');
+const btnExportHistory = document.getElementById('btnExportHistory');
+const btnClearHistory = document.getElementById('btnClearHistory');
+const histFilterBtns = document.querySelectorAll('[data-hist-filter]');
+const historyTableBody = document.getElementById('historyTableBody');
+
+// Billing DOM
+const quotaBigNumber = document.getElementById('quotaBigNumber');
+const quotaTierLabel = document.getElementById('quotaTierLabel');
+const redeemStudioForm = document.getElementById('redeemStudioForm');
+const redeemStudioInput = document.getElementById('redeemStudioInput');
+const redeemStudioError = document.getElementById('redeemStudioError');
+
+// ── Toast System ────────────────────────────────────────────────────────────
+function showToast(msg, duration = 2500) {
+  if (!toast) return;
+  toast.textContent = msg;
   toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), ms);
+  setTimeout(() => toast.classList.remove('show'), duration);
 }
 
-window.copyFullAccount = function(btn) {
-  const row = btn.closest('.acc-row');
-  if (row) {
-    const full = row.getAttribute('data-full') || '';
-    if (full) {
-      navigator.clipboard.writeText(full);
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+// ── Auth & View Switcher ────────────────────────────────────────────────────
+function initApp() {
+  const saved = localStorage.getItem('aov_user');
+  if (saved) {
+    try {
+      currentUser = JSON.parse(saved);
+      showStudioView();
+      refreshUserMeta();
+    } catch (e) {
+      localStorage.removeItem('aov_user');
+      showLandingView();
     }
+  } else {
+    showLandingView();
   }
-};
+}
 
-// ── File Drag & Drop ─────────────────────────────────────────────────────────
-uploadZone.addEventListener('click', () => fileInput.click());
+function showLandingView() {
+  if (landingView) landingView.style.display = 'block';
+  if (studioView) studioView.style.display = 'none';
+}
 
-fileInput.addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if (file) handleFileLoaded(file);
+function showStudioView() {
+  if (landingView) landingView.style.display = 'none';
+  if (studioView) studioView.style.display = 'flex';
+  renderUserHeader();
+  loadUserApiKeys();
+  updateCodeSnippets();
+}
+
+function renderUserHeader() {
+  if (!currentUser) return;
+  if (studioUsername) studioUsername.textContent = currentUser.username || 'User';
+  if (studioUserRole) studioUserRole.textContent = (currentUser.role || 'FREE').toUpperCase();
+  if (studioCredits) studioCredits.textContent = (currentUser.credits !== undefined && currentUser.credits !== null ? currentUser.credits : 0);
+  if (studioUserAvatar) studioUserAvatar.textContent = (currentUser.username || 'U')[0].toUpperCase();
+  if (quotaBigNumber) quotaBigNumber.textContent = (currentUser.credits !== undefined && currentUser.credits !== null ? currentUser.credits : 0);
+  if (quotaTierLabel) quotaTierLabel.textContent = (currentUser.role || 'FREE').toUpperCase() + ' PLAN';
+}
+
+async function refreshUserMeta() {
+  if (!currentUser) return;
+  try {
+    const res = await fetch(`/api/v1/user/me?user_id=${currentUser.id}`);
+    const data = await res.json();
+    if (data.success || data.status === 'ok') {
+      const u = data.user || {};
+      currentUser.credits = (u.credits !== undefined && u.credits !== null ? u.credits : currentUser.credits);
+      currentUser.role = (u.role !== undefined && u.role !== null ? u.role : currentUser.role);
+      if (u.api_key) currentApiKey = u.api_key;
+      localStorage.setItem('aov_user', JSON.stringify(currentUser));
+      renderUserHeader();
+      updateCodeSnippets();
+      if (displayApiKey && currentApiKey) displayApiKey.value = currentApiKey;
+    }
+  } catch (e) {
+    console.error('Refresh user error:', e);
+  }
+}
+
+// Open Auth Modal
+function openAuthModal(isRegister = false) {
+  if (loginError) loginError.style.display = 'none';
+  if (regError) regError.style.display = 'none';
+  if (isRegister) {
+    (tabRegisterBtn && tabRegisterBtn.click)();
+  } else {
+    (tabLoginBtn && tabLoginBtn.click)();
+  }
+  if (authModal) authModal.style.display = 'flex';
+}
+
+(btnLandingLogin && btnLandingLogin.addEventListener)('click', () => openAuthModal(false));
+(btnHeroOpenStudio && btnHeroOpenStudio.addEventListener)('click', () => {
+  if (currentUser) showStudioView();
+  else openAuthModal(false);
+});
+(btnHeroRegister && btnHeroRegister.addEventListener)('click', () => openAuthModal(true));
+(btnLandingDocs && btnLandingDocs.addEventListener)('click', () => {
+  if (currentUser) {
+    showStudioView();
+    switchTab('api');
+  } else {
+    openAuthModal(false);
+  }
 });
 
-uploadZone.addEventListener('dragover', (e) => {
+(btnCloseAuthModal && btnCloseAuthModal.addEventListener)('click', () => {
+  if (authModal) authModal.style.display = 'none';
+});
+
+(tabLoginBtn && tabLoginBtn.addEventListener)('click', () => {
+  tabLoginBtn.classList.add('active');
+  tabRegisterBtn.classList.remove('active');
+  loginForm.style.display = 'flex';
+  registerForm.style.display = 'none';
+});
+
+(tabRegisterBtn && tabRegisterBtn.addEventListener)('click', () => {
+  tabRegisterBtn.classList.add('active');
+  tabLoginBtn.classList.remove('active');
+  loginForm.style.display = 'none';
+  registerForm.style.display = 'flex';
+});
+
+// Login Submit
+(loginForm && loginForm.addEventListener)('submit', async (e) => {
+  e.preventDefault();
+  if (loginError) loginError.style.display = 'none';
+  const username = document.getElementById('loginUser').value.trim();
+  const password = document.getElementById('loginPass').value;
+
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (data.success || data.status === 'ok') {
+      currentUser = data.user;
+      currentApiKey = data.user.api_key || data.user.key;
+      localStorage.setItem('aov_user', JSON.stringify(currentUser));
+      if (authModal) authModal.style.display = 'none';
+      showStudioView();
+      showToast(`XIN CHÀO ${currentUser.username.toUpperCase()}!`);
+    } else {
+      if (loginError) {
+        loginError.textContent = data.error || data.message || 'Đăng nhập thất bại!';
+        loginError.style.display = 'block';
+      }
+    }
+  } catch (err) {
+    if (loginError) {
+      loginError.textContent = 'Lỗi kết nối đến máy chủ';
+      loginError.style.display = 'block';
+    }
+  }
+});
+
+// Register Submit
+(registerForm && registerForm.addEventListener)('submit', async (e) => {
+  e.preventDefault();
+  if (regError) regError.style.display = 'none';
+  const username = document.getElementById('regUser').value.trim();
+  const password = document.getElementById('regPass').value;
+
+  try {
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (data.success || data.status === 'ok') {
+      currentUser = data.user;
+      currentApiKey = data.user ? (data.user.api_key || data.user.key) : data.api_key;
+      localStorage.setItem('aov_user', JSON.stringify(currentUser));
+      if (authModal) authModal.style.display = 'none';
+      showStudioView();
+      showToast('TẠO TÀI KHOẢN THÀNH CÔNG! BẠN ĐƯỢC TẶNG 50 CREDITS');
+    } else {
+      if (regError) {
+        regError.textContent = data.error || data.message || 'Đăng ký thất bại!';
+        regError.style.display = 'block';
+      }
+    }
+  } catch (err) {
+    if (regError) {
+      regError.textContent = 'Lỗi kết nối đến máy chủ';
+      regError.style.display = 'block';
+    }
+  }
+});
+
+(btnStudioLogout && btnStudioLogout.addEventListener)('click', () => {
+  currentUser = null;
+  currentApiKey = null;
+  localStorage.removeItem('aov_user');
+  showLandingView();
+  showToast('ĐÃ ĐĂNG XUẤT');
+});
+
+// ── Sidebar Tabs Switcher ───────────────────────────────────────────────────
+function switchTab(tabName) {
+  navItems.forEach(btn => {
+    if (btn.getAttribute('data-tab') === tabName) btn.classList.add('active');
+    else btn.classList.remove('active');
+  });
+
+  tabPanes.forEach(pane => {
+    if (pane.id === `tab${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`) {
+      pane.classList.add('active');
+    } else {
+      pane.classList.remove('active');
+    }
+  });
+
+  if (tabName === 'history') {
+    loadCheckHistory(currentHistFilter);
+  } else if (tabName === 'api') {
+    loadUserApiKeys();
+  }
+}
+
+navItems.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const t = btn.getAttribute('data-tab');
+    switchTab(t);
+  });
+});
+
+// ── Mode Switcher (Batch Stream vs Single Quick Test) ───────────────────────
+(btnModeBatch && btnModeBatch.addEventListener)('click', () => {
+  btnModeBatch.classList.add('active');
+  btnModeSingle.classList.remove('active');
+  batchStreamPane.style.display = 'grid';
+  singleTestPane.style.display = 'none';
+});
+
+(btnModeSingle && btnModeSingle.addEventListener)('click', () => {
+  btnModeSingle.classList.add('active');
+  btnModeBatch.classList.remove('active');
+  batchStreamPane.style.display = 'none';
+  singleTestPane.style.display = 'block';
+});
+
+// ── Single Quick Test ───────────────────────────────────────────────────────
+(btnRunSingle && btnRunSingle.addEventListener)('click', async () => {
+  const acc = singleAcc.value.trim();
+  const pwd = singlePass.value.trim();
+  if (!acc || !pwd) {
+    showToast('VUI LÒNG NHẬP TÀI KHOẢN VÀ MẬT KHẨU');
+    return;
+  }
+
+  const btnText = document.getElementById('singleBtnText');
+  const btnLoader = document.getElementById('singleBtnLoader');
+  btnText.style.display = 'none';
+  btnLoader.style.display = 'inline';
+  btnRunSingle.disabled = true;
+
+  try {
+    const res = await fetch('/api/check-single', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ account: acc, password: pwd, user_id: currentUser ? currentUser.id : null })
+    });
+    const data = await res.json();
+    singleResultBox.style.display = 'block';
+    singleAccLabel.textContent = `${acc}:${pwd}`;
+
+    if (data.status === 'HIT') {
+      singleStatusTag.className = 'status-tag hit';
+      singleStatusTag.textContent = data.is_trang ? 'HIT LIVE (TRẮNG TTT)' : 'HIT LIVE (CÓ TTT)';
+      singleBody.innerHTML = `
+        <div><strong>INGAME:</strong> ${escapeHtml(data.ingame || 'None')}</div>
+        <div><strong>RANK:</strong> <span style="color:var(--gold)">${escapeHtml(data.rank || 'Unranked')}</span></div>
+        <div><strong>TƯỚNG:</strong> ${data.heroes_count || 0} | <strong>SKIN:</strong> ${data.skins_count || 0}</div>
+        <div><strong>SKIN VIP/SSS:</strong> <span style="color:var(--gold)">${escapeHtml(data.skins_vip || 'Không có')}</span></div>
+        <div><strong>THÔNG TIN:</strong> ${escapeHtml(data.tt_info || '')}</div>
+      `;
+    } else {
+      singleStatusTag.className = 'status-tag invalid';
+      singleStatusTag.textContent = data.status || 'FAIL';
+      singleBody.innerHTML = `<div style="color:var(--red)">${escapeHtml(data.message || 'Kiểm tra thất bại')}</div>`;
+    }
+
+    refreshUserMeta();
+  } catch (e) {
+    showToast('LỖI KẾT NỐI SERVER');
+  } finally {
+    btnText.style.display = 'inline';
+    btnLoader.style.display = 'none';
+    btnRunSingle.disabled = false;
+  }
+});
+
+// ── Batch Stream Checker ────────────────────────────────────────────────────
+(uploadZone && uploadZone.addEventListener)('click', () => fileInput.click());
+(fileInput && fileInput.addEventListener)('change', (e) => {
+  const file = e.target.files[0];
+  if (file) handleLoadedFile(file);
+});
+
+(uploadZone && uploadZone.addEventListener)('dragover', (e) => {
   e.preventDefault();
   uploadZone.style.borderColor = 'var(--cyan)';
 });
-uploadZone.addEventListener('dragleave', () => {
-  uploadZone.style.borderColor = 'var(--border-color)';
+(uploadZone && uploadZone.addEventListener)('dragleave', () => {
+  uploadZone.style.borderColor = 'var(--glass-border)';
 });
-uploadZone.addEventListener('drop', (e) => {
+(uploadZone && uploadZone.addEventListener)('drop', (e) => {
   e.preventDefault();
-  uploadZone.style.borderColor = 'var(--border-color)';
+  uploadZone.style.borderColor = 'var(--glass-border)';
   const file = e.dataTransfer.files[0];
-  if (file) handleFileLoaded(file);
+  if (file) handleLoadedFile(file);
 });
 
-function handleFileLoaded(file) {
-  fileChosen.textContent = `[ ${file.name} - ${(file.size / 1024).toFixed(1)} KB ]`;
+function handleLoadedFile(file) {
+  if (fileChosen) fileChosen.textContent = `[ ${file.name} - ${(file.size / 1024).toFixed(1)} KB ]`;
   const reader = new FileReader();
   reader.onload = (ev) => {
     batchText.value = ev.target.result;
-    showToast(`DA NAP FILE: ${file.name}`);
+    showToast(`ĐÃ NẠP FILE: ${file.name}`);
   };
   reader.readAsText(file);
 }
 
-btnClearBatch.addEventListener('click', () => {
+(btnClearBatch && btnClearBatch.addEventListener)('click', () => {
   batchText.value = '';
-  fileChosen.textContent = '';
-  fileInput.value = '';
-  showToast('DA XOA TRANG');
+  if (fileChosen) fileChosen.textContent = '';
+  if (fileInput) fileInput.value = '';
+  showToast('ĐÃ XÓA TRẮNG');
 });
 
-// ── Start Batch Check ────────────────────────────────────────────────────────
-btnStartBatch.addEventListener('click', async () => {
+(btnStartBatch && btnStartBatch.addEventListener)('click', async () => {
   const text = batchText.value.trim();
   if (!text) {
-    showToast('VUI LONG DAN COMBO HOAC CHON FILE');
+    showToast('VUI LÒNG DÁN COMBO HOẶC CHỌN FILE .TXT');
     return;
   }
 
@@ -113,13 +461,13 @@ btnStartBatch.addEventListener('click', async () => {
     .filter(l => l && !l.startsWith('#') && (/[:|;\t\s/]/.test(l)));
 
   if (lines.length === 0) {
-    showToast('KHONG TIM THAY DONG ACC HOP LE');
+    showToast('KHÔNG TÌM THẤY DÒNG COMBO HỢP LỆ');
     return;
   }
 
   const threads = parseInt(threadInput.value, 10) || 10;
 
-  // Reset UI
+  // Reset Console
   allResults = [];
   batchResultsList.innerHTML = '';
   updateCounters();
@@ -130,19 +478,23 @@ btnStartBatch.addEventListener('click', async () => {
 
   progressWrap.style.display = 'block';
   progressBarFill.style.width = '0%';
-  progressStatus.textContent = 'Khoi dong luong...';
+  progressStatus.textContent = 'Khởi động luồng...';
   progressRatio.textContent = `0/${lines.length} (0%)`;
 
   try {
     const resp = await fetch('/api/check-batch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ combos: lines, threads: threads })
+      body: JSON.stringify({
+        combos: lines,
+        threads: threads,
+        user_id: currentUser ? currentUser.id : null
+      })
     });
 
     const data = await resp.json();
     if (data.error) {
-      showToast('LOI: ' + data.error);
+      showToast('LỖI: ' + data.error);
       resetBatchUI();
       return;
     }
@@ -150,7 +502,7 @@ btnStartBatch.addEventListener('click', async () => {
     activeTaskId = data.task_id;
     startTaskPolling(activeTaskId);
   } catch (err) {
-    showToast('LOI KET NOI DEN SERVER');
+    showToast('LỖI KẾT NỐI ĐẾN SERVER');
     resetBatchUI();
   }
 });
@@ -161,7 +513,6 @@ function resetBatchUI() {
   btnStartBatch.disabled = false;
 }
 
-// ── Polling Background Task ──────────────────────────────────────────────────
 function startTaskPolling(taskId) {
   if (pollInterval) clearInterval(pollInterval);
 
@@ -172,343 +523,146 @@ function startTaskPolling(taskId) {
 
       if (data.error) {
         clearInterval(pollInterval);
-        showToast('LOI TIEN TRINH: ' + data.error);
+        showToast('LỖI TIẾN TRÌNH: ' + data.error);
         resetBatchUI();
         return;
       }
 
       const total = data.total || 1;
       const done = data.done || 0;
-      const pct = Math.floor((done / total) * 100);
+      const pct = Math.min(100, Math.round((done / total) * 100));
 
-      progressBarFill.style.width = pct + '%';
-      progressStatus.textContent = data.status === 'DONE' ? 'HOAN THANH' : 'DANG CHECK...';
+      progressBarFill.style.width = `${pct}%`;
       progressRatio.textContent = `${done}/${total} (${pct}%)`;
+      progressStatus.textContent = data.is_running ? `Đang quét (${done}/${total})...` : 'Hoàn thành!';
 
-      // Update new finished accounts
       const results = data.results || [];
       if (results.length > allResults.length) {
         const newItems = results.slice(allResults.length);
         allResults = results;
-        renderNewItems(newItems);
+        renderNewBatchItems(newItems);
         updateCounters();
       }
 
       if (data.status === 'DONE') {
         clearInterval(pollInterval);
         resetBatchUI();
-        const hitCount = data.hits ?? data.hit ?? data.all_hits_count ?? 0;
-        const trangCount = data.trang ?? 0;
-        showToast(`HOÀN THÀNH CHECK: ${hitCount} LIVE / ${trangCount} TRẮNG`);
+        const hitCount = (data.hits !== undefined && data.hits !== null ? data.hits : 0);
+        const trangCount = (data.trang !== undefined && data.trang !== null ? data.trang : 0);
+        showToast(`HOÀN THÀNH BATCH: ${hitCount} SỐNG / ${trangCount} TRẮNG TTT`);
+        refreshUserMeta();
       }
     } catch (e) {
       console.error('Polling error:', e);
     }
-  }, 800);
+  }, 700);
 }
 
-// ── Render Item Rows ─────────────────────────────────────────────────────────
-function renderNewItems(items) {
+function renderNewBatchItems(items) {
   const empty = batchResultsList.querySelector('.empty-state');
   if (empty) empty.remove();
 
   const frag = document.createDocumentFragment();
-  items.forEach(item => {
-    if (matchesFilterAndSearch(item)) {
-      const row = createRowElement(item);
-      frag.appendChild(row);
+  items.forEach(it => {
+    if (matchesFilter(it)) {
+      frag.appendChild(createRowElement(it));
     }
   });
   batchResultsList.prepend(frag);
 }
 
-function renderAllItems() {
-  batchResultsList.innerHTML = '';
-  const filtered = allResults.filter(matchesFilterAndSearch);
+function createRowElement(item) {
+  const div = document.createElement('div');
+  const isHit = item.status === 'HIT';
+  const isTrang = Boolean(item.is_trang);
 
+  let cls = 'acc-row ';
+  if (isHit) cls += isTrang ? 'row-trang' : 'row-hit';
+  else cls += 'row-invalid';
+  div.className = cls;
+
+  const accStr = `${item.account}:${item.password}`;
+  if (isHit) {
+    div.innerHTML = `
+      <div class="row-head">
+        <span class="acc-tag ${isTrang ? 'trang' : 'hit'}">${isTrang ? 'TRẮNG TTT' : 'HIT LIVE'}</span>
+        <code>${escapeHtml(accStr)}</code>
+      </div>
+      <div class="acc-info-line">
+        [ ${escapeHtml(item.ingame || 'NoName')} ] | RANK: ${escapeHtml(item.rank || 'None')} | TƯỚNG: ${item.heroes_count || 0} | SKIN: ${item.skins_count || 0}
+      </div>
+      ${item.skins_vip ? `<div class="acc-skins-line">★ VIP: ${escapeHtml(item.skins_vip)}</div>` : ''}
+    `;
+  } else {
+    div.innerHTML = `
+      <div class="row-head">
+        <span class="acc-tag invalid">${escapeHtml(item.status)}</span>
+        <code>${escapeHtml(accStr)}</code>
+      </div>
+      <div style="color:var(--text-muted);font-size:11px;">${escapeHtml(item.message || 'FAIL')}</div>
+    `;
+  }
+  return div;
+}
+
+function matchesFilter(item) {
+  const isHit = item.status === 'HIT';
+  const isTrang = Boolean(item.is_trang);
+  const isVip = Boolean(item.skins_vip);
+
+  if (currentFilter === 'trang' && (!isHit || !isTrang)) return false;
+  if (currentFilter === 'vip' && (!isHit || !isVip)) return false;
+  if (currentFilter === 'live' && !isHit) return false;
+
+  if (currentSearch) {
+    const full = JSON.stringify(item).toLowerCase();
+    if (!full.includes(currentSearch)) return false;
+  }
+  return true;
+}
+
+function updateCounters() {
+  const total = allResults.length;
+  let hits = 0, trang = 0, vip = 0;
+  allResults.forEach(r => {
+    if (r.status === 'HIT') {
+      hits++;
+      if (r.is_trang) trang++;
+      if (r.skins_vip) vip++;
+    }
+  });
+
+  if (countFilterAll) countFilterAll.textContent = total;
+  if (countFilterTrang) countFilterTrang.textContent = trang;
+  if (countFilterVip) countFilterVip.textContent = vip;
+  if (countFilterLive) countFilterLive.textContent = hits;
+}
+
+tabFilters.forEach(btn => {
+  btn.addEventListener('click', () => {
+    tabFilters.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentFilter = btn.getAttribute('data-filter');
+    renderFilteredBatchList();
+  });
+});
+
+(filterSearch && filterSearch.addEventListener)('input', (e) => {
+  currentSearch = e.target.value.toLowerCase().trim();
+  renderFilteredBatchList();
+});
+
+function renderFilteredBatchList() {
+  batchResultsList.innerHTML = '';
+  const filtered = allResults.filter(matchesFilter);
   if (filtered.length === 0) {
     batchResultsList.innerHTML = `<div class="empty-state">[ KHÔNG CÓ TÀI KHOẢN PHÙ HỢP BỘ LỌC ]</div>`;
     return;
   }
-
   const frag = document.createDocumentFragment();
-  filtered.forEach(item => {
-    frag.appendChild(createRowElement(item));
-  });
+  filtered.forEach(it => frag.appendChild(createRowElement(it)));
   batchResultsList.appendChild(frag);
 }
-
-function createRowElement(item) {
-  const isHit = item.status === 'HIT';
-  const isTrang = Boolean(item.is_trang);
-  const aov = item.aov || {};
-  const sec = item.security || {};
-  const creds = `${item.account}:${item.password}`;
-
-  const row = document.createElement('div');
-  row.className = `acc-row ${isTrang ? 'is-trang' : ''}`;
-
-  let badgeHtml = '';
-  if (isHit) {
-    badgeHtml = isTrang 
-      ? `<span class="badge-tag tag-trang">[ TRANG TTT ]</span>`
-      : `<span class="badge-tag tag-dinh">[ CO TT: ${item.tinh_trang} ]</span>`;
-  } else {
-    badgeHtml = `<span class="badge-tag tag-fail">[ ${item.message || 'FAIL'} ]</span>`;
-  }
-
-  let skinsHtml = '';
-  if (isHit) {
-    const sss = aov.sss_list || [];
-    const anime = aov.anime_list || [];
-    const ss = aov.ss_list || [];
-
-    if (sss.length || anime.length || ss.length) {
-      skinsHtml = '<div class="row-skins">';
-      if (sss.length) {
-        skinsHtml += `<div class="skin-line-vip">SSS / THU NGUYEN (${sss.length}): ${sss.join(', ')}</div>`;
-      }
-      if (anime.length) {
-        skinsHtml += `<div class="skin-line-anime">ANIME COLLAB (${anime.length}): ${anime.join(', ')}</div>`;
-      }
-      if (ss.length) {
-        skinsHtml += `<div class="skin-line-ss">SS TUYET SAC (${ss.length}): ${ss.slice(0, 8).join(', ')}${ss.length > 8 ? '...' : ''}</div>`;
-      }
-      skinsHtml += '</div>';
-    }
-  }
-
-  const fullText = formatItemFullText(item);
-
-  // Parsed fields for fast visual summary
-  const rank = aov.rank || 'Chưa rank';
-  const stars = aov.stars || 0;
-  const rankStr = stars > 0 ? `${rank} ${stars}*` : rank;
-
-  const maskedEmail = (sec.masked_email || '').trim();
-  const emailVerified = Boolean(sec.email_v);
-  let emailStr = 'NO';
-  if (maskedEmail && maskedEmail !== 'Trắng') {
-    emailStr = emailVerified ? `${maskedEmail} (ĐÃ XT)` : `${maskedEmail} (CHƯA XT)`;
-  }
-
-  const maskedPhone = (sec.masked_phone || '').trim();
-  const sdtStr = (!maskedPhone || maskedPhone === 'Trắng') ? 'NO' : maskedPhone;
-  const cmndStr = sec.has_cccd ? 'YES' : 'NO';
-  const authenStr = sec.auth_2fa ? 'YES' : 'NO';
-  const fbStr = sec.fb_linked ? 'YES' : 'DIE';
-  const lastLogin = item.last_login || 'Chưa rõ';
-
-  row.innerHTML = `
-    <div class="row-top">
-      <div class="creds-box">
-        <span class="creds-text">${creds}</span>
-        <button class="btn-mini-copy" title="Copy User:Pass" onclick="navigator.clipboard.writeText('${creds}');showToast('ĐÃ COPY TK:MK');">TK:MK</button>
-        <button class="btn-mini-copy btn-copy-full" title="Copy Toàn Bộ Thông Tin Acc" onclick="copyFullAccount(this);showToast('ĐÃ COPY TOÀN BỘ THÔNG TIN');">COPY FULL</button>
-      </div>
-      <div>${badgeHtml}</div>
-    </div>
-    ${isHit ? `
-    <div class="row-data">
-      <span>INGAME: <strong>${aov.name || 'Chưa đặt tên'}</strong></span>
-      <span class="data-rank">RANK: <strong>${rankStr}</strong></span>
-      <span class="data-champ">HERO: <strong>${aov.total_champs || 0}</strong></span>
-      <span class="data-skin">SKIN: <strong>${aov.total_skins || 0}</strong></span>
-      <span>SÒ: <strong>${item.shells || 0}</strong></span>
-      <span>BAN: <strong>${aov.banned || 'KHÔNG'}</strong></span>
-      <span>QG: <strong>${(item.country || 'VN').toUpperCase()}</strong></span>
-    </div>
-    <div class="row-sec">
-      <span>MAIL: <strong>${emailStr}</strong></span>
-      <span>SĐT: <strong>${sdtStr}</strong></span>
-      <span>CMND: <strong>${cmndStr}</strong></span>
-      <span>2FA: <strong>${authenStr}</strong></span>
-      <span>FB: <strong>${fbStr}</strong></span>
-      <span>LOGIN: <strong>${lastLogin}</strong></span>
-    </div>
-    ${skinsHtml}
-    ` : ''}
-  `;
-  row.setAttribute('data-full', fullText);
-
-  return row;
-}
-
-// ── Global Copy Helper ───────────────────────────────────────────────────────
-window.copyFullAccount = function(btn) {
-  const row = btn.closest('.acc-row');
-  if (row) {
-    const text = row.getAttribute('data-full') || '';
-    if (text) {
-      navigator.clipboard.writeText(text);
-    }
-  }
-};
-
-
-// ── Filter & Search Rules ────────────────────────────────────────────────────
-function matchesFilterAndSearch(item) {
-  // Filter tab
-  if (currentFilter === 'trang' && !item.is_trang) return false;
-  if (currentFilter === 'vip') {
-    const sss = (item.aov && item.aov.sss_count) || 0;
-    const ss = (item.aov && item.aov.ss_count) || 0;
-    if (sss === 0 && ss === 0) return false;
-  }
-  if (currentFilter === 'live' && item.status !== 'HIT') return false;
-
-  // Text search
-  if (!currentSearch) return true;
-  const q = currentSearch.toLowerCase();
-  const acc = (item.account || '').toLowerCase();
-  const name = ((item.aov && item.aov.name) || '').toLowerCase();
-  const rank = ((item.aov && item.aov.rank) || '').toLowerCase();
-  const sss = ((item.aov && item.aov.sss_list) || []).join(' ').toLowerCase();
-  const anime = ((item.aov && item.aov.anime_list) || []).join(' ').toLowerCase();
-
-  return acc.includes(q) || name.includes(q) || rank.includes(q) || sss.includes(q) || anime.includes(q);
-}
-
-// ── Counters Update ──────────────────────────────────────────────────────────
-function updateCounters() {
-  const total = allResults.length;
-  const hits = allResults.filter(r => r.status === 'HIT');
-  const trang = allResults.filter(r => r.is_trang);
-  const vips = allResults.filter(r => (r.aov && ((r.aov.sss_count || 0) > 0 || (r.aov.ss_count || 0) > 0)));
-
-  statTotal.textContent = total;
-  statHits.textContent = hits.length;
-  statTrang.textContent = trang.length;
-  statSkinVIP.textContent = vips.length;
-
-  countFilterAll.textContent = total;
-  countFilterTrang.textContent = trang.length;
-  countFilterVip.textContent = vips.length;
-  countFilterLive.textContent = hits.length;
-}
-
-// ── Tab Filters Switcher ────────────────────────────────────────────────────
-tabFilters.forEach(tab => {
-  tab.addEventListener('click', () => {
-    tabFilters.forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    currentFilter = tab.getAttribute('data-filter');
-    renderAllItems();
-  });
-});
-
-filterSearch.addEventListener('input', (e) => {
-  currentSearch = e.target.value.trim();
-  renderAllItems();
-});
-
-// ── Helper to Format Full Account String (Exact Format) ──────────────────────
-function formatItemFullText(item) {
-  const isHit = item.status === 'HIT';
-  const aov = item.aov || {};
-  const sec = item.security || {};
-
-  if (!isHit) {
-    return `${item.account}:${item.password} | STATUS : ${item.status} | DETAIL : ${item.message || 'Thất bại'}`;
-  }
-
-  const name = aov.name || 'Chưa đặt tên';
-  const stars = aov.stars || 0;
-  const rank = aov.rank || 'Chưa Đấu Hạng';
-  const rankStr = stars > 0 ? `${rank} ${stars} sao` : rank;
-  const level = aov.level || 0;
-  const hero = aov.total_champs || 0;
-  const skin = aov.total_skins || 0;
-  const ban = aov.banned || 'KHÔNG';
-
-  // Email
-  const maskedEmail = (sec.masked_email || '').trim();
-  const emailVerified = Boolean(sec.email_v);
-  let emailStr = 'NO [CHƯA LIÊN KẾT]';
-  if (maskedEmail && maskedEmail !== 'Trắng') {
-    emailStr = emailVerified ? `YES [${maskedEmail} - ĐÃ XÁC THỰC]` : `NO [${maskedEmail} - CHƯA XÁC THỰC]`;
-  }
-
-  // SDT
-  const maskedPhone = (sec.masked_phone || '').trim();
-  const sdtStr = (!maskedPhone || maskedPhone === 'Trắng') ? 'NO' : `YES [${maskedPhone}]`;
-
-  // CMND / CCCD
-  const cmndStr = sec.has_cccd ? 'YES' : 'NO';
-
-  // AUTHEN 2FA
-  const authenStr = sec.auth_2fa ? 'YES' : 'NO';
-
-  // FB
-  const fbStr = sec.fb_linked ? 'YES' : 'DIE';
-
-  // SO
-  const shells = item.shells || 0;
-
-  // QUOC GIA
-  const country = (item.country || 'VN').toUpperCase();
-
-  // LOGIN LAN CUOI
-  const lastLogin = item.last_login || 'Chưa ghi nhận';
-
-  // SS
-  const ssList = aov.ss_list || [];
-  const ssStr = `${ssList.length} [${ssList.join(', ')}]`;
-
-  // SSS
-  const sssList = aov.sss_list || [];
-  const sssStr = `${sssList.length} [${sssList.join(', ')}]`;
-
-  // ANIME
-  const animeList = aov.anime_list || [];
-  const animeStr = `${animeList.length} [${animeList.join(', ')}]`;
-
-  // OTHER
-  const otherList = aov.other_list || [];
-  const otherStr = `${otherList.length} [${otherList.slice(0, 10).join(', ')}${otherList.length > 10 ? '...' : ''}]`;
-
-  // TRANG THAI
-  const trangThai = (item.tinh_trang || 'CÓ THÔNG TIN').toUpperCase();
-
-  return `${item.account}:${item.password} | NAME :${name} | RANK : ${rankStr} | LEVEL : ${level} | HERO : ${hero} | SKIN : ${skin} | BAN : ${ban} | EMAIL : ${emailStr} | SDT : ${sdtStr} | CMND : ${cmndStr} | AUTHEN : ${authenStr} | FB : ${fbStr} | SÒ : ${shells} | QUỐC GIA : ${country} | LOGIN LẦN CUỐI : ${lastLogin} | SS : ${ssStr} | SSS : ${sssStr} | ANIME : ${animeStr} | OTHER : ${otherStr} | TRẠNG THÁI : ${trangThai}`;
-}
-
-// ── Copy & Export File Operations ────────────────────────────────────────────
-btnCopyView.addEventListener('click', () => {
-  const activeItems = allResults.filter(matchesFilterAndSearch);
-  if (activeItems.length === 0) {
-    showToast('KHONG CO DU LIEU DE COPY');
-    return;
-  }
-
-  const text = activeItems.map(formatItemFullText).join('\n');
-  navigator.clipboard.writeText(text);
-  showToast(`DA COPY DAY DU THONG TIN ${activeItems.length} ACC`);
-});
-
-btnExportTrang.addEventListener('click', () => {
-  const trangItems = allResults.filter(r => r.is_trang);
-  if (trangItems.length === 0) {
-    showToast('CHUA CO ACC TRANG NAO');
-    return;
-  }
-
-  const text = trangItems.map(formatItemFullText).join('\n');
-  downloadFile('acc_trang_lienquan_full.txt', text);
-  showToast(`DA TAI FILE ACC TRANG FULL INFO (${trangItems.length} ACC)`);
-});
-
-btnExportAll.addEventListener('click', () => {
-  const hitItems = allResults.filter(r => r.status === 'HIT');
-  if (hitItems.length === 0) {
-    showToast('CHUA CO ACC LIVE NAO');
-    return;
-  }
-
-  const text = hitItems.map(formatItemFullText).join('\n');
-  downloadFile('hit_live_lienquan_full.txt', text);
-  showToast(`DA TAI FILE HIT LIVE FULL INFO (${hitItems.length} ACC)`);
-});
 
 function downloadFile(filename, content) {
   const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
@@ -522,223 +676,76 @@ function downloadFile(filename, content) {
   URL.revokeObjectURL(url);
 }
 
-// ── Authentication & Developer API Logic ────────────────────────────────────
-let currentUser = null;
-let currentApiKey = null;
-
-// Auth DOM
-const authGuestView = document.getElementById('authGuestView');
-const authUserView = document.getElementById('authUserView');
-const navUsername = document.getElementById('navUsername');
-const navCredits = document.getElementById('navCredits');
-
-const authModal = document.getElementById('authModal');
-const btnOpenAuthModal = document.getElementById('btnOpenAuthModal');
-const btnCloseAuthModal = document.getElementById('btnCloseAuthModal');
-const tabLoginBtn = document.getElementById('tabLoginBtn');
-const tabRegisterBtn = document.getElementById('tabRegisterBtn');
-const loginForm = document.getElementById('loginForm');
-const registerForm = document.getElementById('registerForm');
-const loginError = document.getElementById('loginError');
-const regError = document.getElementById('regError');
-const btnLogout = document.getElementById('btnLogout');
-
-// API Modal DOM
-const apiModal = document.getElementById('apiModal');
-const btnOpenApiModal = document.getElementById('btnOpenApiModal');
-const btnCloseApiModal = document.getElementById('btnCloseApiModal');
-const displayApiKey = document.getElementById('displayApiKey');
-const btnCopyApiKey = document.getElementById('btnCopyApiKey');
-const btnGenNewApiKey = document.getElementById('btnGenNewApiKey');
-const curlExample = document.getElementById('curlExample');
-
-// Check Local Storage on Load
-function initAuth() {
-  const savedUser = localStorage.getItem('aov_user');
-  if (savedUser) {
-    try {
-      currentUser = JSON.parse(savedUser);
-      renderUserBar();
-      refreshUserCredits();
-    } catch (e) {
-      localStorage.removeItem('aov_user');
-    }
+(btnExportAll && btnExportAll.addEventListener)('click', () => {
+  const hits = allResults.filter(r => r.status === 'HIT');
+  if (hits.length === 0) {
+    showToast('CHƯA CÓ HIT NÀO ĐỂ LƯU');
+    return;
   }
-}
+  let txt = '=== DANH SÁCH ACC AOV HIT LIVE ===\n\n';
+  hits.forEach(r => {
+    txt += `${r.account}:${r.password} | RANK: ${r.rank || 'None'} | TƯỚNG: ${r.heroes_count} | SKIN: ${r.skins_count} | TRẮNG TTT: ${r.is_trang ? 'YES' : 'NO'}\n`;
+  });
+  downloadFile(`aov_all_hits_${Date.now()}.txt`, txt);
+  showToast(`ĐÃ LƯU ${hits.length} HIT LIVE`);
+});
 
-function renderUserBar() {
-  if (currentUser) {
-    authGuestView.style.display = 'none';
-    authUserView.style.display = 'flex';
-    navUsername.textContent = currentUser.username;
-    navCredits.textContent = currentUser.credits ?? 50;
-  } else {
-    authGuestView.style.display = 'flex';
-    authUserView.style.display = 'none';
+(btnExportTrang && btnExportTrang.addEventListener)('click', () => {
+  const trangs = allResults.filter(r => r.status === 'HIT' && r.is_trang);
+  if (trangs.length === 0) {
+    showToast('CHƯA CÓ ACC TRẮNG NÀO ĐỂ LƯU');
+    return;
   }
-}
+  let txt = '=== DANH SÁCH ACC AOV TRẮNG TTT ===\n\n';
+  trangs.forEach(r => {
+    txt += `${r.account}:${r.password} | RANK: ${r.rank || 'None'} | TƯỚNG: ${r.heroes_count} | SKIN: ${r.skins_count}\n`;
+  });
+  downloadFile(`aov_acc_trang_${Date.now()}.txt`, txt);
+  showToast(`ĐÃ LƯU ${trangs.length} ACC TRẮNG`);
+});
 
-async function refreshUserCredits() {
-  if (!currentUser) return;
-  try {
-    const res = await fetch(`/api/user/keys?user_id=${currentUser.id}`);
-    const data = await res.json();
-    if (data.status === 'ok') {
-      currentUser.credits = data.credits;
-      navCredits.textContent = data.credits;
-      localStorage.setItem('aov_user', JSON.stringify(currentUser));
-      if (data.keys && data.keys.length > 0) {
-        currentApiKey = data.keys[0].key;
-        updateApiModalContent();
-      }
-    }
-  } catch (e) {
-    console.error('Loi refresh credit:', e);
+(btnCopyView && btnCopyView.addEventListener)('click', () => {
+  const filtered = allResults.filter(matchesFilter);
+  if (filtered.length === 0) {
+    showToast('KHÔNG CÓ TÀI KHOẢN ĐỂ COPY');
+    return;
   }
-}
-
-// Modal open/close
-btnOpenAuthModal?.addEventListener('click', () => {
-  loginError.style.display = 'none';
-  regError.style.display = 'none';
-  authModal.style.display = 'flex';
+  const lines = filtered.map(r => `${r.account}:${r.password}`);
+  navigator.clipboard.writeText(lines.join('\n'));
+  showToast(`ĐÃ COPY ${filtered.length} COMBO ĐANG XEM`);
 });
 
-btnCloseAuthModal?.addEventListener('click', () => {
-  authModal.style.display = 'none';
-});
-
-tabLoginBtn?.addEventListener('click', () => {
-  tabLoginBtn.classList.add('active');
-  tabRegisterBtn.classList.remove('active');
-  loginForm.style.display = 'flex';
-  registerForm.style.display = 'none';
-});
-
-tabRegisterBtn?.addEventListener('click', () => {
-  tabRegisterBtn.classList.add('active');
-  tabLoginBtn.classList.remove('active');
-  loginForm.style.display = 'none';
-  registerForm.style.display = 'flex';
-});
-
-// Login Submit
-loginForm?.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  loginError.style.display = 'none';
-  const username = document.getElementById('loginUser').value.trim();
-  const password = document.getElementById('loginPass').value;
-
-  try {
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
-    });
-    const data = await res.json();
-    if (data.status === 'ok') {
-      currentUser = data.user;
-      localStorage.setItem('aov_user', JSON.stringify(currentUser));
-      authModal.style.display = 'none';
-      renderUserBar();
-      showToast(`XIN CHAO, ${currentUser.username.toUpperCase()}!`);
-      loadUserApiKeys();
-    } else {
-      loginError.textContent = data.message || 'Dang nhap that bai';
-      loginError.style.display = 'block';
-    }
-  } catch (err) {
-    loginError.textContent = 'Loi ket noi den may chu';
-    loginError.style.display = 'block';
-  }
-});
-
-// Register Submit
-registerForm?.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  regError.style.display = 'none';
-  const username = document.getElementById('regUser').value.trim();
-  const password = document.getElementById('regPass').value;
-
-  try {
-    const res = await fetch('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
-    });
-    const data = await res.json();
-    if (data.status === 'ok') {
-      currentUser = data.user;
-      currentApiKey = data.api_key;
-      localStorage.setItem('aov_user', JSON.stringify(currentUser));
-      authModal.style.display = 'none';
-      renderUserBar();
-      showToast(`TAO TAI KHOAN THANH CONG! +50 CREDITS`);
-    } else {
-      regError.textContent = data.message || 'Dang ky that bai';
-      regError.style.display = 'block';
-    }
-  } catch (err) {
-    regError.textContent = 'Loi ket noi den may chu';
-    regError.style.display = 'block';
-  }
-});
-
-btnLogout?.addEventListener('click', () => {
-  currentUser = null;
-  currentApiKey = null;
-  localStorage.removeItem('aov_user');
-  renderUserBar();
-  showToast('DA DANG XUAT');
-});
-
-// API Modal
-btnOpenApiModal?.addEventListener('click', () => {
-  if (!currentUser) return;
-  apiModal.style.display = 'flex';
-  loadUserApiKeys();
-});
-
-btnCloseApiModal?.addEventListener('click', () => {
-  apiModal.style.display = 'none';
-});
-
+// ── API Keys & Code Playground ──────────────────────────────────────────────
 async function loadUserApiKeys() {
   if (!currentUser) return;
   try {
     const res = await fetch(`/api/user/keys?user_id=${currentUser.id}`);
     const data = await res.json();
-    if (data.status === 'ok') {
-      if (data.keys && data.keys.length > 0) {
-        currentApiKey = data.keys[0].key;
+    if (data.success || data.status === 'ok') {
+      const keys = data.keys || [];
+      if (keys.length > 0) {
+        currentApiKey = keys[0].api_key || keys[0].key;
       } else {
-        currentApiKey = 'Chua co API Key';
+        currentApiKey = 'Chưa có API Key';
       }
-      updateApiModalContent();
+      if (displayApiKey) displayApiKey.value = currentApiKey;
+      updateCodeSnippets();
     }
   } catch (e) {
-    console.error(e);
+    console.error('Error load keys:', e);
   }
 }
 
-function updateApiModalContent() {
-  if (displayApiKey) displayApiKey.value = currentApiKey || 'Dang tao...';
-  const domain = window.location.origin;
-  if (curlExample) {
-    curlExample.textContent = `curl -X POST ${domain}/api/v1/check \\\n  -H "Authorization: Bearer ${currentApiKey || 'YOUR_API_KEY'}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"account":"user123:password456"}'`;
-  }
-}
-
-btnCopyApiKey?.addEventListener('click', () => {
+(btnCopyApiKey && btnCopyApiKey.addEventListener)('click', () => {
   if (displayApiKey && displayApiKey.value) {
     navigator.clipboard.writeText(displayApiKey.value);
-    showToast('DA COPY API KEY!');
+    showToast('ĐÃ COPY API KEY!');
   }
 });
 
-btnGenNewApiKey?.addEventListener('click', async () => {
+(btnGenNewApiKey && btnGenNewApiKey.addEventListener)('click', async () => {
   if (!currentUser) return;
-  if (!confirm('Ban co chac chan muon tao API Key moi khong? Key cu se bi thu hoi.')) return;
+  if (!confirm('Bạn có chắc chắn muốn tạo API Key mới không?')) return;
   try {
     const res = await fetch('/api/keys/generate', {
       method: 'POST',
@@ -746,24 +753,310 @@ btnGenNewApiKey?.addEventListener('click', async () => {
       body: JSON.stringify({ user_id: currentUser.id })
     });
     const data = await res.json();
-    if (data.status === 'ok') {
-      currentApiKey = data.key;
-      updateApiModalContent();
-      showToast('DA TAO API KEY MOI THANH CONG!');
-    } else {
-      showToast('Khong the tao key: ' + data.message);
+    if (data.success || data.status === 'ok') {
+      currentApiKey = data.api_key || data.key;
+      if (displayApiKey) displayApiKey.value = currentApiKey;
+      updateCodeSnippets();
+      showToast('ĐÃ TẠO API KEY MỚI THÀNH CÔNG!');
     }
   } catch (e) {
-    showToast('Loi ket noi tao key');
+    showToast('Lỗi khi tạo API key mới');
   }
 });
 
-// Close modals on clicking overlay backdrop
-window.addEventListener('click', (e) => {
-  if (e.target === authModal) authModal.style.display = 'none';
-  if (e.target === apiModal) apiModal.style.display = 'none';
+// Interactive API Tester
+(btnSendTestApi && btnSendTestApi.addEventListener)('click', async () => {
+  const combo = testComboInput.value.trim();
+  if (!combo) {
+    showToast('HÃY NHẬP TÀI KHOẢN TEST (user:pass)');
+    return;
+  }
+
+  const btnText = document.getElementById('testApiBtnText');
+  const btnLoader = document.getElementById('testApiBtnLoader');
+  btnText.style.display = 'none';
+  btnLoader.style.display = 'inline';
+  btnSendTestApi.disabled = true;
+
+  const startTime = performance.now();
+
+  try {
+    const res = await fetch('/api/v1/check', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${currentApiKey || ''}`
+      },
+      body: JSON.stringify({ account: combo })
+    });
+    const elapsed = Math.round(performance.now() - startTime);
+    const jsonRes = await res.json();
+
+    testResponseWrap.style.display = 'block';
+    testLatency.textContent = `${elapsed} ms`;
+    testResponseCode.textContent = JSON.stringify(jsonRes, null, 2);
+
+    refreshUserMeta();
+    showToast('ĐÃ NHẬN RESPONSE TỪ API!');
+  } catch (e) {
+    showToast('LỖI GỌI API TEST');
+  } finally {
+    btnText.style.display = 'inline';
+    btnLoader.style.display = 'none';
+    btnSendTestApi.disabled = false;
+  }
 });
 
-// Init on DOM ready
-initAuth();
+// Code Snippets Generators
+codeTabs.forEach(tab => {
+  tab.addEventListener('click', () => {
+    codeTabs.forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    currentSnippetLang = tab.getAttribute('data-lang');
+    updateCodeSnippets();
+  });
+});
 
+function updateCodeSnippets() {
+  const domain = window.location.origin;
+  const key = currentApiKey || 'YOUR_API_KEY';
+  let code = '';
+
+  if (currentSnippetLang === 'python') {
+    code = `import requests
+
+url = "${domain}/api/v1/check"
+headers = {
+    "Authorization": "Bearer ${key}",
+    "Content-Type": "application/json"
+}
+payload = {
+    "account": "user123:password456"
+}
+
+response = requests.post(url, headers=headers, json=payload)
+data = response.json()
+
+print("Status:", data.get("status"))
+print("Formatted:", data.get("formatted"))
+print("Data:", data.get("data"))`;
+  } else if (currentSnippetLang === 'curl') {
+    code = `curl -X POST ${domain}/api/v1/check \\
+  -H "Authorization: Bearer ${key}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"account":"user123:password456"}'`;
+  } else if (currentSnippetLang === 'nodejs') {
+    code = `const axios = require('axios');
+
+async function checkAccount() {
+  try {
+    const res = await axios.post('${domain}/api/v1/check', {
+      account: 'user123:password456'
+    }, {
+      headers: {
+        'Authorization': 'Bearer ${key}',
+        'Content-Type': 'application/json'
+      }
+    });
+    console.log(res.data);
+  } catch (err) {
+    console.error(err.response ? err.response.data : err.message);
+  }
+}
+
+checkAccount();`;
+  } else if (currentSnippetLang === 'golang') {
+    code = `package main
+
+import (
+	"bytes"
+	"fmt"
+	"io"
+	"net/http"
+)
+
+func main() {
+	url := "${domain}/api/v1/check"
+	payload := []byte(\`{"account":"user123:password456"}\`)
+
+	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(payload))
+	req.Header.Set("Authorization", "Bearer ${key}")
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	fmt.Println(string(body))
+}`;
+  } else if (currentSnippetLang === 'php') {
+    code = `<?php
+$curl = curl_init();
+
+curl_setopt_array($curl, array(
+  CURLOPT_URL => '${domain}/api/v1/check',
+  CURLOPT_RETURNTRANSFER => true,
+  CURLOPT_CUSTOMREQUEST => 'POST',
+  CURLOPT_POSTFIELDS => json_encode(['account' => 'user123:password456']),
+  CURLOPT_HTTPHEADER => array(
+    'Authorization: Bearer ${key}',
+    'Content-Type: application/json'
+  ),
+));
+
+$response = curl_exec($curl);
+curl_close($curl);
+echo $response;
+?>`;
+  }
+
+  if (snippetCode) snippetCode.textContent = code;
+}
+
+(btnCopySnippet && btnCopySnippet.addEventListener)('click', () => {
+  if (snippetCode) {
+    navigator.clipboard.writeText(snippetCode.textContent);
+    showToast('ĐÃ COPY CODE MẪU!');
+  }
+});
+
+// ── Check History Logs ──────────────────────────────────────────────────────
+histFilterBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    histFilterBtns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentHistFilter = btn.getAttribute('data-hist-filter') || 'all';
+    loadCheckHistory(currentHistFilter);
+  });
+});
+
+(btnRefreshHistory && btnRefreshHistory.addEventListener)('click', () => loadCheckHistory(currentHistFilter));
+
+async function loadCheckHistory(filter = 'all') {
+  if (!currentUser) return;
+  historyTableBody.innerHTML = '<tr><td colspan="7" class="text-center">[ ĐANG TẢI DỮ LIỆU LỊCH SỬ... ]</td></tr>';
+  try {
+    const res = await fetch(`/api/user/history?user_id=${currentUser.id}&status=${filter}`);
+    const data = await res.json();
+    if (data.success || data.status === 'ok') {
+      currentHistoryList = data.history || [];
+      if (histCount) histCount.textContent = currentHistoryList.length;
+      renderHistoryTable(currentHistoryList);
+    }
+  } catch (e) {
+    historyTableBody.innerHTML = '<tr><td colspan="7" class="text-center">[ LỖI KẾT NỐI TẢI LỊCH SỬ ]</td></tr>';
+  }
+}
+
+function renderHistoryTable(items) {
+  if (items.length === 0) {
+    historyTableBody.innerHTML = '<tr><td colspan="7" class="text-center">[ CHƯA CÓ LỊCH SỬ CHECK NÀO ]</td></tr>';
+    return;
+  }
+  let html = '';
+  items.forEach(it => {
+    const isHit = it.status === 'HIT';
+    const isTrang = Boolean(it.is_trang);
+    const statusColor = isHit ? (isTrang ? 'var(--cyan)' : 'var(--green)') : 'var(--red)';
+    const timeStr = it.created_at ? new Date(it.created_at * 1000).toLocaleString('vi-VN') : '-';
+    const trangStr = isTrang ? '<strong style="color:var(--cyan)">TRẮNG</strong>' : 'ĐÃ ĐK';
+
+    html += `
+      <tr>
+        <td><code>${escapeHtml(it.account)}</code></td>
+        <td style="color:${statusColor};font-weight:700;">${it.status}</td>
+        <td>${escapeHtml(it.rank || '-')}</td>
+        <td>${it.hero_count || 0}</td>
+        <td>${it.skin_count || 0}</td>
+        <td>${trangStr}</td>
+        <td><small style="color:var(--text-muted)">${timeStr}</small></td>
+      </tr>
+    `;
+  });
+  historyTableBody.innerHTML = html;
+}
+
+(btnExportHistory && btnExportHistory.addEventListener)('click', () => {
+  if (!currentHistoryList || currentHistoryList.length === 0) {
+    showToast('KHÔNG CÓ DỮ LIỆU LỊCH SỬ ĐỂ XUẤT');
+    return;
+  }
+  let content = '=== LỊCH SỬ TÀI KHOẢN AOV ĐÃ CHECK ===\n\n';
+  currentHistoryList.forEach(it => {
+    content += `${it.account} | STATUS: ${it.status} | RANK: ${it.rank || 'None'} | TƯỚNG: ${it.hero_count} | SKIN: ${it.skin_count} | TRẮNG: ${it.is_trang ? 'YES' : 'NO'}\n`;
+  });
+  downloadFile(`aov_history_export_${Date.now()}.txt`, content);
+  showToast(`ĐÃ XUẤT ${currentHistoryList.length} DÒNG LỊCH SỬ`);
+});
+
+(btnClearHistory && btnClearHistory.addEventListener)('click', async () => {
+  if (!currentUser) return;
+  if (!confirm('Bạn có chắc chắn muốn xóa toàn bộ lịch sử check của mình?')) return;
+  try {
+    const res = await fetch('/api/user/history/clear', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: currentUser.id })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('ĐÃ XÓA SẠCH LỊCH SỬ');
+      loadCheckHistory('all');
+    }
+  } catch (e) {
+    showToast('Lỗi khi xóa lịch sử');
+  }
+});
+
+// ── Quota & Giftcode Redeem ─────────────────────────────────────────────────
+window.fillCode = function(code) {
+  if (redeemStudioInput) {
+    redeemStudioInput.value = code;
+    redeemStudioInput.focus();
+  }
+};
+
+(redeemStudioForm && redeemStudioForm.addEventListener)('submit', async (e) => {
+  e.preventDefault();
+  if (!currentUser) return;
+  if (redeemStudioError) redeemStudioError.style.display = 'none';
+  const code = redeemStudioInput.value.trim();
+
+  try {
+    const res = await fetch('/api/user/redeem', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: currentUser.id, code })
+    });
+    const data = await res.json();
+    if (data.success || data.status === 'ok') {
+      currentUser.credits = (data.new_credits !== undefined && data.new_credits !== null ? data.new_credits : (currentUser.credits + data.credits_added));
+      localStorage.setItem('aov_user', JSON.stringify(currentUser));
+      renderUserHeader();
+      redeemStudioInput.value = '';
+      showToast(data.message || `KÍCH HOẠT THÀNH CÔNG +${data.credits_added} CREDITS!`);
+    } else {
+      if (redeemStudioError) {
+        redeemStudioError.textContent = data.error || data.message || 'Mã Giftcode không hợp lệ!';
+        redeemStudioError.style.display = 'block';
+      }
+    }
+  } catch (err) {
+    if (redeemStudioError) {
+      redeemStudioError.textContent = 'Lỗi kết nối máy chủ';
+      redeemStudioError.style.display = 'block';
+    }
+  }
+});
+
+// Close overlay on outside click
+window.addEventListener('click', (e) => {
+  if (e.target === authModal) authModal.style.display = 'none';
+});
+
+// Bootstrap
+initApp();
