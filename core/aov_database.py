@@ -160,13 +160,11 @@ SKIN_SS = {
     "14609": "Zill Siêu Việt",
     "15705": "Raz Siêu Việt",
     "10704": "Zephys Siêu Việt",
-    "10705": "Zephys Siêu Việt",
     "16703": "Ngộ Không Siêu Việt",
     "16705": "Ngộ Không Siêu Việt 2.0",
     "13107": "Murad Siêu Việt 2.0",
     "13108": "Murad Siêu Việt 2.0",
     # Dòng Kỷ Nguyên Hổ Phách & Đặc Biệt Bậc SS
-    "10711": "Zephys Kỷ Nguyên Hổ Phách",
     "10714": "Zephys Kỷ Nguyên Hổ Phách",
     "50120": "Tel'annas Kỷ Nguyên Hổ Phách",
     "52112": "Florentino Kỷ Nguyên Hổ Phách",
@@ -227,7 +225,7 @@ SKIN_ANIME = {
     # Kimetsu no Yaiba (Demon Slayer)
     "54402": "Yan Tanjiro Kamado",
     "53107": "Keera Nezuko Kamado",
-    "10709": "Zephys Inosuke Hashibira",
+    "10708": "Zephys Inosuke Hashibira",
     "13112": "Murad Zenitsu Agatsuma",
     # Bleach
     "12808": "Lữ Bố Ichigo Kurosaki",

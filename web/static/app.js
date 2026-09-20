@@ -423,13 +423,38 @@ on(btnRunSingle, 'click', async () => {
     if (data.status === 'HIT') {
       singleStatusTag.className = 'status-tag hit';
       singleStatusTag.textContent = data.is_trang ? 'HIT LIVE (TRẮNG TTT)' : 'HIT LIVE (CÓ TTT)';
+      
+      const aov = data.aov || {};
+      const sssList = data.sss_list || aov.sss_list || [];
+      const animeList = data.anime_list || aov.anime_list || [];
+      const ssList = data.ss_list || aov.ss_list || [];
+      const splusList = data.other_list || data.splus_list || aov.other_list || [];
+
+      let skinDetails = '';
+      if (sssList.length > 0) skinDetails += `<div><strong style="color:#f87171">SKIN SSS (${sssList.length}):</strong> ${escapeHtml(sssList.join(', '))}</div>`;
+      if (animeList.length > 0) skinDetails += `<div><strong style="color:#f472b6">SKIN ANIME (${animeList.length}):</strong> ${escapeHtml(animeList.join(', '))}</div>`;
+      if (ssList.length > 0) skinDetails += `<div><strong style="color:#fbbf24">SKIN SS (${ssList.length}):</strong> ${escapeHtml(ssList.join(', '))}</div>`;
+      if (splusList.length > 0) skinDetails += `<div><strong style="color:#60a5fa">SKIN S+ / HỮU HẠN (${splusList.length}):</strong> ${escapeHtml(splusList.join(', '))}</div>`;
+      if (!skinDetails && data.skins_vip) skinDetails = `<div><strong style="color:var(--gold)">SKIN VIP:</strong> ${escapeHtml(data.skins_vip)}</div>`;
+
       singleBody.innerHTML = `
-        <div><strong>INGAME:</strong> ${escapeHtml(data.ingame || 'None')}</div>
-        <div><strong>RANK:</strong> <span style="color:var(--gold)">${escapeHtml(data.rank || 'Unranked')}</span></div>
-        <div><strong>TƯỚNG:</strong> ${data.heroes_count || 0} | <strong>SKIN:</strong> ${data.skins_count || 0}</div>
-        <div><strong>SKIN VIP/SSS:</strong> <span style="color:var(--gold)">${escapeHtml(data.skins_vip || 'Không có')}</span></div>
-        <div><strong>THÔNG TIN:</strong> ${escapeHtml(data.tt_info || '')}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <div><strong>INGAME:</strong> ${escapeHtml(data.ingame || aov.name || 'None')}</div>
+          <button type="button" class="btn-acc-copy" id="btnCopySingleFull">COPY CHI TIẾT</button>
+        </div>
+        <div><strong>RANK:</strong> <span style="color:var(--gold)">${escapeHtml(data.rank || aov.rank || 'Unranked')}</span></div>
+        <div><strong>TƯỚNG:</strong> ${data.heroes_count || aov.total_champs || 0} | <strong>SKIN:</strong> ${data.skins_count || aov.total_skins || 0}</div>
+        ${skinDetails}
+        <div style="margin-top:6px;font-size:11px;color:var(--text-muted);"><strong>THÔNG TIN:</strong> ${escapeHtml(data.tt_info || '')}</div>
       `;
+
+      const btnCopySingle = document.getElementById('btnCopySingleFull');
+      if (btnCopySingle) {
+        btnCopySingle.addEventListener('click', () => {
+          navigator.clipboard.writeText(formatItemFullText(data));
+          showToast(`ĐÃ COPY CHI TIẾT ACC [${acc}]!`);
+        });
+      }
     } else {
       singleStatusTag.className = 'status-tag invalid';
       singleStatusTag.textContent = data.status || 'FAIL';
@@ -612,10 +637,62 @@ function renderNewBatchItems(items) {
   batchResultsList.prepend(frag);
 }
 
+function formatItemFullText(r) {
+  if (!r) return '';
+  if (r.full_info) return r.full_info;
+
+  const acc = r.account || '';
+  const pwd = r.password || '';
+  const status = r.status || 'FAIL';
+  if (status !== 'HIT') {
+    return `${acc}:${pwd} | STATUS : ${status} | DETAIL : ${r.message || 'Thất bại'}`;
+  }
+
+  const aov = r.aov || {};
+  const sec = r.security || {};
+
+  const name = r.ingame || aov.name || 'NoName';
+  const rank = r.rank || aov.rank || 'None';
+  const stars = aov.stars || 0;
+  const rankStr = stars > 0 ? `${rank} ${stars} sao` : rank;
+  const level = aov.level || 0;
+  const hero = r.heroes_count !== undefined ? r.heroes_count : (aov.total_champs || 0);
+  const skin = r.skins_count !== undefined ? r.skins_count : (aov.total_skins || 0);
+  const ban = aov.banned || 'KHÔNG';
+
+  const maskedEmail = (sec.masked_email || '').trim();
+  let emailStr = 'NO [CHƯA LIÊN KẾT]';
+  if (maskedEmail && maskedEmail !== 'Trắng') {
+    emailStr = sec.email_v ? `YES [${maskedEmail} - ĐÃ XÁC THỰC]` : `NO [${maskedEmail} - CHƯA XÁC THỰC]`;
+  }
+
+  const maskedPhone = (sec.masked_phone || '').trim();
+  const sdtStr = (!maskedPhone || maskedPhone === 'Trắng') ? 'NO' : `YES [${maskedPhone}]`;
+  const cmndStr = sec.has_cccd ? 'YES' : 'NO';
+  const authenStr = sec.auth_2fa ? 'YES' : 'NO';
+  const fbStr = sec.fb_linked ? 'YES' : 'DIE';
+  const shells = r.shells || 0;
+  const country = (r.country || 'VN').toUpperCase();
+  const lastLogin = r.last_login || 'Chưa ghi nhận';
+
+  const ssList = r.ss_list || aov.ss_list || [];
+  const sssList = r.sss_list || aov.sss_list || [];
+  const animeList = r.anime_list || aov.anime_list || [];
+  const splusList = r.other_list || r.splus_list || aov.other_list || [];
+
+  const ssStr = `${ssList.length} [${ssList.join(', ')}]`;
+  const sssStr = `${sssList.length} [${sssList.join(', ')}]`;
+  const animeStr = `${animeList.length} [${animeList.join(', ')}]`;
+  const splusStr = `${splusList.length} [${splusList.join(', ')}]`;
+  const trangThai = (r.tt_info || r.tinh_trang || (r.is_trang ? 'TRẮNG TTT' : 'CÓ THÔNG TIN')).toUpperCase();
+
+  return `${acc}:${pwd} | NAME :${name} | RANK : ${rankStr} | LEVEL : ${level} | HERO : ${hero} | SKIN : ${skin} | BAN : ${ban} | EMAIL : ${emailStr} | SDT : ${sdtStr} | CMND : ${cmndStr} | AUTHEN : ${authenStr} | FB : ${fbStr} | SÒ : ${shells} | QUỐC GIA : ${country} | LOGIN LẦN CUỐI : ${lastLogin} | SS : ${ssStr} | SSS : ${sssStr} | ANIME : ${animeStr} | S+ : ${splusStr} | TRẠNG THÁI : ${trangThai}`;
+}
+
 function createRowElement(item) {
   const div = document.createElement('div');
   const isHit = item.status === 'HIT';
-  const isTrang = Boolean(item.is_trang);
+  const isTrang = Boolean(item.is_trang || (item.aov && item.aov.is_trang));
 
   let cls = 'acc-row ';
   if (isHit) cls += isTrang ? 'row-trang' : 'row-hit';
@@ -624,35 +701,112 @@ function createRowElement(item) {
 
   const accStr = `${item.account}:${item.password}`;
   if (isHit) {
+    const aov = item.aov || {};
+    const sssList = item.sss_list || aov.sss_list || [];
+    const animeList = item.anime_list || aov.anime_list || [];
+    const ssList = item.ss_list || aov.ss_list || [];
+    const splusList = item.other_list || item.splus_list || aov.other_list || [];
+
+    let skinBlocksHtml = '';
+    if (sssList.length > 0) {
+      skinBlocksHtml += `
+        <div class="skin-badge-line">
+          <span class="skin-tag sss">SSS (${sssList.length})</span>
+          <span class="skin-items-text">${escapeHtml(sssList.join(', '))}</span>
+        </div>`;
+    }
+    if (animeList.length > 0) {
+      skinBlocksHtml += `
+        <div class="skin-badge-line">
+          <span class="skin-tag anime">ANIME (${animeList.length})</span>
+          <span class="skin-items-text">${escapeHtml(animeList.join(', '))}</span>
+        </div>`;
+    }
+    if (ssList.length > 0) {
+      skinBlocksHtml += `
+        <div class="skin-badge-line">
+          <span class="skin-tag ss">SS (${ssList.length})</span>
+          <span class="skin-items-text">${escapeHtml(ssList.join(', '))}</span>
+        </div>`;
+    }
+    if (splusList.length > 0) {
+      skinBlocksHtml += `
+        <div class="skin-badge-line">
+          <span class="skin-tag splus">S+ / HỮU HẠN (${splusList.length})</span>
+          <span class="skin-items-text">${escapeHtml(splusList.join(', '))}</span>
+        </div>`;
+    }
+    if (!skinBlocksHtml && item.skins_vip) {
+      skinBlocksHtml = `<div class="acc-skins-line">★ VIP: ${escapeHtml(item.skins_vip)}</div>`;
+    }
+
     div.innerHTML = `
       <div class="row-head">
-        <span class="acc-tag ${isTrang ? 'trang' : 'hit'}">${isTrang ? 'TRẮNG TTT' : 'HIT LIVE'}</span>
-        <code>${escapeHtml(accStr)}</code>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="acc-tag ${isTrang ? 'trang' : 'hit'}">${isTrang ? 'TRẮNG TTT' : 'HIT LIVE'}</span>
+          <code>${escapeHtml(accStr)}</code>
+        </div>
+        <div class="acc-actions">
+          <button type="button" class="btn-acc-copy" title="Copy toàn bộ thông tin chi tiết của tài khoản này">COPY CHI TIẾT</button>
+        </div>
       </div>
       <div class="acc-info-line">
-        [ ${escapeHtml(item.ingame || 'NoName')} ] | RANK: ${escapeHtml(item.rank || 'None')} | TƯỚNG: ${item.heroes_count || 0} | SKIN: ${item.skins_count || 0}
+        [ ${escapeHtml(item.ingame || aov.name || 'NoName')} ] | RANK: <span style="color:var(--gold)">${escapeHtml(item.rank || aov.rank || 'None')}</span> | TƯỚNG: ${item.heroes_count !== undefined ? item.heroes_count : (aov.total_champs || 0)} | SKIN: ${item.skins_count !== undefined ? item.skins_count : (aov.total_skins || 0)}
       </div>
-      ${item.skins_vip ? `<div class="acc-skins-line">★ VIP: ${escapeHtml(item.skins_vip)}</div>` : ''}
+      ${skinBlocksHtml ? `<div class="acc-skins-block">${skinBlocksHtml}</div>` : ''}
     `;
+
+    const copyBtn = div.querySelector('.btn-acc-copy');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const fullText = formatItemFullText(item);
+        navigator.clipboard.writeText(fullText);
+        showToast(`ĐÃ COPY CHI TIẾT ACC [${item.account}]!`);
+      });
+    }
   } else {
     div.innerHTML = `
       <div class="row-head">
-        <span class="acc-tag invalid">${escapeHtml(item.status)}</span>
-        <code>${escapeHtml(accStr)}</code>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="acc-tag invalid">${escapeHtml(item.status || 'FAIL')}</span>
+          <code>${escapeHtml(accStr)}</code>
+        </div>
+        <div class="acc-actions">
+          <button type="button" class="btn-acc-copy">COPY</button>
+        </div>
       </div>
       <div style="color:var(--text-muted);font-size:11px;">${escapeHtml(item.message || 'FAIL')}</div>
     `;
+    const copyBtn = div.querySelector('.btn-acc-copy');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(`${item.account}:${item.password} | STATUS: ${item.status || 'FAIL'} | LÝ DO: ${item.message || '-'}`);
+        showToast(`ĐÃ COPY ACC [${item.account}]!`);
+      });
+    }
   }
   return div;
 }
 
 function matchesFilter(item) {
   const isHit = item.status === 'HIT';
-  const isTrang = Boolean(item.is_trang);
-  const isVip = Boolean(item.skins_vip);
+  const isTrang = Boolean(item.is_trang || (item.aov && item.aov.is_trang));
+  const hasVip = Boolean(
+    item.skins_vip ||
+    (item.sss_list && item.sss_list.length > 0) ||
+    (item.anime_list && item.anime_list.length > 0) ||
+    (item.ss_list && item.ss_list.length > 0) ||
+    (item.aov && (
+      (item.aov.sss_list && item.aov.sss_list.length > 0) ||
+      (item.aov.anime_list && item.aov.anime_list.length > 0) ||
+      (item.aov.ss_list && item.aov.ss_list.length > 0)
+    ))
+  );
 
   if (currentFilter === 'trang' && (!isHit || !isTrang)) return false;
-  if (currentFilter === 'vip' && (!isHit || !isVip)) return false;
+  if (currentFilter === 'vip' && (!isHit || !hasVip)) return false;
   if (currentFilter === 'live' && !isHit) return false;
 
   if (currentSearch) {
@@ -668,8 +822,19 @@ function updateCounters() {
   allResults.forEach(r => {
     if (r.status === 'HIT') {
       hits++;
-      if (r.is_trang) trang++;
-      if (r.skins_vip) vip++;
+      if (r.is_trang || (r.aov && r.aov.is_trang)) trang++;
+      const hasVip = Boolean(
+        r.skins_vip ||
+        (r.sss_list && r.sss_list.length > 0) ||
+        (r.anime_list && r.anime_list.length > 0) ||
+        (r.ss_list && r.ss_list.length > 0) ||
+        (r.aov && (
+          (r.aov.sss_list && r.aov.sss_list.length > 0) ||
+          (r.aov.anime_list && r.aov.anime_list.length > 0) ||
+          (r.aov.ss_list && r.aov.ss_list.length > 0)
+        ))
+      );
+      if (hasVip) vip++;
     }
   });
 
@@ -727,26 +892,17 @@ on(btnExportAll, 'click', () => {
   let filename = '';
 
   if (hits.length > 0) {
-    txt = '=== DANH SÁCH ACC AOV HIT LIVE ===\n\n';
+    txt = '=== DANH SÁCH ACC AOV HIT LIVE (FULL CHI TIẾT) ===\n\n';
     hits.forEach(r => {
-      const aovObj = r.aov || {};
-      const rank = r.rank || aovObj.rank || 'None';
-      const heroes = r.heroes_count !== undefined ? r.heroes_count : (aovObj.heroes_count || 0);
-      const skins = r.skins_count !== undefined ? r.skins_count : (aovObj.skins_count || 0);
-      const isTrang = r.is_trang || aovObj.is_trang;
-      const ingame = r.ingame || aovObj.name || 'NoName';
-      const vip = r.skins_vip || (aovObj.skins_vip ? aovObj.skins_vip.join(', ') : '');
-
-      txt += `${r.account}:${r.password} | [${ingame}] | RANK: ${rank} | TƯỚNG: ${heroes} | SKIN: ${skins} | TRẮNG TTT: ${isTrang ? 'YES' : 'NO'}${vip ? ' | VIP: ' + vip : ''}\n`;
+      txt += formatItemFullText(r) + '\n';
     });
-    filename = `aov_hits_${Date.now()}.txt`;
+    filename = `aov_hits_full_${Date.now()}.txt`;
     downloadFile(filename, txt);
     showToast(`ĐÃ XUẤT ${hits.length} TÀI KHOẢN HIT LIVE`);
   } else {
-    // Xuất tất cả tài khoản đã check kèm lý do/status nếu không có tài khoản sống
     txt = '=== TOÀN BỘ KẾT QUẢ QUÉT TÀI KHOẢN ===\n\n';
     allResults.forEach(r => {
-      txt += `${r.account}:${r.password} | TRẠNG THÁI: ${r.status} | CHI TIẾT: ${r.message || '-'}\n`;
+      txt += formatItemFullText(r) + '\n';
     });
     filename = `aov_all_checked_${Date.now()}.txt`;
     downloadFile(filename, txt);
@@ -764,16 +920,11 @@ on(btnExportTrang, 'click', () => {
     showToast('KHÔNG CÓ TÀI KHOẢN NÀO TRẮNG TTT TRONG KẾT QUẢ');
     return;
   }
-  let txt = '=== DANH SÁCH ACC AOV TRẮNG TTT ===\n\n';
+  let txt = '=== DANH SÁCH ACC AOV TRẮNG TTT (FULL CHI TIẾT) ===\n\n';
   trangs.forEach(r => {
-    const aovObj = r.aov || {};
-    const rank = r.rank || aovObj.rank || 'None';
-    const heroes = r.heroes_count !== undefined ? r.heroes_count : (aovObj.heroes_count || 0);
-    const skins = r.skins_count !== undefined ? r.skins_count : (aovObj.skins_count || 0);
-    const ingame = r.ingame || aovObj.name || 'NoName';
-    txt += `${r.account}:${r.password} | [${ingame}] | RANK: ${rank} | TƯỚNG: ${heroes} | SKIN: ${skins}\n`;
+    txt += formatItemFullText(r) + '\n';
   });
-  downloadFile(`aov_acc_trang_${Date.now()}.txt`, txt);
+  downloadFile(`aov_acc_trang_full_${Date.now()}.txt`, txt);
   showToast(`ĐÃ XUẤT ${trangs.length} ACC TRẮNG TTT`);
 });
 
@@ -786,9 +937,9 @@ on(btnCopyView, 'click', () => {
     showToast('KHÔNG CÓ TÀI KHOẢN ĐỂ SAO CHÉP');
     return;
   }
-  const lines = list.map(r => `${r.account}:${r.password}`);
+  const lines = list.map(r => formatItemFullText(r));
   navigator.clipboard.writeText(lines.join('\n'));
-  showToast(`ĐÃ COPY ${lines.length} TÀI KHOẢN (user:pass)`);
+  showToast(`ĐÃ COPY TOÀN BỘ CHI TIẾT ${lines.length} TÀI KHOẢN!`);
 });
 
 // ── API Keys & Code Playground ──────────────────────────────────────────────

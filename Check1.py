@@ -1204,8 +1204,8 @@ SKIN_SSS = {
 }
 
 SKIN_SS = {
-    "10603": "Krixi Tiệc Bãi Biển", "10704": "Zephys Siêu việt", "10705": "Zephys Siêu việt",
-    "10711": "Zephys Kỷ Nguyên Hổ Phách", "10714": "Zephys Kỷ Nguyên Hổ Phách", "10801": "Gildur Tiệc Bãi Biển",
+    "10603": "Krixi Tiệc Bãi Biển", "10704": "Zephys Siêu việt",
+    "10714": "Zephys Kỷ Nguyên Hổ Phách", "10801": "Gildur Tiệc Bãi Biển",
     "10802": "Gildur Tiệc Bãi Biển", "10912": "Veera A.I Love you", "10915": "Veera Thất Sát - Thượng Sinh",
     "10916": "Veera My Melody's Love", "11105": "Violet Tiệc bãi biển", "11106": "Violet Tiệc bãi biển",
     "11109": "Violet Vợ người ta", "11110": "Violet Vợ người ta", "11112": "Violet Thần long tỷ tỷ",
@@ -1348,7 +1348,7 @@ SKIN_ID_MAP = {
     "10615": "Krixi Kimono", "10620": "Krixi Phù thủy thời không", "10700": "Zephys", "10701": "Zephys Oán linh",
     "10702": "Zephys Hiệp Sĩ Bí Ngô", "10703": "Zephys Dung Nham", "10704": "Zephys Siêu việt", "10705": "Zephys Phi thương",
     "10706": "Zephys Tư lệnh viễn chinh", "10707": "Zephys Hắc vô thường", "10708": "Zephys Inosuke Hashibira", "10709": "Zephys Đầu bếp Sashimi",
-    "10710": "Zephys Nghệ nhân đồ chơi", "10711": "Zephys Kỷ Nguyên Hổ Phách", "10712": "Zephys Đại ca đường phố", "10714": "Zephys Kỷ Nguyên Hổ Phách",
+    "10710": "Zephys Nghệ nhân đồ chơi", "10711": "Zephys Đầu bếp Sashimi", "10712": "Zephys Đại ca đường phố", "10714": "Zephys Kỷ Nguyên Hổ Phách",
     "10800": "Gildur Skin 0", "10801": "Gildur phượt thủ", "10802": "Gildur Tiệc Bãi Biển", "10803": "Gildur Đại gia học viện",
     "10804": "Gildur Đại võ sư", "10805": "Gildur Thuyền trưởng râu bạc", "10806": "Gildur Bác học thiên tài", "10807": "Gildur Phù thủy Ba Tư",
     "10808": "Gildur Xích long", "10809": "Gildur PASULOL", "10812": "Gildur Jiji", "10900": "Veera",
