@@ -168,35 +168,101 @@ body.app-body {
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
-.brand-badge {
-  background: linear-gradient(135deg, var(--cyan), var(--purple));
-  color: #000;
-  font-family: var(--font-mono);
-  font-weight: 900;
-  font-size: 11px;
-  padding: 3px 8px;
-  border-radius: 4px;
+.brand-logo-wrap {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.15), rgba(139, 92, 246, 0.15));
+  border: 1px solid var(--glass-border-glow);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--cyan);
+}
+
+.brand-logo {
+  width: 20px;
+  height: 20px;
+}
+
+.brand-text-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.brand-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .brand-title {
   font-family: var(--font-sans);
   font-weight: 800;
-  font-size: 16px;
-  letter-spacing: 1px;
+  font-size: 15px;
+  letter-spacing: 0.8px;
   color: #fff;
 }
 
-.brand-version, .brand-status {
+.brand-badge-pill {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
   color: var(--cyan);
+  background: rgba(0, 229, 255, 0.12);
   border: 1px solid rgba(0, 229, 255, 0.3);
-  padding: 2px 6px;
+  padding: 1px 6px;
   border-radius: var(--radius-pill);
+}
+
+.brand-sub {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+/* SVG Vector Icon System */
+.icon-svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+.icon-sm {
+  width: 14px;
+  height: 14px;
+}
+.icon-md {
+  width: 20px;
+  height: 20px;
+}
+
+.card-icon-svg-wrap {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 229, 255, 0.08);
+  border: 1px solid rgba(0, 229, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--cyan);
+  margin-bottom: 16px;
+  transition: all 0.2s;
+}
+.feature-card:hover .card-icon-svg-wrap {
+  background: rgba(0, 229, 255, 0.16);
+  border-color: var(--cyan);
+  box-shadow: 0 0 15px var(--cyan-glow);
+  transform: scale(1.05);
+}
+.feature-card:hover .card-icon-svg-wrap .icon-svg {
+  stroke-width: 2.3;
 }
 
 .landing-hero {
@@ -639,24 +705,50 @@ body.app-body {
 
 .drop-zone {
   margin: 12px;
-  padding: 14px;
+  padding: 16px;
   border: 1px dashed var(--glass-border);
   border-radius: var(--radius-sm);
-  text-align: center;
-  cursor: pointer;
-  font-size: 11px;
-  color: var(--text-muted);
+  background: rgba(0, 0, 0, 0.2);
   transition: all 0.2s;
 }
-.drop-zone:hover {
+.drop-zone.dragover {
   border-color: var(--cyan);
-  background: rgba(0, 229, 255, 0.04);
+  background: rgba(0, 229, 255, 0.06);
+}
+.drop-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.drop-icon {
+  width: 26px;
+  height: 26px;
+  color: var(--cyan);
+  opacity: 0.8;
+}
+.drop-text {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.btn-select-file {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 5px 12px;
+  color: var(--cyan);
+  border-color: rgba(0, 229, 255, 0.3);
+}
+.btn-select-file:hover {
+  background: rgba(0, 229, 255, 0.15);
+  border-color: var(--cyan);
 }
 .file-name {
   display: block;
   margin-top: 4px;
   color: var(--cyan);
   font-family: var(--font-mono);
+  font-size: 11px;
 }
 
 .textarea-wrap {

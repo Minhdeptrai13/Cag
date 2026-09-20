@@ -205,13 +205,28 @@ function openAuthModal(isRegister = false) {
   if (authModal) authModal.style.display = 'flex';
 }
 
-(btnLandingLogin && btnLandingLogin.addEventListener)('click', () => openAuthModal(false));
-(btnHeroOpenStudio && btnHeroOpenStudio.addEventListener)('click', () => {
+(btnLandingLogin && btnLandingLogin.addEventListener)('click', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  openAuthModal(false);
+});
+
+(btnHeroOpenStudio && btnHeroOpenStudio.addEventListener)('click', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
   if (currentUser) showStudioView();
   else openAuthModal(false);
 });
-(btnHeroRegister && btnHeroRegister.addEventListener)('click', () => openAuthModal(true));
-(btnLandingDocs && btnLandingDocs.addEventListener)('click', () => {
+
+(btnHeroRegister && btnHeroRegister.addEventListener)('click', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  openAuthModal(true);
+});
+
+(btnLandingDocs && btnLandingDocs.addEventListener)('click', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
   if (currentUser) {
     showStudioView();
     switchTab('api');
@@ -220,7 +235,9 @@ function openAuthModal(isRegister = false) {
   }
 });
 
-(btnCloseAuthModal && btnCloseAuthModal.addEventListener)('click', () => {
+(btnCloseAuthModal && btnCloseAuthModal.addEventListener)('click', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
   if (authModal) authModal.style.display = 'none';
 });
 
@@ -412,7 +429,13 @@ navItems.forEach(btn => {
 });
 
 // ── Batch Stream Checker ────────────────────────────────────────────────────
-(uploadZone && uploadZone.addEventListener)('click', () => fileInput.click());
+const btnSelectFile = document.getElementById('btnSelectFile');
+(btnSelectFile && btnSelectFile.addEventListener)('click', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  if (fileInput) fileInput.click();
+});
+
 (fileInput && fileInput.addEventListener)('change', (e) => {
   const file = e.target.files[0];
   if (file) handleLoadedFile(file);
@@ -420,14 +443,14 @@ navItems.forEach(btn => {
 
 (uploadZone && uploadZone.addEventListener)('dragover', (e) => {
   e.preventDefault();
-  uploadZone.style.borderColor = 'var(--cyan)';
+  uploadZone.classList.add('dragover');
 });
 (uploadZone && uploadZone.addEventListener)('dragleave', () => {
-  uploadZone.style.borderColor = 'var(--glass-border)';
+  uploadZone.classList.remove('dragover');
 });
 (uploadZone && uploadZone.addEventListener)('drop', (e) => {
   e.preventDefault();
-  uploadZone.style.borderColor = 'var(--glass-border)';
+  uploadZone.classList.remove('dragover');
   const file = e.dataTransfer.files[0];
   if (file) handleLoadedFile(file);
 });

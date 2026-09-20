@@ -14,56 +14,112 @@
     <!-- Navbar Public -->
     <header class="landing-nav">
       <div class="brand">
-        <span class="brand-badge">AOV</span>
-        <span class="brand-title">STUDIO</span>
-        <span class="brand-version">PLAYGROUND</span>
+        <div class="brand-logo-wrap">
+          <svg class="icon-svg brand-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+            <path d="M2 17l10 5 10-5"></path>
+            <path d="M2 12l10 5 10-5"></path>
+          </svg>
+        </div>
+        <div class="brand-text-col">
+          <div class="brand-title-row">
+            <span class="brand-title">AOV STUDIO</span>
+            <span class="brand-badge-pill">PLAYGROUND</span>
+          </div>
+          <span class="brand-sub">Core SaaS & Gateway</span>
+        </div>
       </div>
       <div class="nav-actions">
-        <button class="btn btn-ghost" id="btnLandingDocs">API DOCS</button>
-        <button class="btn btn-primary" id="btnLandingLogin">ĐĂNG NHẬP / ĐĂNG KÝ</button>
+        <button type="button" class="btn btn-ghost" id="btnLandingDocs">
+          <svg class="icon-svg icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+            <polyline points="10 9 9 9 8 9"></polyline>
+          </svg>
+          API DOCS
+        </button>
+        <button type="button" class="btn btn-primary" id="btnLandingLogin">
+          <svg class="icon-svg icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+            <polyline points="10 17 15 12 10 7"></polyline>
+            <line x1="15" y1="12" x2="3" y2="12"></line>
+          </svg>
+          ĐĂNG NHẬP / ĐĂNG KÝ
+        </button>
       </div>
     </header>
 
     <!-- Hero Showcase -->
     <main class="landing-hero">
       <div class="hero-badge">
-        <span class="dot-live"></span> NỀN TẢNG AOV CHECKER & DEVELOPER API GATEWAY THẾ HỆ MỚI
+        <span class="dot-live"></span>
+        <span class="badge-text">GARENA AOV CORE ENGINE & DEVELOPER REST API GATEWAY</span>
       </div>
       <h1 class="hero-title">
         Nền Tảng Quét Tài Khoản & <br />
-        <span class="gradient-text">API Dịch Vụ Cho Lập Trình Viên</span>
+        <span class="gradient-text">Dịch Vụ API Tự Động Hóa</span>
       </h1>
       <p class="hero-subtitle">
-        Khám phá môi trường Studio Playground tối tân: Tốc độ quét 100+ luồng song song,
-        tự động phân tích full thông tin Rank, Tướng, Skin SS/SSS/Anime, bóc tách Trắng TTT sạch sẽ,
-        tích hợp tức thì vào Telegram Bot, Discord và ứng dụng riêng qua REST API.
+        Môi trường Studio Playground tối ưu cho doanh nghiệp và nhà phát triển: Quét đa luồng song song,
+        nhận diện 100% Skin SS/SSS/Anime, bóc tách thông tin tài khoản sạch sẽ,
+        sẵn sàng tích hợp Telegram Bot, Discord và ứng dụng độc lập qua REST API.
       </p>
 
       <div class="hero-cta-group">
-        <button class="btn btn-hero btn-hero-glow" id="btnHeroOpenStudio">
-          <span class="icon">🚀</span> MỞ PLAYGROUND STUDIO
+        <button type="button" class="btn btn-hero btn-hero-glow" id="btnHeroOpenStudio">
+          <svg class="icon-svg icon-md" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+          MỞ PLAYGROUND STUDIO
         </button>
-        <button class="btn btn-hero btn-hero-outline" id="btnHeroRegister">
-          <span class="icon">✨</span> TẠO TÀI KHOẢN (+50 CREDITS FREE)
+        <button type="button" class="btn btn-hero btn-hero-outline" id="btnHeroRegister">
+          <svg class="icon-svg icon-md" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="8.5" cy="7" r="4"></circle>
+            <line x1="20" y1="8" x2="20" y2="14"></line>
+            <line x1="23" y1="11" x2="17" y2="11"></line>
+          </svg>
+          TẠO TÀI KHOẢN (+50 CREDITS FREE)
         </button>
       </div>
 
-      <!-- Feature Grid Showcase -->
+      <!-- Feature Grid Showcase (Custom Monochrome SVGs) -->
       <div class="features-grid">
         <div class="feature-card">
-          <div class="card-icon">⚡</div>
-          <h3>Check Đa Luồng Siêu Tốc</h3>
-          <p>Tối ưu hóa đa luồng non-blocking, nạp file text hàng chục nghìn tài khoản, bóc tách kết quả tức thì.</p>
+          <div class="card-icon-svg-wrap">
+            <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+            </svg>
+          </div>
+          <h3>Quét Đa Luồng Hiệu Năng Cao</h3>
+          <p>Thuật toán multi-threading non-blocking tải file combo hàng nghìn tài khoản, bóc tách kết quả tức thì không giật lag.</p>
         </div>
         <div class="feature-card">
-          <div class="card-icon">🎯</div>
-          <h3>Độ Chuẩn Xác 100%</h3>
-          <p>Nhận diện chính xác 100% toàn bộ tướng và skin Liên Quân mới nhất: SSS, Anime, Evo, Thứ Nguyên Vệ Thần.</p>
+          <div class="card-icon-svg-wrap">
+            <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="22" y1="12" x2="18" y2="12"></line>
+              <line x1="6" y1="12" x2="2" y2="12"></line>
+              <line x1="12" y1="6" x2="12" y2="2"></line>
+              <line x1="12" y1="22" x2="12" y2="18"></line>
+            </svg>
+          </div>
+          <h3>Độ Chuẩn Xác Toàn Diện</h3>
+          <p>Nhận diện chính xác 100% Rank, Tướng và Skin Liên Quân: SSS, Anime, Evo, Thứ Nguyên Vệ Thần cùng trạng thái Trắng TTT.</p>
         </div>
         <div class="feature-card">
-          <div class="card-icon">🔌</div>
+          <div class="card-icon-svg-wrap">
+            <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="7.5" cy="15.5" r="5.5"></circle>
+              <path d="m21 2-9.6 9.6"></path>
+              <path d="m15.5 7.5 3 3"></path>
+              <path d="m18.5 4.5 3 3"></path>
+            </svg>
+          </div>
           <h3>Developer REST API</h3>
-          <p>Cung cấp API Key riêng biệt, gọi API kiểm tra tài khoản chỉ với 3 dòng code Python, Node.js hoặc cURL.</p>
+          <p>Mỗi tài khoản được cấp API Key riêng biệt, hỗ trợ gọi API kiểm tra tài khoản chỉ với 3 dòng code Python, cURL hoặc Node.js.</p>
         </div>
       </div>
 
@@ -92,9 +148,17 @@
     <!-- Studio Header -->
     <header class="studio-header">
       <div class="brand">
-        <span class="brand-badge">AOV</span>
-        <span class="brand-title">STUDIO</span>
-        <span class="brand-status">PLAYGROUND</span>
+        <div class="brand-logo-wrap">
+          <svg class="icon-svg brand-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+            <path d="M2 17l10 5 10-5"></path>
+            <path d="M2 12l10 5 10-5"></path>
+          </svg>
+        </div>
+        <div class="brand-text-col">
+          <span class="brand-title">AOV STUDIO</span>
+          <span class="brand-badge-pill">PLAYGROUND</span>
+        </div>
       </div>
 
       <div class="header-user-meta">
@@ -104,7 +168,14 @@
           <span class="role-tag" id="studioUserRole">FREE</span>
           <span class="credit-pill"><strong id="studioCredits">50</strong> CR</span>
         </div>
-        <button class="btn btn-sm btn-ghost" id="btnStudioLogout">ĐĂNG XUẤT</button>
+        <button type="button" class="btn btn-sm btn-ghost" id="btnStudioLogout">
+          <svg class="icon-svg icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+          ĐĂNG XUẤT
+        </button>
       </div>
     </header>
 
@@ -113,20 +184,37 @@
       <!-- Sidebar Navigation (Google AI Studio Style) -->
       <aside class="studio-sidebar">
         <nav class="sidebar-nav">
-          <button class="nav-item active" data-tab="checker">
-            <span class="nav-icon">⚡</span>
+          <button type="button" class="nav-item active" data-tab="checker">
+            <svg class="icon-svg nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="4 17 10 11 4 5"></polyline>
+              <line x1="12" y1="19" x2="20" y2="19"></line>
+            </svg>
             <span class="nav-label">Checker Studio</span>
           </button>
-          <button class="nav-item" data-tab="api">
-            <span class="nav-icon">🔑</span>
+          <button type="button" class="nav-item" data-tab="api">
+            <svg class="icon-svg nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="7.5" cy="15.5" r="5.5"></circle>
+              <path d="m21 2-9.6 9.6"></path>
+              <path d="m15.5 7.5 3 3"></path>
+              <path d="m18.5 4.5 3 3"></path>
+            </svg>
             <span class="nav-label">API Playground</span>
           </button>
-          <button class="nav-item" data-tab="history">
-            <span class="nav-icon">📜</span>
+          <button type="button" class="nav-item" data-tab="history">
+            <svg class="icon-svg nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+              <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+              <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+            </svg>
             <span class="nav-label">History Logs</span>
           </button>
-          <button class="nav-item" data-tab="billing">
-            <span class="nav-icon">💎</span>
+          <button type="button" class="nav-item" data-tab="billing">
+            <svg class="icon-svg nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"></path>
+              <line x1="12" y1="6" x2="12" y2="8"></line>
+              <line x1="12" y1="16" x2="12" y2="18"></line>
+            </svg>
             <span class="nav-label">Quota & Giftcode</span>
           </button>
         </nav>
@@ -150,8 +238,8 @@
             </div>
             <div class="strip-right">
               <div class="mode-toggle">
-                <button class="mode-btn active" id="btnModeBatch">BATCH STREAM</button>
-                <button class="mode-btn" id="btnModeSingle">QUICK TEST ĐƠN</button>
+                <button type="button" class="mode-btn active" id="btnModeBatch">BATCH STREAM</button>
+                <button type="button" class="mode-btn" id="btnModeSingle">QUICK TEST ĐƠN</button>
               </div>
             </div>
           </div>
@@ -161,7 +249,7 @@
             <!-- Left Input -->
             <div class="pane-column pane-input">
               <div class="pane-topbar">
-                <span class="pane-title">INPUT COMBO</span>
+                <span class="pane-title">INPUT COMBO LIST</span>
                 <div class="thread-control">
                   <span>LUỒNG:</span>
                   <input type="number" id="threadInput" min="1" max="50" value="10" />
@@ -169,9 +257,18 @@
               </div>
 
               <div class="drop-zone" id="uploadZone">
-                <input type="file" id="fileInput" accept=".txt" style="display:none;" />
-                <span class="drop-text">[ KÉO THẢ HOẶC CLICK CHỌN FILE .TXT ]</span>
-                <span class="file-name" id="fileChosen"></span>
+                <div class="drop-content">
+                  <svg class="icon-svg drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                  </svg>
+                  <span class="drop-text">[ KÉO THẢ FILE .TXT VÀO ĐÂY ]</span>
+                  <button type="button" class="btn btn-sm btn-ghost btn-select-file" id="btnSelectFile">
+                    CHỌN TỪ THIẾT BỊ
+                  </button>
+                  <span class="file-name" id="fileChosen"></span>
+                </div>
               </div>
 
               <div class="textarea-wrap">
@@ -179,11 +276,14 @@
               </div>
 
               <div class="pane-actions">
-                <button class="btn btn-run" id="btnStartBatch">
+                <button type="button" class="btn btn-run" id="btnStartBatch">
+                  <svg class="icon-svg icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                  </svg>
                   <span id="btnBatchText">BẮT ĐẦU QUÉT</span>
                   <span id="btnBatchLoader" style="display:none;">ĐANG CHẠY LUỒNG...</span>
                 </button>
-                <button class="btn btn-ghost" id="btnClearBatch">XÓA TRẮNG</button>
+                <button type="button" class="btn btn-ghost" id="btnClearBatch">XÓA TRẮNG</button>
               </div>
 
               <div class="progress-box" id="progressWrap" style="display:none;">
@@ -201,15 +301,15 @@
             <div class="pane-column pane-output">
               <div class="pane-topbar">
                 <div class="filter-tabs">
-                  <button class="tab-filter active" data-filter="all">TẤT CẢ (<span id="countFilterAll">0</span>)</button>
-                  <button class="tab-filter" data-filter="trang">TRẮNG TTT (<span id="countFilterTrang">0</span>)</button>
-                  <button class="tab-filter" data-filter="vip">SKIN VIP (<span id="countFilterVip">0</span>)</button>
-                  <button class="tab-filter" data-filter="live">HIT LIVE (<span id="countFilterLive">0</span>)</button>
+                  <button type="button" class="tab-filter active" data-filter="all">TẤT CẢ (<span id="countFilterAll">0</span>)</button>
+                  <button type="button" class="tab-filter" data-filter="trang">TRẮNG TTT (<span id="countFilterTrang">0</span>)</button>
+                  <button type="button" class="tab-filter" data-filter="vip">SKIN VIP (<span id="countFilterVip">0</span>)</button>
+                  <button type="button" class="tab-filter" data-filter="live">HIT LIVE (<span id="countFilterLive">0</span>)</button>
                 </div>
                 <div class="export-actions">
-                  <button class="btn-sm btn-ghost" id="btnCopyView">COPY ĐANG XEM</button>
-                  <button class="btn-sm btn-ghost" id="btnExportTrang">LƯU ACC TRẮNG (.TXT)</button>
-                  <button class="btn-sm btn-primary" id="btnExportAll">LƯU TẤT CẢ HIT (.TXT)</button>
+                  <button type="button" class="btn-sm btn-ghost" id="btnCopyView">COPY ĐANG XEM</button>
+                  <button type="button" class="btn-sm btn-ghost" id="btnExportTrang">LƯU ACC TRẮNG (.TXT)</button>
+                  <button type="button" class="btn-sm btn-primary" id="btnExportAll">LƯU TẤT CẢ HIT (.TXT)</button>
                 </div>
               </div>
 
@@ -242,7 +342,10 @@
                     <input type="password" id="singlePass" placeholder="Nhập password..." />
                   </div>
                 </div>
-                <button class="btn btn-run" id="btnRunSingle">
+                <button type="button" class="btn btn-run" id="btnRunSingle">
+                  <svg class="icon-svg icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                  </svg>
                   <span id="singleBtnText">KIỂM TRA TÀI KHOẢN (TRỪ 1 CR)</span>
                   <span id="singleBtnLoader" style="display:none;">ĐANG KẾT NỐI GARENA...</span>
                 </button>
@@ -277,8 +380,8 @@
                 <p class="text-muted">Sử dụng API Key này để xác thực qua Header <code>Authorization: Bearer &lt;KEY&gt;</code>.</p>
                 <div class="api-key-inline">
                   <input type="text" id="displayApiKey" readonly value="Loading..." />
-                  <button class="btn btn-primary" id="btnCopyApiKey">COPY KEY</button>
-                  <button class="btn btn-ghost" id="btnGenNewApiKey">TẠO KEY MỚI</button>
+                  <button type="button" class="btn btn-primary" id="btnCopyApiKey">COPY KEY</button>
+                  <button type="button" class="btn btn-ghost" id="btnGenNewApiKey">TẠO KEY MỚI</button>
                 </div>
               </div>
 
@@ -300,7 +403,10 @@
                   <input type="text" id="testComboInput" placeholder="VD: user123:pass456" class="input-mono" />
                 </div>
 
-                <button class="btn btn-run" id="btnSendTestApi">
+                <button type="button" class="btn btn-run" id="btnSendTestApi">
+                  <svg class="icon-svg icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                  </svg>
                   <span id="testApiBtnText">GỬI REQUEST TEST (TRỪ 1 CR)</span>
                   <span id="testApiBtnLoader" style="display:none;">ĐANG GỬI REQUEST...</span>
                 </button>
@@ -320,13 +426,13 @@
               <div class="studio-card">
                 <div class="code-header-bar">
                   <div class="code-tabs">
-                    <button class="code-tab active" data-lang="python">Python</button>
-                    <button class="code-tab" data-lang="curl">cURL</button>
-                    <button class="code-tab" data-lang="nodejs">Node.js</button>
-                    <button class="code-tab" data-lang="golang">Golang</button>
-                    <button class="code-tab" data-lang="php">PHP</button>
+                    <button type="button" class="code-tab active" data-lang="python">Python</button>
+                    <button type="button" class="code-tab" data-lang="curl">cURL</button>
+                    <button type="button" class="code-tab" data-lang="nodejs">Node.js</button>
+                    <button type="button" class="code-tab" data-lang="golang">Golang</button>
+                    <button type="button" class="code-tab" data-lang="php">PHP</button>
                   </div>
-                  <button class="btn-sm btn-ghost" id="btnCopySnippet">COPY CODE</button>
+                  <button type="button" class="btn-sm btn-ghost" id="btnCopySnippet">COPY CODE</button>
                 </div>
 
                 <div class="code-container">
@@ -358,18 +464,18 @@
               <span class="strip-subtitle">Dữ liệu tài khoản đã check của bạn được lưu an toàn trên SQLite</span>
             </div>
             <div class="strip-right">
-              <button class="btn-sm btn-ghost" id="btnRefreshHistory">LÀM MỚI</button>
-              <button class="btn-sm btn-primary" id="btnExportHistory">XUẤT TẤT CẢ (.TXT)</button>
-              <button class="btn-sm btn-danger" id="btnClearHistory">XÓA LỊCH SỬ</button>
+              <button type="button" class="btn-sm btn-ghost" id="btnRefreshHistory">LÀM MỚI</button>
+              <button type="button" class="btn-sm btn-primary" id="btnExportHistory">XUẤT TẤT CẢ (.TXT)</button>
+              <button type="button" class="btn-sm btn-danger" id="btnClearHistory">XÓA LỊCH SỬ</button>
             </div>
           </div>
 
           <div class="history-controls">
             <div class="filter-tabs">
-              <button class="tab-filter active" data-hist-filter="all">TẤT CẢ</button>
-              <button class="tab-filter" data-hist-filter="hit">HIT LIVE</button>
-              <button class="tab-filter" data-hist-filter="trang">ACC TRẮNG TTT</button>
-              <button class="tab-filter" data-hist-filter="invalid">SAI PASS / DIE</button>
+              <button type="button" class="tab-filter active" data-hist-filter="all">TẤT CẢ</button>
+              <button type="button" class="tab-filter" data-hist-filter="hit">HIT LIVE</button>
+              <button type="button" class="tab-filter" data-hist-filter="trang">ACC TRẮNG TTT</button>
+              <button type="button" class="tab-filter" data-hist-filter="invalid">SAI PASS / DIE</button>
             </div>
           </div>
 
@@ -451,10 +557,10 @@
     <div class="modal-card">
       <div class="modal-header">
         <div class="modal-tabs">
-          <button class="modal-tab active" id="tabLoginBtn">ĐĂNG NHẬP</button>
-          <button class="modal-tab" id="tabRegisterBtn">ĐĂNG KÝ (+50 CR)</button>
+          <button type="button" class="modal-tab active" id="tabLoginBtn">ĐĂNG NHẬP</button>
+          <button type="button" class="modal-tab" id="tabRegisterBtn">ĐĂNG KÝ (+50 CR)</button>
         </div>
-        <button class="btn-modal-close" id="btnCloseAuthModal">&times;</button>
+        <button type="button" class="btn-modal-close" id="btnCloseAuthModal">&times;</button>
       </div>
 
       <!-- Login Form -->
@@ -486,6 +592,9 @@
       </form>
     </div>
   </div>
+
+  <!-- Isolated Hidden File Input at end of body -->
+  <input type="file" id="fileInput" accept=".txt" style="position:fixed;top:-1000px;left:-1000px;opacity:0;pointer-events:none;" />
 
   <div class="toast" id="toast"></div>
   <script src="/app.js"></script>
