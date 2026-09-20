@@ -131,8 +131,8 @@ function renderUserProfile() {
 
   const avatarEl = document.getElementById('studioUserAvatar');
   if (avatarEl) {
-    if (currentUser.avatar_url && currentUser.avatar_url.startsWith('http')) {
-      avatarEl.innerHTML = `<img src="${escapeHtml(currentUser.avatar_url)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.onerror=null;this.parentElement.textContent='${displayName[0].toUpperCase()}';"/>`;
+    if (currentUser.avatar_url && (currentUser.avatar_url.startsWith('http') || currentUser.avatar_url.startsWith('data:image'))) {
+      avatarEl.innerHTML = `<img src="${currentUser.avatar_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.onerror=null;this.parentElement.textContent='${displayName[0].toUpperCase()}';"/>`;
     } else if (currentUser.avatar_url && currentUser.avatar_url.length <= 4) {
       avatarEl.textContent = currentUser.avatar_url;
     } else {
@@ -152,8 +152,8 @@ function renderUserProfile() {
   // Dropdown Header info
   const ddAvatar = document.getElementById('ddAvatar');
   if (ddAvatar) {
-    if (currentUser.avatar_url && currentUser.avatar_url.startsWith('http')) {
-      ddAvatar.innerHTML = `<img src="${escapeHtml(currentUser.avatar_url)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />`;
+    if (currentUser.avatar_url && (currentUser.avatar_url.startsWith('http') || currentUser.avatar_url.startsWith('data:image'))) {
+      ddAvatar.innerHTML = `<img src="${currentUser.avatar_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />`;
     } else if (currentUser.avatar_url && currentUser.avatar_url.length <= 4) {
       ddAvatar.textContent = currentUser.avatar_url;
     } else {
@@ -837,7 +837,7 @@ function updateAvatarPreview(val) {
   const pImg = document.getElementById('settingAvatarPreviewImg');
   if (!pBox || !pText || !pImg) return;
 
-  if (val && val.startsWith('http')) {
+  if (val && (val.startsWith('http') || val.startsWith('data:image'))) {
     pImg.src = val;
     pImg.style.display = 'block';
     pText.style.display = 'none';
@@ -893,6 +893,31 @@ window.selectPresetAvatar = function(av) {
   });
   updateAvatarPreview(av);
 };
+
+// File upload direct avatar handler
+const fileInpAvatar = document.getElementById('settingAvatarFileInput');
+if (fileInpAvatar) {
+  fileInpAvatar.addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('Kích thước ảnh tối đa 5MB');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+      const dataUrl = evt.target.result;
+      selectedAvatarChoice = dataUrl;
+      const avtUrlInp = document.getElementById('settingAvatarUrl');
+      if (avtUrlInp) avtUrlInp.value = '';
+      document.querySelectorAll('.preset-avatar-item').forEach(el => el.classList.remove('active'));
+      updateAvatarPreview(dataUrl);
+      showToast('Đã chọn ảnh! Hãy bấm "LƯU THAY ĐỔI CÀI ĐẶT" bên phải.');
+    };
+    reader.readAsDataURL(file);
+  });
+}
 
 const settingAvatarUrl = document.getElementById('settingAvatarUrl');
 if (settingAvatarUrl) {

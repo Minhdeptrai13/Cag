@@ -525,20 +525,39 @@ print(res.json())
                 Chọn một trong các Avatar chiến binh có sẵn hoặc dán đường dẫn link ảnh của bạn.
               </p>
 
-              <div style="display:flex;align-items:center;gap:20px;margin-bottom:20px;">
-                <div id="settingAvatarPreviewBox" style="width:84px;height:84px;border-radius:50%;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:900;background:rgba(255,255,255,0.08);overflow:hidden;flex-shrink:0;box-shadow:0 0 20px rgba(255,255,255,0.15);">
-                  <span id="settingAvatarPreviewText">U</span>
-                  <img id="settingAvatarPreviewImg" src="" style="width:100%;height:100%;object-fit:cover;display:none;" />
+              <div style="display:flex;align-items:center;gap:24px;margin-bottom:24px;">
+                <!-- Khung tròn Avatar có biểu tượng máy ảnh (Camera) ở góc dưới -->
+                <div style="position:relative;width:96px;height:96px;flex-shrink:0;">
+                  <div id="settingAvatarPreviewBox" style="width:96px;height:96px;border-radius:50%;border:2px solid var(--text-primary);display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:900;background:var(--bg-surface);overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.25);cursor:pointer;" onclick="document.getElementById('settingAvatarFileInput').click();" title="Bấm để tải ảnh đại diện từ máy tính">
+                    <span id="settingAvatarPreviewText">U</span>
+                    <img id="settingAvatarPreviewImg" src="" style="width:100%;height:100%;object-fit:cover;display:none;" />
+                  </div>
+
+                  <!-- Nút Camera nhỏ ở góc dưới hình tròn -->
+                  <label for="settingAvatarFileInput" style="position:absolute;bottom:0;right:0;width:32px;height:32px;border-radius:50%;background:var(--btn-primary-bg);border:2px solid var(--bg-card);color:var(--btn-primary-color);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.4);transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" title="Tải ảnh trực tiếp lên">
+                    <svg class="svg-icon icon-sm" viewBox="0 0 24 24" style="stroke:var(--btn-primary-color);"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                  </label>
+
+                  <!-- Input file ẩn -->
+                  <input type="file" id="settingAvatarFileInput" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none;" />
                 </div>
+
                 <div style="flex:1;">
+                  <div style="margin-bottom:8px;">
+                    <button type="button" class="btn btn-ghost" style="padding:6px 14px;font-size:12px;" onclick="document.getElementById('settingAvatarFileInput').click();">
+                      <svg class="svg-icon icon-sm" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                      TẢI ẢNH TỪ MÁY
+                    </button>
+                    <span style="font-size:11px;color:var(--text-muted);margin-left:8px;">Hỗ trợ JPG, PNG, WEBP (tối đa 5MB)</span>
+                  </div>
                   <label style="font-size:11px;font-family:var(--font-mono);color:var(--text-muted);display:block;margin-bottom:6px;">HOẶC DÁN LINK ẢNH TÙY CHỌN (URL)</label>
-                  <input type="url" id="settingAvatarUrl" placeholder="https://i.imgur.com/your-avatar.png..." style="width:100%;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:9px 12px;color:#fff;font-size:12px;" />
+                  <input type="url" id="settingAvatarUrl" placeholder="https://i.imgur.com/your-avatar.png..." style="width:100%;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:9px 12px;color:var(--text-primary);font-size:12px;" />
                 </div>
               </div>
 
               <!-- Preset Avatars -->
               <div style="margin-bottom:10px;">
-                <span style="font-size:11px;font-family:var(--font-mono);color:var(--text-muted);display:block;margin-bottom:8px;">BỘ SƯU TẬP AVATAR CÓ SẴN (BẤM ĐỂ CHỌN)</span>
+                <span style="font-size:11px;font-family:var(--font-mono);color:var(--text-muted);display:block;margin-bottom:8px;">BỘ SƯU TẬP ICON CÓ SẴN (BẤM ĐỂ CHỌN)</span>
                 <div class="preset-avatar-grid" id="presetAvatarGrid">
                   <!-- JS will generate 8 preset icons -->
                 </div>
@@ -567,13 +586,13 @@ print(res.json())
               <!-- Tên Biểu Thị (ĐƯỢC CHỈNH TÙY Ý) -->
               <div style="margin-bottom:14px;">
                 <label style="font-size:11px;font-family:var(--font-mono);color:var(--text-muted);display:block;margin-bottom:6px;">TÊN BIỂU THỊ (DISPLAY NAME)</label>
-                <input type="text" id="settingDisplayName" placeholder="Nhập tên bạn muốn hiển thị..." style="width:100%;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:10px 14px;color:#fff;font-weight:700;" />
+                <input type="text" id="settingDisplayName" placeholder="Nhập tên bạn muốn hiển thị..." style="width:100%;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:10px 14px;color:var(--text-primary);font-weight:700;" />
               </div>
 
               <!-- Liên kết Mail -->
               <div style="margin-bottom:20px;">
                 <label style="font-size:11px;font-family:var(--font-mono);color:var(--text-muted);display:block;margin-bottom:6px;">LIÊN KẾT EMAIL</label>
-                <input type="email" id="settingEmail" placeholder="example@domain.com..." style="width:100%;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:10px 14px;color:#fff;" />
+                <input type="email" id="settingEmail" placeholder="example@domain.com..." style="width:100%;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:10px 14px;color:var(--text-primary);" />
               </div>
 
               <button type="button" class="btn btn-primary-gold" id="btnSaveProfile" style="width:100%;">
@@ -592,7 +611,7 @@ print(res.json())
                 Nhập mã Giftcode do Owner/Admin cấp để cộng Credits vào tài khoản tức thì.
               </p>
               <form id="formRedeemCode" style="display:flex;gap:10px;max-width:560px;">
-                <input type="text" id="inputRedeemCode" placeholder="NHẬP MÃ GIFTCODE..." required style="flex:1;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:10px 14px;color:#fff;text-transform:uppercase;font-family:var(--font-mono);" />
+                <input type="text" id="inputRedeemCode" placeholder="NHẬP MÃ GIFTCODE..." required style="flex:1;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:10px 14px;color:var(--text-primary);text-transform:uppercase;font-family:var(--font-mono);" />
                 <button type="submit" class="btn btn-primary-gold">NẠP CODE</button>
               </form>
             </div>
