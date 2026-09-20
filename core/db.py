@@ -340,10 +340,11 @@ def save_check_history(user_id: int, account: str, status: str, detail_data: dic
         is_trang = 0
         detail_json = ""
         if detail_data:
-            rank = detail_data.get("rank", "")
-            heroes = detail_data.get("heroes_count", 0)
-            skins = detail_data.get("skins_count", 0)
-            is_trang = 1 if detail_data.get("is_trang") else 0
+            aov_obj = detail_data.get("aov", {}) if isinstance(detail_data.get("aov"), dict) else {}
+            rank = detail_data.get("rank") or aov_obj.get("rank", "")
+            heroes = detail_data.get("heroes_count") or aov_obj.get("heroes_count", 0)
+            skins = detail_data.get("skins_count") or aov_obj.get("skins_count", 0)
+            is_trang = 1 if (detail_data.get("is_trang") or aov_obj.get("is_trang")) else 0
             detail_json = json.dumps(detail_data, ensure_ascii=False)
 
         now = int(time.time())

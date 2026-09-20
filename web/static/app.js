@@ -700,42 +700,77 @@ function downloadFile(filename, content) {
 }
 
 (btnExportAll && btnExportAll.addEventListener)('click', () => {
-  const hits = allResults.filter(r => r.status === 'HIT');
-  if (hits.length === 0) {
-    showToast('CHƯA CÓ HIT NÀO ĐỂ LƯU');
+  if (!allResults || allResults.length === 0) {
+    showToast('CHƯA CÓ KẾT QUẢ CHECK NÀO ĐỂ XUẤT');
     return;
   }
-  let txt = '=== DANH SÁCH ACC AOV HIT LIVE ===\n\n';
-  hits.forEach(r => {
-    txt += `${r.account}:${r.password} | RANK: ${r.rank || 'None'} | TƯỚNG: ${r.heroes_count} | SKIN: ${r.skins_count} | TRẮNG TTT: ${r.is_trang ? 'YES' : 'NO'}\n`;
-  });
-  downloadFile(`aov_all_hits_${Date.now()}.txt`, txt);
-  showToast(`ĐÃ LƯU ${hits.length} HIT LIVE`);
+  const hits = allResults.filter(r => r.status === 'HIT');
+  let txt = '';
+  let filename = '';
+
+  if (hits.length > 0) {
+    txt = '=== DANH SÁCH ACC AOV HIT LIVE ===\n\n';
+    hits.forEach(r => {
+      const aovObj = r.aov || {};
+      const rank = r.rank || aovObj.rank || 'None';
+      const heroes = r.heroes_count !== undefined ? r.heroes_count : (aovObj.heroes_count || 0);
+      const skins = r.skins_count !== undefined ? r.skins_count : (aovObj.skins_count || 0);
+      const isTrang = r.is_trang || aovObj.is_trang;
+      const ingame = r.ingame || aovObj.name || 'NoName';
+      const vip = r.skins_vip || (aovObj.skins_vip ? aovObj.skins_vip.join(', ') : '');
+
+      txt += `${r.account}:${r.password} | [${ingame}] | RANK: ${rank} | TƯỚNG: ${heroes} | SKIN: ${skins} | TRẮNG TTT: ${isTrang ? 'YES' : 'NO'}${vip ? ' | VIP: ' + vip : ''}\n`;
+    });
+    filename = `aov_hits_${Date.now()}.txt`;
+    downloadFile(filename, txt);
+    showToast(`ĐÃ XUẤT ${hits.length} TÀI KHOẢN HIT LIVE`);
+  } else {
+    // Xuất tất cả tài khoản đã check kèm lý do/status nếu không có tài khoản sống
+    txt = '=== TOÀN BỘ KẾT QUẢ QUÉT TÀI KHOẢN ===\n\n';
+    allResults.forEach(r => {
+      txt += `${r.account}:${r.password} | TRẠNG THÁI: ${r.status} | CHI TIẾT: ${r.message || '-'}\n`;
+    });
+    filename = `aov_all_checked_${Date.now()}.txt`;
+    downloadFile(filename, txt);
+    showToast(`ĐÃ XUẤT TOÀN BỘ ${allResults.length} TÀI KHOẢN ĐÃ QUÉT`);
+  }
 });
 
 (btnExportTrang && btnExportTrang.addEventListener)('click', () => {
-  const trangs = allResults.filter(r => r.status === 'HIT' && r.is_trang);
+  if (!allResults || allResults.length === 0) {
+    showToast('CHƯA CÓ KẾT QUẢ CHECK NÀO ĐỂ XUẤT');
+    return;
+  }
+  const trangs = allResults.filter(r => r.status === 'HIT' && (r.is_trang || (r.aov && r.aov.is_trang)));
   if (trangs.length === 0) {
-    showToast('CHƯA CÓ ACC TRẮNG NÀO ĐỂ LƯU');
+    showToast('KHÔNG CÓ TÀI KHOẢN NÀO TRẮNG TTT TRONG KẾT QUẢ');
     return;
   }
   let txt = '=== DANH SÁCH ACC AOV TRẮNG TTT ===\n\n';
   trangs.forEach(r => {
-    txt += `${r.account}:${r.password} | RANK: ${r.rank || 'None'} | TƯỚNG: ${r.heroes_count} | SKIN: ${r.skins_count}\n`;
+    const aovObj = r.aov || {};
+    const rank = r.rank || aovObj.rank || 'None';
+    const heroes = r.heroes_count !== undefined ? r.heroes_count : (aovObj.heroes_count || 0);
+    const skins = r.skins_count !== undefined ? r.skins_count : (aovObj.skins_count || 0);
+    const ingame = r.ingame || aovObj.name || 'NoName';
+    txt += `${r.account}:${r.password} | [${ingame}] | RANK: ${rank} | TƯỚNG: ${heroes} | SKIN: ${skins}\n`;
   });
   downloadFile(`aov_acc_trang_${Date.now()}.txt`, txt);
-  showToast(`ĐÃ LƯU ${trangs.length} ACC TRẮNG`);
+  showToast(`ĐÃ XUẤT ${trangs.length} ACC TRẮNG TTT`);
 });
 
 (btnCopyView && btnCopyView.addEventListener)('click', () => {
-  const filtered = allResults.filter(matchesFilter);
-  if (filtered.length === 0) {
-    showToast('KHÔNG CÓ TÀI KHOẢN ĐỂ COPY');
+  let list = allResults.filter(matchesFilter);
+  if (list.length === 0 && allResults.length > 0) {
+    list = allResults;
+  }
+  if (list.length === 0) {
+    showToast('KHÔNG CÓ TÀI KHOẢN ĐỂ SAO CHÉP');
     return;
   }
-  const lines = filtered.map(r => `${r.account}:${r.password}`);
+  const lines = list.map(r => `${r.account}:${r.password}`);
   navigator.clipboard.writeText(lines.join('\n'));
-  showToast(`ĐÃ COPY ${filtered.length} COMBO ĐANG XEM`);
+  showToast(`ĐÃ COPY ${lines.length} TÀI KHOẢN (user:pass)`);
 });
 
 // ── API Keys & Code Playground ──────────────────────────────────────────────
@@ -1003,15 +1038,43 @@ function renderHistoryTable(items) {
   historyTableBody.innerHTML = html;
 }
 
-(btnExportHistory && btnExportHistory.addEventListener)('click', () => {
-  if (!currentHistoryList || currentHistoryList.length === 0) {
-    showToast('KHÔNG CÓ DỮ LIỆU LỊCH SỬ ĐỂ XUẤT');
+(btnExportHistory && btnExportHistory.addEventListener)('click', async () => {
+  if (!currentUser) {
+    showToast('VUI LÒNG ĐĂNG NHẬP ĐỂ XUẤT LỊCH SỬ');
     return;
   }
+  
+  // Nếu chưa có cache lịch sử, tự động tải về từ máy chủ
+  if (!currentHistoryList || currentHistoryList.length === 0) {
+    try {
+      const res = await fetch(`/api/user/history?user_id=${currentUser.id}&status=all&limit=500`);
+      const data = await res.json();
+      if (data.success || data.status === 'ok') {
+        currentHistoryList = data.history || [];
+      }
+    } catch (e) {
+      console.error('Error fetching history:', e);
+    }
+  }
+
+  if (!currentHistoryList || currentHistoryList.length === 0) {
+    showToast('BẠN CHƯA CÓ DỮ LIỆU LỊCH SỬ NÀO TRÊN HỆ THỐNG');
+    return;
+  }
+
   let content = '=== LỊCH SỬ TÀI KHOẢN AOV ĐÃ CHECK ===\n\n';
   currentHistoryList.forEach(it => {
-    content += `${it.account} | STATUS: ${it.status} | RANK: ${it.rank || 'None'} | TƯỚNG: ${it.hero_count} | SKIN: ${it.skin_count} | TRẮNG: ${it.is_trang ? 'YES' : 'NO'}\n`;
+    const isHit = it.status === 'HIT';
+    const isTrang = Boolean(it.is_trang);
+    const detailObj = it.detail_parsed || {};
+    const rank = it.rank || detailObj.rank || 'None';
+    const heroes = it.hero_count !== undefined ? it.hero_count : (detailObj.heroes_count || 0);
+    const skins = it.skin_count !== undefined ? it.skin_count : (detailObj.skins_count || 0);
+    const timeStr = it.created_at ? new Date(it.created_at * 1000).toLocaleString('vi-VN') : '-';
+
+    content += `${it.account} | STATUS: ${it.status} | RANK: ${rank} | TƯỚNG: ${heroes} | SKIN: ${skins} | TRẮNG TTT: ${isTrang ? 'YES' : 'NO'} | THỜI GIAN: ${timeStr}\n`;
   });
+
   downloadFile(`aov_history_export_${Date.now()}.txt`, content);
   showToast(`ĐÃ XUẤT ${currentHistoryList.length} DÒNG LỊCH SỬ`);
 });

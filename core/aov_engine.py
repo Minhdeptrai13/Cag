@@ -181,6 +181,17 @@ def check_account(account: str, password: str, proxy=None, timeout: int = 10) ->
         },
     }
 
+    # Root-level aliases for direct frontend & DB consumption
+    vip_skins_list = sss_list + anime_list + ss_list
+    vip_skins_str = ", ".join(vip_skins_list[:6]) if vip_skins_list else ""
+
+    result["rank"] = rank_translated
+    result["heroes_count"] = total_champs
+    result["skins_count"] = total_skins
+    result["ingame"] = player_name
+    result["skins_vip"] = vip_skins_str
+    result["tt_info"] = tinh_trang
+
     return result
 
 
