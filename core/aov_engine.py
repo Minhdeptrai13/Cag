@@ -7,9 +7,18 @@ import os
 import re
 import sys
 
+import Check1
 from Check1 import check_login as check1_login
 from Check1 import _derive_tinh_trang as check1_derive_tinh_trang
 from core.aov_database import translate_aov_rank
+
+# ── High-Performance Optimization ──────────────────────────────────────────
+# Garena servers no longer reply to legacy socket CMD 289 (user_basic) & CMD 342 (account_info),
+# which previously caused 14s-19s socket timeouts per account.
+# All account security (phone, email, 2FA, CCCD) is fully retrieved in 0.05s via SSO key.
+Check1._fetch_user_basic = lambda *a, **k: {}
+Check1._fetch_account_info = lambda *a, **k: {}
+Check1._fetch_kientuong_player = lambda *a, **k: {}
 
 derive_tinh_trang = check1_derive_tinh_trang
 

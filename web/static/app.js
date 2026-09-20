@@ -396,6 +396,7 @@ const threadRange = document.getElementById('threadRange');
 const threadDisplay = document.getElementById('threadDisplay');
 const batchText = document.getElementById('batchText');
 const btnStartBatch = document.getElementById('btnStartBatch');
+const btnStopBatch = document.getElementById('btnStopBatch');
 const btnClearBatch = document.getElementById('btnClearBatch');
 const uploadZone = document.getElementById('uploadZone');
 const fileInput = document.getElementById('fileInput');
@@ -425,6 +426,32 @@ btnClearBatch.addEventListener('click', () => {
   allResults = [];
 });
 
+if (btnStopBatch) {
+  btnStopBatch.addEventListener('click', async () => {
+    btnStopBatch.disabled = true;
+    btnStopBatch.textContent = 'ĐANG DỪNG...';
+    try {
+      await fetch('/api/batch/stop', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_id: activeTaskId || '' })
+      });
+      clearInterval(pollInterval);
+      document.getElementById('batchProgStatus').textContent = 'ĐÃ DỪNG BỞI NGƯỜI DÙNG';
+      showToast('ĐÃ DỪNG TIẾN TRÌNH QUÉT THÀNH CÔNG!');
+    } catch (e) {
+      showToast('Lỗi khi gửi lệnh dừng!');
+    } finally {
+      btnStopBatch.style.display = 'none';
+      btnStopBatch.disabled = false;
+      btnStopBatch.textContent = 'DỪNG QUÉT';
+      btnStartBatch.disabled = false;
+      btnStartBatch.textContent = 'BẮT ĐẦU QUÉT';
+      btnStartBatch.style.display = 'inline-flex';
+    }
+  });
+}
+
 btnStartBatch.addEventListener('click', async () => {
   const raw = batchText.value.trim();
   if (!raw) {
@@ -436,7 +463,10 @@ btnStartBatch.addEventListener('click', async () => {
 
   document.getElementById('batchProgressBox').style.display = 'block';
   btnStartBatch.disabled = true;
-  btnStartBatch.textContent = 'ĐANG QUÉT...';
+  btnStartBatch.style.display = 'none';
+  if (btnStopBatch) {
+    btnStopBatch.style.display = 'inline-flex';
+  }
 
   try {
     const res = await fetch('/api/batch/start', {
@@ -455,12 +485,14 @@ btnStartBatch.addEventListener('click', async () => {
     } else {
       showToast(data.error || 'Khởi chạy thất bại');
       btnStartBatch.disabled = false;
-      btnStartBatch.textContent = 'BẮT ĐẦU QUÉT';
+      btnStartBatch.style.display = 'inline-flex';
+      if (btnStopBatch) btnStopBatch.style.display = 'none';
     }
   } catch (err) {
     showToast('Lỗi máy chủ');
     btnStartBatch.disabled = false;
-    btnStartBatch.textContent = 'BẮT ĐẦU QUÉT';
+    btnStartBatch.style.display = 'inline-flex';
+    if (btnStopBatch) btnStopBatch.style.display = 'none';
   }
 });
 
@@ -484,11 +516,16 @@ function pollBatchProgress(taskId) {
       if (data.is_done) {
         clearInterval(pollInterval);
         btnStartBatch.disabled = false;
+        btnStartBatch.style.display = 'inline-flex';
         btnStartBatch.textContent = 'BẮT ĐẦU QUÉT';
+        if (btnStopBatch) btnStopBatch.style.display = 'none';
         showToast('ĐÃ QUÉT XONG TOÀN BỘ DANH SÁCH!');
       }
     } catch (e) {
       clearInterval(pollInterval);
+      btnStartBatch.disabled = false;
+      btnStartBatch.style.display = 'inline-flex';
+      if (btnStopBatch) btnStopBatch.style.display = 'none';
     }
   }, 1000);
 }

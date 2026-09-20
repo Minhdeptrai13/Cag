@@ -616,6 +616,7 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                 "trang": 0,
                 "invalid": 0,
                 "is_running": True,
+                "should_stop": False,
                 "results": [],
                 "all_hits": [],
             }
@@ -632,9 +633,13 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                 print(f"\n[BẮT ĐẦU CHECK BATCH {task_id}] Tổng: {len(combos)} tài khoản | Luồng: {threads}", flush=True)
 
                 def check_worker(pair):
+                    if task_state.get("should_stop"):
+                        return
                     a, p = pair
                     r = check_account(a, p)
                     with _TASKS_LOCK:
+                        if task_state.get("should_stop"):
+                            return
                         task_state["done"] += 1
                         task_state["results"].append(r)
                         done_str = f"[{task_state['done']}/{task_state['total']}]"
@@ -658,18 +663,41 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                         save_check_history(int(uid), f"{a}:{p}", r.get("status", "FAIL"), r)
 
                 with ThreadPoolExecutor(max_workers=threads) as executor:
-                    executor.map(check_worker, combos)
+                    for combo in combos:
+                        if task_state.get("should_stop"):
+                            break
+                        executor.submit(check_worker, combo)
 
                 with _TASKS_LOCK:
                     task_state["is_running"] = False
 
                 if uid:
-                    deduct_credit(int(uid), len(combos))
+                    actual_checked = task_state.get("done", len(combos))
+                    deduct_credit(int(uid), actual_checked)
 
-                print(f"\n[HOÀN THÀNH BATCH {task_id}] Tổng: {task_state['total']} | Sống: {task_state['hits']} | Trắng TTT: {task_state['trang']} (File lưu tại results/)\n", flush=True)
+                print(f"\n[KẾT THÚC BATCH {task_id}] Tổng: {task_state['done']}/{task_state['total']} | Sống: {task_state['hits']} | Trắng TTT: {task_state['trang']} (File lưu tại results/)\n", flush=True)
 
             threading.Thread(target=run_batch, daemon=True).start()
             self._send_json({"task_id": task_id, "total": len(combos)})
+            return
+
+        # ── 10.1 STOP RUNNING BATCH TASK ──────────────────────────────────────
+        elif path in ("/api/batch/stop", "/api/task/stop"):
+            req_tid = str(payload.get("task_id") or "").strip()
+            stopped = 0
+            with _TASKS_LOCK:
+                if req_tid and req_tid in _TASKS:
+                    _TASKS[req_tid]["should_stop"] = True
+                    _TASKS[req_tid]["is_running"] = False
+                    stopped += 1
+                else:
+                    for t in _TASKS.values():
+                        if t.get("is_running"):
+                            t["should_stop"] = True
+                            t["is_running"] = False
+                            stopped += 1
+            print(f"[STOP BATCH] Đã dừng {stopped} tiến trình quét!", flush=True)
+            self._send_json({"success": True, "message": f"Đã dừng thành công {stopped} tiến trình quét!"})
             return
 
         # ── 11. CHUNKED UPLOAD FOR LARGE (MB/GB) COMBO FILES ──────────────────
