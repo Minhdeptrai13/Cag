@@ -218,12 +218,15 @@ SKIN_ANIME = {
     "53701": "Allain Kirito Hắc kiếm sĩ",
     "53702": "Allain Kirito",
     "11609": "Butterfly Asuna Tia chớp",
-    "11610": "Butterfly Stacia",
+    "11610": "Butterfly Asuna Tia chớp",
+    "11611": "Butterfly Stacia",
     # Kimetsu no Yaiba (Demon Slayer)
     "54402": "Yan Tanjiro Kamado",
     "53107": "Keera Nezuko Kamado",
     "10708": "Zephys Inosuke Hashibira",
+    "10709": "Zephys Inosuke Hashibira",
     "13112": "Murad Zenitsu Agatsuma",
+    "11810": "Alice The Butterfly Mansion Girl",
     # Bleach
     "12808": "Lữ Bố Ichigo Kurosaki",
     "13111": "Murad Byakuya Kuchiki",
@@ -233,11 +236,13 @@ SKIN_ANIME = {
     "19508": "Enzo Kurapika",
     "15711": "Raz Gon",
     "52107": "Florentino Hisoka",
+    "52110": "Florentino Hisoka",
     # Attack on Titan (AOT)
     "15016": "Nakroth Levi",
-    "53612": "Aoi Mikasa",
+    "53612": "Aoi Mikasa Ackermann",
     "52810": "Qi Annie Leonhart",
     "17108": "Cresht Eren Jaegar",
+    "56302": "Heino Scout Regiment",
     # Jujutsu Kaisen (JJK)
     "19015": "Tulen Satoru Gojo",
     "11120": "Violet Nobara Kugisaki",
@@ -246,10 +251,12 @@ SKIN_ANIME = {
     "50118": "Tel'Annas Jujutsu Sorcerer",
     # One Punch Man
     "52204": "Errol Genos",
+    "10611": "Krixi Lốc xoáy kinh hoàng Tatsumaki",
+    "15707": "Raz Saitama Cosplay",
     # Sailor Moon
     "15212": "Eternal Sailor Moon",
     "11812": "Alice - Eternal Sailor Chibi Moon",
-    "19906": "Eland'orr-Tuxedo",
+    "19906": "Eland'orr Tuxedo Mask",
     # Thám Tử Lừng Danh Conan
     "11215": "Yorn Conan Edogawa",
     "13213": "Hayate Siêu đạo chích Kid",
@@ -257,14 +264,21 @@ SKIN_ANIME = {
     "53806": "Iggy Rimuru Tempest",
     "52809": "Qi Milim Nava",
     "14412": "Taara Shion",
-    # Sanrio & Bản Quyền Khác
+    # Dandadan
+    "59903": "Billow Okarun",
+    # Ultraman
+    "16307": "Ryoma Ultraman",
+    "52104": "Florentino SEVEN",
+    "52105": "Florentino Seven",
+    # DC / Warner Bros
+    "52407": "Capheny Harley Quinn",
+    # Sanrio & Capoo
     "54309": "Aya Cinnamoroll's Dream",
     "10916": "Veera My Melody's Love",
     "14214": "Natalya Kuromi's Heart",
     "16612": "Arthur Pompompurin's Oath",
-    "16307": "Ryoma Ultraman",
-    "52104": "Florentino SEVEN",
-    "52407": "Capheny Harley Quinn",
+    "52415": "Capheny Bugcat Assemble",
+    "52610": "Ishar Capoo Boom",
 }
 
 # ── Skin Other: CHỈ GIỮ CÁC DÒNG CÓ MÁC RIÊNG & HIẾM (Evo chuẩn, WaVe, Tiệc Bãi Biển, Sự Kiện Hiếm) ──
@@ -416,3 +430,39 @@ def translate_aov_rank(rank_str: str) -> str:
     if "cao thủ" in s or "conqueror" in s or "master" in s or "คอนเควอร์เรอร์" in s or "戰場傳說" in s:
         return "Cao Thủ"
     return rank_str
+
+
+# ── Full Skin Names Database (1300+ Skins across all Heroes) ──────────────────
+import json
+import os
+
+ALL_SKINS_MAP = {}
+_base_dirs = [
+    os.path.dirname(os.path.abspath(__file__)),
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    os.getcwd(),
+]
+for _d in _base_dirs:
+    _fpath = os.path.join(_d, "skin_id_map.json")
+    if os.path.isfile(_fpath):
+        try:
+            with open(_fpath, "r", encoding="utf-8") as _f:
+                ALL_SKINS_MAP.update(json.load(_f))
+            break
+        except Exception:
+            pass
+
+
+def get_skin_name(skin_id) -> str:
+    """Return Vietnamese display name for any skin ID."""
+    sid = str(skin_id).strip()
+    if sid in SKIN_SSS:
+        return SKIN_SSS[sid]
+    if sid in SKIN_ANIME:
+        return SKIN_ANIME[sid]
+    if sid in SKIN_SS:
+        return SKIN_SS[sid]
+    if sid in SKIN_OTHER:
+        return SKIN_OTHER[sid]
+    return ALL_SKINS_MAP.get(sid, f"Skin {sid}")
+
