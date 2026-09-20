@@ -596,42 +596,90 @@ function appendAIMessage(role, content, isTyping = false) {
   return row;
 }
 
-// ── TAB 4: API KEY MANAGER ──────────────────────────────────────────────────
+// ── TAB 4: API KEY MANAGER (VAULT LIST) ─────────────────────────────────────
+let userApiKeysList = [];
+
 async function loadApiKeys() {
   if (!currentUser) return;
+  const tbody = document.getElementById('apiKeysTableBody');
   try {
     const res = await fetch(`/api/user/keys?user_id=${currentUser.id}`);
     const data = await res.json();
     if (data.success && data.keys && data.keys.length > 0) {
-      currentApiKey = data.keys[0].key;
-      document.getElementById('displayActiveApiKey').textContent = currentApiKey;
+      userApiKeysList = data.keys;
+      tbody.innerHTML = data.keys.map((k, idx) => `
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+          <td style="padding:12px 8px;font-weight:700;color:var(--text-primary);">
+            ${escapeHtml(k.name || 'Secret Key #' + (idx + 1))}
+          </td>
+          <td style="padding:12px 8px;font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);">
+            <code>${escapeHtml(k.key)}</code>
+          </td>
+          <td style="padding:12px 8px;font-size:12px;color:var(--text-muted);">
+            ${k.created_at ? new Date(k.created_at).toLocaleDateString('vi-VN') : 'Vừa tạo'}
+          </td>
+          <td style="padding:12px 8px;text-align:right;">
+            <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;margin-right:6px;" onclick="copyApiKey('${k.key}')">SAO CHÉP</button>
+            <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;color:var(--red-neon);" onclick="revokeApiKey('${k.key}')">XÓA</button>
+          </td>
+        </tr>
+      `).join('');
     } else {
-      document.getElementById('displayActiveApiKey').textContent = 'Chưa có API Key nào';
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="4" style="text-align:center;padding:36px;color:var(--text-muted);">
+            Bạn chưa có API Key nào. Hãy bấm <strong>"+ TẠO API KEY MỚI"</strong> ở trên để bắt đầu!
+          </td>
+        </tr>
+      `;
     }
   } catch (e) {
-    console.error('Load keys error:', e);
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--red-neon);padding:20px;">Lỗi tải danh sách API Key.</td></tr>`;
   }
 }
 
-document.getElementById('btnCopyCurrentApiKey').addEventListener('click', () => {
-  if (currentApiKey) {
-    navigator.clipboard.writeText(currentApiKey);
-    showToast('ĐÃ SAO CHÉP API KEY VÀO CLIPBOARD!');
+window.copyApiKey = function(key) {
+  navigator.clipboard.writeText(key);
+  showToast('ĐÃ SAO CHÉP API KEY VÀO CLIPBOARD!');
+};
+
+window.revokeApiKey = async function(key) {
+  if (!confirm('Bạn có chắc chắn muốn hủy và xóa API Key này?')) return;
+  try {
+    const res = await fetch('/api/keys/revoke', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: currentUser.id, api_key: key })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('ĐÃ XÓA API KEY THÀNH CÔNG!');
+      loadApiKeys();
+    } else {
+      showToast(data.error || 'Xóa API Key thất bại');
+    }
+  } catch (err) {
+    showToast('Lỗi kết nối máy chủ');
   }
-});
+};
 
 document.getElementById('btnCreateNewApiKey').addEventListener('click', async () => {
   if (!currentUser) return;
+  const keyName = prompt('Nhập tên gợi nhớ cho API Key (ví dụ: Telegram Bot, Web App, Discord Bot...):', 'Production Key');
+  if (!keyName) return;
+
   try {
     const res = await fetch('/api/keys/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: currentUser.id, name: 'Production Key' })
+      body: JSON.stringify({ user_id: currentUser.id, name: keyName.trim() })
     });
     const data = await res.json();
     if (data.success) {
-      showToast('ĐÃ TẠO MÃ API KEY MỚI THÀNH CÔNG!');
+      showToast('ĐÃ TẠO MÃ API KEY MỚI VÀ LƯU VÀO TÀI KHOẢN!');
       loadApiKeys();
+    } else {
+      showToast(data.error || 'Không thể tạo API Key');
     }
   } catch (err) {
     showToast('Lỗi khi tạo API Key');

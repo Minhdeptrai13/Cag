@@ -395,45 +395,62 @@
           </div>
         </section>
 
-        <!-- ── TAB 4: API KEY MANAGER ────────────────────────────────────── -->
+        <!-- ── TAB 4: API KEY MANAGER (DEVELOPER VAULT) ───────────────── -->
         <section id="viewApiKey" class="tab-view-pane">
           <div class="view-header-strip">
             <div class="strip-title-row">
               <svg class="svg-icon icon-lg icon-gold" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5"></circle><path d="m21 2-9.6 9.6"></path><path d="m15.5 7.5 3 3"></path><path d="m18.5 4.5 3 3"></path></svg>
               <div>
-                <h2>API KEY & DEVELOPER GATEWAY</h2>
-                <span class="strip-sub">Tạo và quản lý khóa API gọi RESTful endpoint tự động hóa</span>
+                <h2>QUẢN LÝ API KEYS CỦA BẠN</h2>
+                <span class="strip-sub">Danh sách các API Key được tạo và lưu trữ an toàn trong tài khoản của bạn</span>
               </div>
             </div>
             <button type="button" class="btn btn-primary-gold" id="btnCreateNewApiKey">
               <svg class="svg-icon icon-sm" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-              TẠO API KEY MỚI
+              + TẠO API KEY MỚI
             </button>
           </div>
 
-          <div class="dash-card" style="margin-bottom:20px;">
-            <h3>API KEY HIỆN TẠI</h3>
-            <div class="api-key-box">
-              <span class="api-key-value" id="displayActiveApiKey">aov_live_loading...</span>
-              <button type="button" class="btn btn-ghost" id="btnCopyCurrentApiKey" style="padding:6px 14px;">SAO CHÉP</button>
+          <!-- API Key Table List -->
+          <div class="dash-card" style="margin-bottom:24px;">
+            <div style="overflow-x:auto;">
+              <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                <thead>
+                  <tr style="text-align:left;border-bottom:1px solid var(--border-subtle);color:var(--text-muted);font-family:var(--font-mono);">
+                    <th style="padding:12px 8px;">TÊN KEY</th>
+                    <th style="padding:12px 8px;">MÃ KHÓA (SECRET KEY)</th>
+                    <th style="padding:12px 8px;">NGÀY TẠO</th>
+                    <th style="padding:12px 8px;text-align:right;">THAO TÁC</th>
+                  </tr>
+                </thead>
+                <tbody id="apiKeysTableBody">
+                  <tr>
+                    <td colspan="4" style="text-align:center;padding:30px;color:var(--text-muted);">Đang tải danh sách API Key...</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-            <p style="font-size:12px;color:var(--text-secondary);">
-              Mỗi lượt gọi API <code>/api/v1/check</code> sẽ tự động trừ 1 Credit từ số dư của tài khoản.
-            </p>
           </div>
 
+          <!-- API Documentation Reference -->
           <div class="dash-card">
-            <h3>MẪU CODE GỌI API (PYTHON)</h3>
+            <h3>HƯỚNG DẪN TÍCH HỢP RESTFUL API</h3>
+            <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;">
+              Endpoint Production chính thức: <code style="color:var(--gold-light);background:var(--bg-surface);padding:3px 8px;border-radius:4px;">https://cag-4fo1.onrender.com/api/v1/check</code>
+            </p>
             <pre style="background:var(--bg-input);padding:16px;border-radius:var(--radius-sm);color:var(--gold-light);font-family:var(--font-mono);font-size:12px;overflow-x:auto;">
 import requests
 
-API_KEY = "YOUR_API_KEY_HERE"
-url = "https://your-domain.onrender.com/api/v1/check"
-headers = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
-payload = {"account": "user_vip_88:password123"}
+API_KEY = "aov_live_your_key_here"
+url = "https://cag-4fo1.onrender.com/api/v1/check"
+headers = {
+    "Authorization": f"Bearer {API_KEY}",
+    "Content-Type": "application/json"
+}
+payload = {"account": "tentaikhoan:matkhau123"}
 
-response = requests.post(url, json=payload, headers=headers)
-print(response.json())
+res = requests.post(url, json=payload, headers=headers)
+print(res.json())
             </pre>
           </div>
         </section>
