@@ -19,7 +19,7 @@ let currentSnippetLang = 'python';
 // ── DOM References ──────────────────────────────────────────────────────────
 const landingView = document.getElementById('landingView');
 const studioView = document.getElementById('studioView');
-const authModal = document.getElementById('authModal');
+const authView = document.getElementById('authView');
 const toast = document.getElementById('toast');
 
 // Landing Elements
@@ -27,6 +27,17 @@ const btnLandingLogin = document.getElementById('btnLandingLogin');
 const btnLandingDocs = document.getElementById('btnLandingDocs');
 const btnHeroOpenStudio = document.getElementById('btnHeroOpenStudio');
 const btnHeroRegister = document.getElementById('btnHeroRegister');
+
+// Auth View Elements
+const btnBackToLanding = document.getElementById('btnBackToLanding');
+const tabLoginBtn = document.getElementById('tabLoginBtn');
+const tabRegisterBtn = document.getElementById('tabRegisterBtn');
+const loginForm = document.getElementById('loginForm');
+const registerForm = document.getElementById('registerForm');
+const loginError = document.getElementById('loginError');
+const regError = document.getElementById('regError');
+const linkSwitchToRegister = document.getElementById('linkSwitchToRegister');
+const linkSwitchToLogin = document.getElementById('linkSwitchToLogin');
 
 // Studio Header
 const studioUsername = document.getElementById('studioUsername');
@@ -38,15 +49,6 @@ const btnStudioLogout = document.getElementById('btnStudioLogout');
 // Sidebar Nav
 const navItems = document.querySelectorAll('.nav-item');
 const tabPanes = document.querySelectorAll('.tab-pane');
-
-// Auth Form
-const btnCloseAuthModal = document.getElementById('btnCloseAuthModal');
-const tabLoginBtn = document.getElementById('tabLoginBtn');
-const tabRegisterBtn = document.getElementById('tabRegisterBtn');
-const loginForm = document.getElementById('loginForm');
-const registerForm = document.getElementById('registerForm');
-const loginError = document.getElementById('loginError');
-const regError = document.getElementById('regError');
 
 // Checker Studio DOM
 const btnModeBatch = document.getElementById('btnModeBatch');
@@ -152,11 +154,34 @@ function initApp() {
 
 function showLandingView() {
   if (landingView) landingView.style.display = 'block';
+  if (authView) authView.style.display = 'none';
   if (studioView) studioView.style.display = 'none';
+}
+
+function showAuthView(mode = 'login') {
+  if (landingView) landingView.style.display = 'none';
+  if (studioView) studioView.style.display = 'none';
+  if (authView) authView.style.display = 'flex';
+
+  if (loginError) loginError.style.display = 'none';
+  if (regError) regError.style.display = 'none';
+
+  if (mode === 'register') {
+    if (tabRegisterBtn) tabRegisterBtn.classList.add('active');
+    if (tabLoginBtn) tabLoginBtn.classList.remove('active');
+    if (loginForm) loginForm.style.display = 'none';
+    if (registerForm) registerForm.style.display = 'flex';
+  } else {
+    if (tabLoginBtn) tabLoginBtn.classList.add('active');
+    if (tabRegisterBtn) tabRegisterBtn.classList.remove('active');
+    if (loginForm) loginForm.style.display = 'flex';
+    if (registerForm) registerForm.style.display = 'none';
+  }
 }
 
 function showStudioView() {
   if (landingView) landingView.style.display = 'none';
+  if (authView) authView.style.display = 'none';
   if (studioView) studioView.style.display = 'flex';
   renderUserHeader();
   loadUserApiKeys();
@@ -193,66 +218,54 @@ async function refreshUserMeta() {
   }
 }
 
-// Open Auth Modal
-function openAuthModal(isRegister = false) {
-  if (loginError) loginError.style.display = 'none';
-  if (regError) regError.style.display = 'none';
-  if (isRegister) {
-    (tabRegisterBtn && tabRegisterBtn.click)();
-  } else {
-    (tabLoginBtn && tabLoginBtn.click)();
-  }
-  if (authModal) authModal.style.display = 'flex';
-}
-
+// Navigation & Auth Buttons
 (btnLandingLogin && btnLandingLogin.addEventListener)('click', (e) => {
   e.preventDefault();
-  e.stopPropagation();
-  openAuthModal(false);
+  showAuthView('login');
 });
 
 (btnHeroOpenStudio && btnHeroOpenStudio.addEventListener)('click', (e) => {
   e.preventDefault();
-  e.stopPropagation();
   if (currentUser) showStudioView();
-  else openAuthModal(false);
+  else showAuthView('login');
 });
 
 (btnHeroRegister && btnHeroRegister.addEventListener)('click', (e) => {
   e.preventDefault();
-  e.stopPropagation();
-  openAuthModal(true);
+  showAuthView('register');
 });
 
 (btnLandingDocs && btnLandingDocs.addEventListener)('click', (e) => {
   e.preventDefault();
-  e.stopPropagation();
   if (currentUser) {
     showStudioView();
     switchTab('api');
   } else {
-    openAuthModal(false);
+    showAuthView('login');
   }
 });
 
-(btnCloseAuthModal && btnCloseAuthModal.addEventListener)('click', (e) => {
+(btnBackToLanding && btnBackToLanding.addEventListener)('click', (e) => {
   e.preventDefault();
-  e.stopPropagation();
-  if (authModal) authModal.style.display = 'none';
+  showLandingView();
 });
 
 (tabLoginBtn && tabLoginBtn.addEventListener)('click', () => {
-  tabLoginBtn.classList.add('active');
-  tabRegisterBtn.classList.remove('active');
-  loginForm.style.display = 'flex';
-  registerForm.style.display = 'none';
+  showAuthView('login');
 });
 
 (tabRegisterBtn && tabRegisterBtn.addEventListener)('click', () => {
-  tabRegisterBtn.classList.add('active');
-  tabLoginBtn.classList.remove('active');
-  loginForm.style.display = 'none';
-  registerForm.style.display = 'flex';
+  showAuthView('register');
+});
+
+(linkSwitchToRegister && linkSwitchToRegister.addEventListener)('click', (e) => {
+  e.preventDefault();
+  showAuthView('register');
+});
+
+(linkSwitchToLogin && linkSwitchToLogin.addEventListener)('click', (e) => {
+  e.preventDefault();
+  showAuthView('login');
 });
 
 // Login Submit
@@ -273,7 +286,6 @@ function openAuthModal(isRegister = false) {
       currentUser = data.user;
       currentApiKey = data.user.api_key || data.user.key;
       localStorage.setItem('aov_user', JSON.stringify(currentUser));
-      if (authModal) authModal.style.display = 'none';
       showStudioView();
       showToast(`XIN CHÀO ${currentUser.username.toUpperCase()}!`);
     } else {
@@ -308,7 +320,6 @@ function openAuthModal(isRegister = false) {
       currentUser = data.user;
       currentApiKey = data.user ? (data.user.api_key || data.user.key) : data.api_key;
       localStorage.setItem('aov_user', JSON.stringify(currentUser));
-      if (authModal) authModal.style.display = 'none';
       showStudioView();
       showToast('TẠO TÀI KHOẢN THÀNH CÔNG! BẠN ĐƯỢC TẶNG 50 CREDITS');
     } else {
@@ -1137,11 +1148,6 @@ window.fillCode = function(code) {
       redeemStudioError.style.display = 'block';
     }
   }
-});
-
-// Close overlay on outside click
-window.addEventListener('click', (e) => {
-  if (e.target === authModal) authModal.style.display = 'none';
 });
 
 // Bootstrap

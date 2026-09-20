@@ -7,6 +7,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -56,3 +58,19 @@ jobs:
           name: AOV_Checker_Android_APK
           path: bin/*.apk
           if-no-files-found: error
+
+      - name: Publish APK to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        if: success()
+        with:
+          tag_name: latest-release
+          name: "AOV Checker Pro v1.0.0 (Android APK)"
+          body: |
+            ### 🚀 Bản Build Android APK Tự Động (AOV Checker Pro)
+            - Tự động biên dịch từ mã nguồn mới nhất trên nhánh `main`.
+            - Tải trực tiếp file `.apk` đính kèm bên dưới và cài đặt trên thiết bị Android của bạn.
+          files: bin/*.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
