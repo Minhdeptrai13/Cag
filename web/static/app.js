@@ -496,59 +496,90 @@ btnStartBatch.addEventListener('click', async () => {
   }
 });
 
+let consecutivePollErrors = 0;
+
 function pollBatchProgress(taskId) {
   clearInterval(pollInterval);
+  consecutivePollErrors = 0;
+
+  // Make sure stop button is visible and enabled
+  if (btnStopBatch) {
+    btnStopBatch.style.display = 'inline-flex';
+    btnStopBatch.disabled = false;
+    btnStopBatch.textContent = 'DỪNG QUÉT';
+  }
+  btnStartBatch.disabled = true;
+  btnStartBatch.style.display = 'none';
+
   pollInterval = setInterval(async () => {
     try {
       const res = await fetch(`/api/batch/status?task_id=${taskId}`);
-      const data = await res.json();
-      const pct = data.total > 0 ? Math.round((data.progress / data.total) * 100) : 0;
-
-      document.getElementById('batchProgRatio').textContent = `${pct}% (${data.progress}/${data.total})`;
-      document.getElementById('batchProgBar').style.width = `${pct}%`;
-      document.getElementById('batchProgStatus').textContent = data.is_done ? 'ĐÃ HOÀN TẤT!' : 'Đang xử lý socket pooling...';
-
-      if (data.results && data.results.length > 0) {
-        allResults = data.results;
-        renderFilteredResults();
+      if (!res.ok) {
+        consecutivePollErrors++;
+        if (consecutivePollErrors >= 15) {
+          clearInterval(pollInterval);
+          btnStartBatch.disabled = false;
+          btnStartBatch.style.display = 'inline-flex';
+          btnStartBatch.textContent = 'BẮT ĐẦU QUÉT';
+          if (btnStopBatch) btnStopBatch.style.display = 'none';
+          showToast('Mất kết nối với máy chủ!');
+        }
+        return;
       }
 
+      consecutivePollErrors = 0;
+      const data = await res.json();
+      const total = data.total || 0;
+      const progress = data.progress !== undefined ? data.progress : (data.done || 0);
+      const pct = total > 0 ? Math.round((progress / total) * 100) : 0;
+
+      document.getElementById('batchProgRatio').textContent = `${pct}% (${progress}/${total})`;
+      document.getElementById('batchProgBar').style.width = `${pct}%`;
+
+      if (data.was_stopped) {
+        document.getElementById('batchProgStatus').textContent = `ĐÃ DỪNG (${progress}/${total})`;
+      } else if (data.is_done) {
+        document.getElementById('batchProgStatus').textContent = 'ĐÃ HOÀN TẤT!';
+      } else {
+        document.getElementById('batchProgStatus').textContent = `Đang quét tài khoản (${progress}/${total})...`;
+      }
+
+      if (data.results && Array.isArray(data.results) && data.results.length > 0) {
+        allResults = data.results;
+        try {
+          renderFilteredResults();
+        } catch (rErr) {
+          console.error('Render batch results error:', rErr);
+        }
+      }
+
+      // ONLY finish and hide btnStopBatch when actually done or stopped!
       if (data.is_done) {
         clearInterval(pollInterval);
         btnStartBatch.disabled = false;
         btnStartBatch.style.display = 'inline-flex';
         btnStartBatch.textContent = 'BẮT ĐẦU QUÉT';
         if (btnStopBatch) btnStopBatch.style.display = 'none';
-        showToast('ĐÃ QUÉT XONG TOÀN BỘ DANH SÁCH!');
+        if (data.was_stopped) {
+          showToast(`ĐÃ DỪNG TIẾN TRÌNH QUÉT (${progress}/${total})`);
+        } else {
+          showToast('ĐÃ QUÉT XONG TOÀN BỘ DANH SÁCH!');
+        }
       }
     } catch (e) {
-      clearInterval(pollInterval);
-      btnStartBatch.disabled = false;
-      btnStartBatch.style.display = 'inline-flex';
-      if (btnStopBatch) btnStopBatch.style.display = 'none';
+      console.warn('Transient poll error:', e);
+      consecutivePollErrors++;
+      if (consecutivePollErrors >= 15) {
+        clearInterval(pollInterval);
+        btnStartBatch.disabled = false;
+        btnStartBatch.style.display = 'inline-flex';
+        btnStartBatch.textContent = 'BẮT ĐẦU QUÉT';
+        if (btnStopBatch) btnStopBatch.style.display = 'none';
+        showToast('Quá trình quét bị ngắt kết nối');
+      }
     }
   }, 1000);
 }
-
-function renderFilteredResults() {
-  let filtered = allResults;
-  if (activeResultFilter === 'trang') {
-    filtered = allResults.filter(r => r.is_trang || (r.account && r.account.includes('TRẮNG')));
-  } else if (activeResultFilter === 'vip') {
-    filtered = allResults.filter(r => r.is_vip || (r.rank && ['Cao Thủ', 'Thách Đấu'].includes(r.rank)));
-  } else if (activeResultFilter === 'live') {
-    filtered = allResults.filter(r => r.status === 'HIT');
-  }
-
-  document.getElementById('cntAll').textContent = allResults.length;
-  document.getElementById('cntTrang').textContent = allResults.filter(r => r.is_trang).length;
-  document.getElementById('cntVip').textContent = allResults.filter(r => r.is_vip).length;
-  document.getElementById('cntLive').textContent = allResults.filter(r => r.status === 'HIT').length;
-
-  if (filtered.length === 0) {
-    batchResultsList.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);">Không có kết quả cho bộ lọc này.</div>';
-    return;
-  }
 
 window.copyTextToClipboard = function(text, msg) {
   if (!text) return;
@@ -622,14 +653,14 @@ function renderAccountCard(r) {
   const emailStr = r.email_str || (sec.masked_email ? (sec.email_v ? `YES [${sec.masked_email} - ĐÃ XÁC THỰC]` : `NO [${sec.masked_email} - CHƯA XÁC THỰC]`) : 'NO [CHƯA LIÊN KẾT]');
   const hasEmail = !emailStr.startsWith('NO');
 
-  const cmndStr = r.cmnd_str || (sec.has_cccd ? 'YES' : 'NO');
-  const hasCmnd = cmndStr === 'YES';
+  const cmndStr = r.cmnd_str || (sec.has_cccd ? (sec.idcard ? `YES [${sec.idcard}]` : 'YES') : 'NO');
+  const hasCmnd = !cmndStr.startsWith('NO');
 
   const authenStr = r.authen_str || (sec.auth_2fa ? 'YES' : 'NO');
   const hasAuthen = authenStr === 'YES';
 
-  const fbStr = r.fb_str || (sec.fb_linked ? 'YES' : 'DIE');
-  const hasFb = fbStr === 'YES';
+  const fbStr = r.fb_str || (sec.fb_linked ? (sec.fb_uid ? `YES [${sec.fb_uid}]` : 'YES') : 'DIE');
+  const hasFb = !fbStr.startsWith('DIE') && !fbStr.startsWith('NO');
 
   // Condition Badge Color
   let ttBadgeClass = 'badge-neutral';

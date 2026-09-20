@@ -161,7 +161,9 @@ def check_account(account: str, password: str, proxy=None, timeout: int = 10) ->
             "masked_email": (raw.get("masked_email") or "").strip(),
             "email_v": bool(raw.get("email_verified")) or bool(int(raw.get("email_v", 0) or 0)),
             "has_cccd": bool((raw.get("idcard") or "").replace("*", "").strip()),
+            "idcard": (raw.get("idcard") or "").strip(),
             "fb_linked": bool(raw.get("fb_linked")),
+            "fb_uid": (raw.get("fb_uid") or raw.get("fb_uid_login") or "").strip(),
             "auth_2fa": bool(raw.get("authenticator_enable", 0)) or bool(raw.get("two_step_verify", 0)),
         },
     }
@@ -188,7 +190,9 @@ def check_account(account: str, password: str, proxy=None, timeout: int = 10) ->
     result["masked_email"] = result["security"]["masked_email"]
     result["email_v"] = result["security"]["email_v"]
     result["has_cccd"] = result["security"]["has_cccd"]
+    result["idcard"] = result["security"]["idcard"]
     result["fb_linked"] = result["security"]["fb_linked"]
+    result["fb_uid"] = result["security"]["fb_uid"]
     result["auth_2fa"] = result["security"]["auth_2fa"]
     result["full_info"] = format_account_full_info(result)
 
@@ -243,14 +247,22 @@ def format_account_full_info(r: dict) -> str:
         sdt_str = "NO"
 
     # CMND / CCCD
-    cmnd_str = "YES" if sec.get("has_cccd") else "NO"
+    idcard = (sec.get("idcard") or "").strip()
+    if sec.get("has_cccd"):
+        cmnd_str = f"YES [{idcard}]" if idcard and idcard.replace("*", "").strip() else "YES"
+    else:
+        cmnd_str = "NO"
 
     # AUTHEN 2FA (Only app authenticator)
     authen_str = "YES" if sec.get("auth_2fa") else "NO"
 
     # FB
     fb_linked = sec.get("fb_linked", False)
-    fb_str = "YES" if fb_linked else "DIE"
+    fb_uid = (sec.get("fb_uid") or "").strip()
+    if fb_linked:
+        fb_str = f"YES [{fb_uid}]" if fb_uid else "YES"
+    else:
+        fb_str = "DIE"
 
     # SO
     shells = r.get("shells", 0)
