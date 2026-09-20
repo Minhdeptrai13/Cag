@@ -611,6 +611,60 @@ async function sendAICanvasMessage(text) {
   }
 }
 
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function formatAIMarkdown(raw) {
+  if (!raw) return '';
+
+  // 1. Code Blocks: ```lang ... ```
+  const codeBlockRegex = /```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g;
+  let formatted = raw.replace(codeBlockRegex, (match, lang, code) => {
+    const language = (lang || 'code').toLowerCase();
+    const cleanCode = escapeHtml(code.trim());
+    const blockId = 'code_' + Math.random().toString(36).substring(2, 9);
+    return `
+      <div class="ai-code-preview-container">
+        <div class="ai-code-header">
+          <span class="ai-code-lang"><svg class="svg-icon icon-xs" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg> ${language.toUpperCase()}</span>
+          <button type="button" class="ai-code-copy-btn" onclick="copyCodeBlock('${blockId}')">
+            <svg class="svg-icon icon-xs" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            SAO CHÉP
+          </button>
+        </div>
+        <pre class="ai-code-body"><code id="${blockId}">${cleanCode}</code></pre>
+      </div>
+    `;
+  });
+
+  // 2. Inline `code`
+  formatted = formatted.replace(/`([^`]+)`/g, '<code class="ai-inline-code">$1</code>');
+
+  // 3. Bold **text**
+  formatted = formatted.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+
+  // 4. Linebreaks
+  formatted = formatted.replace(/\n/g, '<br/>');
+
+  return formatted;
+}
+
+window.copyCodeBlock = function(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const text = el.innerText || el.textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('ĐÃ SAO CHÉP MÃ NGUỒN!');
+  });
+};
+
 function appendAIMessage(role, content, isTyping = false) {
   const row = document.createElement('div');
   row.className = `ai-message-row ${role}`;
@@ -632,7 +686,11 @@ function appendAIMessage(role, content, isTyping = false) {
 
   const text = document.createElement('div');
   text.className = 'ai-msg-text';
-  text.innerHTML = content.replace(/\n/g, '<br/>');
+  if (isTyping) {
+    text.innerHTML = `<span class="ai-typing-indicator"><span class="dot"></span><span class="dot"></span><span class="dot"></span> ${escapeHtml(content)}</span>`;
+  } else {
+    text.innerHTML = formatAIMarkdown(content);
+  }
 
   bubble.appendChild(header);
   bubble.appendChild(text);
