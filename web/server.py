@@ -68,6 +68,54 @@ _UPLOAD_SESSIONS = {}
 _UPLOAD_LOCK = threading.Lock()
 
 
+def enrich_account_result(r: dict) -> dict:
+    if not isinstance(r, dict):
+        return r
+    aov_data = r.get("aov") or {}
+    sec_data = r.get("security") or {}
+    r["hero_count"] = aov_data.get("total_champs", 0)
+    r["skin_count"] = aov_data.get("total_skins", 0)
+    r["rank"] = aov_data.get("rank", "Chưa Đấu Hạng")
+    r["ingame"] = aov_data.get("name", "")
+    r["level"] = aov_data.get("level", 0)
+    r["ss_count"] = aov_data.get("ss_count", 0)
+    r["ss_list"] = aov_data.get("ss_list", [])
+    r["sss_count"] = aov_data.get("sss_count", 0)
+    r["sss_list"] = aov_data.get("sss_list", [])
+    r["anime_count"] = aov_data.get("anime_count", 0)
+    r["anime_list"] = aov_data.get("anime_list", [])
+    r["other_count"] = aov_data.get("other_count", 0)
+    r["other_list"] = aov_data.get("other_list", [])
+    r["is_vip"] = bool(r["sss_count"] > 0 or r["ss_count"] > 0 or r["anime_count"] > 0)
+    
+    # Pre-format security strings
+    masked_phone = (sec_data.get("masked_phone") or "").strip()
+    has_phone = bool(sec_data.get("has_phone")) or bool(sec_data.get("mobile_bound"))
+    if masked_phone and masked_phone != "Trắng":
+        r["sdt_str"] = f"YES [{masked_phone}]"
+    elif has_phone:
+        r["sdt_str"] = "YES [ĐÃ LIÊN KẾT]"
+    else:
+        r["sdt_str"] = "NO"
+
+    masked_email = (sec_data.get("masked_email") or "").strip()
+    email_verified = sec_data.get("email_v", False)
+    if not masked_email or masked_email == "Trắng":
+        r["email_str"] = "NO [CHƯA LIÊN KẾT]"
+    elif email_verified:
+        r["email_str"] = f"YES [{masked_email} - ĐÃ XÁC THỰC]"
+    else:
+        r["email_str"] = f"NO [{masked_email} - CHƯA XÁC THỰC]"
+
+    r["cmnd_str"] = "YES" if sec_data.get("has_cccd") else "NO"
+    r["authen_str"] = "YES" if sec_data.get("auth_2fa") else "NO"
+    r["fb_str"] = "YES" if sec_data.get("fb_linked") else "DIE"
+
+    if r.get("status") == "HIT":
+        r["full_line"] = format_account_full_info(r)
+    return r
+
+
 class AOVWebHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         # Suppress verbose terminal logs
@@ -582,7 +630,7 @@ class AOVWebHandler(BaseHTTPRequestHandler):
             if uid:
                 deduct_credit(int(uid), 1)
 
-            res = check_account(acc, pwd)
+            res = enrich_account_result(check_account(acc, pwd))
 
             if uid:
                 save_check_history(int(uid), f"{acc}:{pwd}", res.get("status", "FAIL"), res)
@@ -640,7 +688,7 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                     if task_state.get("should_stop"):
                         return
                     a, p = pair
-                    r = check_account(a, p)
+                    r = enrich_account_result(check_account(a, p))
                     with _TASKS_LOCK:
                         if task_state.get("should_stop"):
                             return
@@ -801,7 +849,7 @@ class AOVWebHandler(BaseHTTPRequestHandler):
 
                 def check_worker(pair):
                     a, p = pair
-                    r = check_account(a, p)
+                    r = enrich_account_result(check_account(a, p))
                     with _TASKS_LOCK:
                         task_state["done"] += 1
                         task_state["results"].append(r)

@@ -550,17 +550,188 @@ function renderFilteredResults() {
     return;
   }
 
-  batchResultsList.innerHTML = filtered.map(r => `
-    <div class="result-row-item ${r.status === 'HIT' ? 'hit' : 'invalid'}">
-      <div style="display:flex;justify-content:space-between;">
-        <strong>${escapeHtml(r.account)}</strong>
-        <span style="color:${r.status==='HIT'?'var(--green-neon)':'var(--red-neon)'};">${r.status}</span>
+window.copyTextToClipboard = function(text, msg) {
+  if (!text) return;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      showToast(msg || 'Đã sao chép vào bộ nhớ tạm!');
+    }).catch(() => fallbackCopy(text, msg));
+  } else {
+    fallbackCopy(text, msg);
+  }
+};
+
+function fallbackCopy(text, msg) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand('copy');
+    showToast(msg || 'Đã sao chép!');
+  } catch (e) {
+    showToast('Không thể sao chép tự động!');
+  }
+  document.body.removeChild(ta);
+}
+
+function renderAccountCard(r) {
+  const isHit = r.status === 'HIT';
+  const aov = r.aov || {};
+  const sec = r.security || {};
+  
+  const acc = r.account || '';
+  const pwd = r.password || '';
+  const combo = (acc && pwd && !acc.includes(pwd)) ? `${acc}:${pwd}` : (acc || 'Tài khoản');
+  const fullLine = r.full_line || (isHit ? `${combo} | ${r.tinh_trang || 'HIT'}` : `${combo} | ${r.status}`);
+
+  if (!isHit) {
+    const detailMsg = r.message || r.detail || 'Sai mật khẩu hoặc bị khóa';
+    return `
+      <div class="result-row-item invalid">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <strong style="color:var(--text-primary);font-size:13px;">${escapeHtml(combo)}</strong>
+            <button class="btn-copy-chip" onclick="copyTextToClipboard('${escapeHtml(combo)}', 'Đã copy combo!')" title="Sao chép combo">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+          </div>
+          <span class="acc-badge badge-danger">${escapeHtml(r.status || 'INVALID')}</span>
+        </div>
+        <div style="color:var(--red-neon);font-size:11px;margin-top:2px;">
+          ${escapeHtml(detailMsg)}
+        </div>
       </div>
-      <div style="color:var(--text-secondary);font-size:11px;">
-        ${r.status === 'HIT' ? `Tướng: ${r.hero_count||0} | Skin: ${r.skin_count||0} | Rank: ${r.rank||'Chưa Rank'} | Trắng TTT: ${r.is_trang?'[CÓ]':'[KHÔNG]'}` : r.detail || 'Sai mật khẩu hoặc bị khóa'}
+    `;
+  }
+
+  // HIT details
+  const ingame = r.ingame || aov.name || 'Chưa Đặt Tên';
+  const rank = r.rank || aov.rank || 'Chưa Đấu Hạng';
+  const level = r.level || aov.level || 30;
+  const heroes = r.hero_count !== undefined ? r.hero_count : (aov.total_champs || 0);
+  const skins = r.skin_count !== undefined ? r.skin_count : (aov.total_skins || 0);
+  const shells = r.shells || 0;
+  const lastLogin = r.last_login || 'Chưa ghi nhận';
+  const tinhTrang = r.tinh_trang || (r.is_trang ? 'Acc Trắng' : 'Có Thông Tin');
+
+  // Security parsing
+  const sdtStr = r.sdt_str || (sec.masked_phone ? `YES [${sec.masked_phone}]` : (sec.has_phone ? 'YES [ĐÃ LIÊN KẾT]' : 'NO'));
+  const hasPhone = !sdtStr.startsWith('NO');
+
+  const emailStr = r.email_str || (sec.masked_email ? (sec.email_v ? `YES [${sec.masked_email} - ĐÃ XÁC THỰC]` : `NO [${sec.masked_email} - CHƯA XÁC THỰC]`) : 'NO [CHƯA LIÊN KẾT]');
+  const hasEmail = !emailStr.startsWith('NO');
+
+  const cmndStr = r.cmnd_str || (sec.has_cccd ? 'YES' : 'NO');
+  const hasCmnd = cmndStr === 'YES';
+
+  const authenStr = r.authen_str || (sec.auth_2fa ? 'YES' : 'NO');
+  const hasAuthen = authenStr === 'YES';
+
+  const fbStr = r.fb_str || (sec.fb_linked ? 'YES' : 'DIE');
+  const hasFb = fbStr === 'YES';
+
+  // Condition Badge Color
+  let ttBadgeClass = 'badge-neutral';
+  if (r.is_trang || tinhTrang === 'Acc Trắng') ttBadgeClass = 'badge-trang';
+  else if (tinhTrang.includes('SĐT') || tinhTrang.includes('FB')) ttBadgeClass = 'badge-warning';
+  else if (tinhTrang.includes('Full')) ttBadgeClass = 'badge-danger';
+
+  // Skins lists
+  const ssList = r.ss_list || aov.ss_list || [];
+  const sssList = r.sss_list || aov.sss_list || [];
+  const animeList = r.anime_list || aov.anime_list || [];
+  const otherList = r.other_list || aov.other_list || [];
+
+  return `
+    <div class="result-row-item hit">
+      <!-- Header: Combo + Badges + Copy button -->
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <strong style="color:var(--text-primary);font-size:13px;">${escapeHtml(combo)}</strong>
+          <button class="btn-copy-chip" onclick="copyTextToClipboard('${escapeHtml(fullLine)}', 'Đã copy đầy đủ thông tin!')" title="Sao chép toàn bộ thông tin">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            <span>COPY</span>
+          </button>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span class="acc-badge ${ttBadgeClass}">${escapeHtml(tinhTrang.toUpperCase())}</span>
+          <span class="acc-badge badge-trang">HIT</span>
+        </div>
       </div>
+
+      <!-- Overview Stats Line -->
+      <div class="acc-tag-line">
+        <span class="acc-stat-pill"><strong>Ingame:</strong> ${escapeHtml(ingame)}</span>
+        <span class="acc-stat-pill"><strong>Rank:</strong> ${escapeHtml(rank)}</span>
+        <span class="acc-stat-pill"><strong>Lv:</strong> ${level}</span>
+        <span class="acc-stat-pill" style="color:var(--green-neon);"><strong>Tướng:</strong> ${heroes}</span>
+        <span class="acc-stat-pill" style="color:var(--gold);"><strong>Skin:</strong> ${skins}</span>
+        <span class="acc-stat-pill"><strong>Sò:</strong> ${shells}</span>
+        <span class="acc-stat-pill" style="color:var(--text-muted);"><strong>Login:</strong> ${escapeHtml(lastLogin)}</span>
+      </div>
+
+      <!-- Security Tags Line -->
+      <div class="acc-tag-line">
+        <span class="acc-badge ${hasPhone ? 'badge-warning' : 'badge-trang'}">
+          SĐT: ${escapeHtml(sdtStr)}
+        </span>
+        <span class="acc-badge ${hasEmail ? (emailStr.includes('ĐÃ XÁC THỰC') ? 'badge-cyan' : 'badge-warning') : 'badge-trang'}">
+          EMAIL: ${escapeHtml(emailStr)}
+        </span>
+        <span class="acc-badge ${hasCmnd ? 'badge-danger' : 'badge-trang'}">
+          CCCD: ${escapeHtml(cmndStr)}
+        </span>
+        <span class="acc-badge ${hasAuthen ? 'badge-danger' : 'badge-trang'}">
+          AUTHEN: ${escapeHtml(authenStr)}
+        </span>
+        <span class="acc-badge ${hasFb ? 'badge-warning' : 'badge-trang'}">
+          FB: ${escapeHtml(fbStr)}
+        </span>
+      </div>
+
+      <!-- VIP Skins Breakdown -->
+      ${(sssList.length > 0 || animeList.length > 0 || ssList.length > 0 || otherList.length > 0) ? `
+        <div class="acc-skins-section">
+          ${sssList.length > 0 ? `
+            <div><span class="acc-badge badge-purple" style="margin-right:6px;">SSS (${sssList.length})</span><span style="color:#e0aaff;">${escapeHtml(sssList.join(', '))}</span></div>
+          ` : ''}
+          ${animeList.length > 0 ? `
+            <div><span class="acc-badge badge-cyan" style="margin-right:6px;">Anime (${animeList.length})</span><span style="color:#80deea;">${escapeHtml(animeList.join(', '))}</span></div>
+          ` : ''}
+          ${ssList.length > 0 ? `
+            <div><span class="acc-badge badge-gold" style="margin-right:6px;">SS (${ssList.length})</span><span style="color:#ffe082;">${escapeHtml(ssList.join(', '))}</span></div>
+          ` : ''}
+          ${otherList.length > 0 ? `
+            <div style="color:var(--text-secondary);"><span class="acc-badge badge-neutral" style="margin-right:6px;">Other (${otherList.length})</span><span>${escapeHtml(otherList.slice(0, 10).join(', '))}${otherList.length > 10 ? '...' : ''}</span></div>
+          ` : ''}
+        </div>
+      ` : ''}
     </div>
-  `).join('');
+  `;
+}
+
+function renderFilteredResults() {
+  let filtered = allResults;
+  if (activeResultFilter === 'trang') {
+    filtered = allResults.filter(r => r.is_trang || (r.tinh_trang && r.tinh_trang.toLowerCase().includes('trắng')));
+  } else if (activeResultFilter === 'vip') {
+    filtered = allResults.filter(r => r.is_vip || (r.ss_count > 0 || r.sss_count > 0 || r.anime_count > 0) || (r.rank && ['Cao Thủ', 'Thách Đấu', 'Chiến Tướng'].includes(r.rank)));
+  } else if (activeResultFilter === 'live') {
+    filtered = allResults.filter(r => r.status === 'HIT');
+  }
+
+  document.getElementById('cntAll').textContent = allResults.length;
+  document.getElementById('cntTrang').textContent = allResults.filter(r => r.is_trang || (r.tinh_trang && r.tinh_trang.toLowerCase().includes('trắng'))).length;
+  document.getElementById('cntVip').textContent = allResults.filter(r => r.is_vip || (r.ss_count > 0 || r.sss_count > 0 || r.anime_count > 0)).length;
+  document.getElementById('cntLive').textContent = allResults.filter(r => r.status === 'HIT').length;
+
+  if (filtered.length === 0) {
+    batchResultsList.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);">Không có kết quả cho bộ lọc này.</div>';
+    return;
+  }
+
+  batchResultsList.innerHTML = filtered.map(r => renderAccountCard(r)).join('');
 }
 
 document.querySelectorAll('.f-tab').forEach(b => {
@@ -573,14 +744,13 @@ document.querySelectorAll('.f-tab').forEach(b => {
 });
 
 document.getElementById('btnCopyResults').addEventListener('click', () => {
-  const text = allResults.map(r => `${r.account} | ${r.status}`).join('\n');
-  navigator.clipboard.writeText(text);
-  showToast('ĐÃ SAO CHÉP TOÀN BỘ KẾT QUẢ!');
+  const text = allResults.map(r => r.full_line || `${r.account} | ${r.status}`).join('\n');
+  copyTextToClipboard(text, 'ĐÃ SAO CHÉP TOÀN BỘ KẾT QUẢ!');
 });
 
 document.getElementById('btnExportTrang').addEventListener('click', () => {
-  const trangList = allResults.filter(r => r.is_trang).map(r => `${r.account} | ${r.status}`).join('\n');
-  const blob = new Blob([trangList], { type: 'text/plain' });
+  const trangList = allResults.filter(r => r.is_trang || (r.tinh_trang && r.tinh_trang.toLowerCase().includes('trắng'))).map(r => r.full_line || `${r.account} | ${r.status}`).join('\n');
+  const blob = new Blob([trangList], { type: 'text/plain;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `acc_trang_thong_tin_${Date.now()}.txt`;
