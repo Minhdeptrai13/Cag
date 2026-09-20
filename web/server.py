@@ -678,6 +678,7 @@ class AOVWebHandler(BaseHTTPRequestHandler):
             threads = int(payload.get("threads", 10) or 10)
             threads = max(1, min(threads, 500))
             uid = payload.get("user_id")
+            client_id = str(payload.get("client_id") or uid or "default_client").strip()
 
             combos = []
             for item in combos_raw:
@@ -689,9 +690,21 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                 self._send_json({"error": "Không có danh sách tài khoản hợp lệ (hỗ trợ : | ; / khoảng trắng)!"}, 400)
                 return
 
+            # Clean-up / hard stop any active task for this client
+            with _TASKS_LOCK:
+                for existing_tid, existing_t in list(_TASKS.items()):
+                    if existing_t.get("client_id") == client_id and existing_t.get("is_running"):
+                        existing_t["should_stop"] = True
+                        existing_t["is_running"] = False
+                        for fut in existing_t.get("futures", []):
+                            if not fut.done():
+                                fut.cancel()
+                        print(f"[MUTEX] Đã hủy task cũ '{existing_tid}' của client '{client_id}' để chạy task mới.", flush=True)
+
             task_id = str(uuid.uuid4())[:8]
 
             task_state = {
+                "client_id": client_id,
                 "total": len(combos),
                 "done": 0,
                 "hits": 0,
@@ -701,6 +714,7 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                 "should_stop": False,
                 "start_time": time.time(),
                 "end_time": None,
+                "futures": [],
                 "results": [],
                 "all_hits": [],
             }
@@ -714,7 +728,7 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                 live_path = os.path.join("results", f"web_hits_{task_id}.txt")
                 trang_path = os.path.join("results", f"web_trang_{task_id}.txt")
 
-                print(f"\n[BẮT ĐẦU CHECK BATCH {task_id}] Tổng: {len(combos)} tài khoản | Luồng: {threads}", flush=True)
+                print(f"\n[BẮT ĐẦU CHECK BATCH {task_id}] Client: {client_id} | Tổng: {len(combos)} tài khoản | Luồng: {threads}", flush=True)
 
                 def check_worker(pair):
                     if task_state.get("should_stop"):
@@ -776,13 +790,19 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                             pass
 
                 with ThreadPoolExecutor(max_workers=threads) as executor:
+                    fut_list = []
                     for combo in combos:
                         if task_state.get("should_stop"):
                             break
-                        executor.submit(check_worker, combo)
+                        f = executor.submit(check_worker, combo)
+                        fut_list.append(f)
+                    with _TASKS_LOCK:
+                        task_state["futures"] = fut_list
 
                 with _TASKS_LOCK:
                     task_state["is_running"] = False
+                    if not task_state.get("end_time"):
+                        task_state["end_time"] = time.time()
 
                 if uid:
                     actual_checked = task_state.get("done", len(combos))
@@ -797,19 +817,27 @@ class AOVWebHandler(BaseHTTPRequestHandler):
         # ── 10.1 STOP RUNNING BATCH TASK ──────────────────────────────────────
         elif path in ("/api/batch/stop", "/api/task/stop"):
             req_tid = str(payload.get("task_id") or "").strip()
+            client_id = str(payload.get("client_id") or "").strip()
             stopped = 0
             with _TASKS_LOCK:
+                targets = []
                 if req_tid and req_tid in _TASKS:
-                    _TASKS[req_tid]["should_stop"] = True
-                    _TASKS[req_tid]["is_running"] = False
-                    stopped += 1
+                    targets.append(_TASKS[req_tid])
+                elif client_id:
+                    targets = [t for t in _TASKS.values() if t.get("client_id") == client_id and t.get("is_running")]
                 else:
-                    for t in _TASKS.values():
-                        if t.get("is_running"):
-                            t["should_stop"] = True
-                            t["is_running"] = False
-                            stopped += 1
-            print(f"[STOP BATCH] Đã dừng {stopped} tiến trình quét!", flush=True)
+                    targets = [t for t in _TASKS.values() if t.get("is_running")]
+
+                for t in targets:
+                    t["should_stop"] = True
+                    t["is_running"] = False
+                    t["end_time"] = time.time()
+                    for f in t.get("futures", []):
+                        if not f.done():
+                            f.cancel()
+                    stopped += 1
+
+            print(f"[STOP BATCH] Đã dừng và hủy thành công {stopped} tiến trình quét!", flush=True)
             self._send_json({"success": True, "message": f"Đã dừng thành công {stopped} tiến trình quét!"})
             return
 
@@ -971,16 +999,23 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                             pass
 
                 with ThreadPoolExecutor(max_workers=threads) as executor:
+                    fut_list = []
                     for combo in combos:
                         if task_state.get("should_stop"):
                             break
-                        executor.submit(check_worker, combo)
+                        f = executor.submit(check_worker, combo)
+                        fut_list.append(f)
+                    with _TASKS_LOCK:
+                        task_state["futures"] = fut_list
 
                 with _TASKS_LOCK:
                     task_state["is_running"] = False
+                    if not task_state.get("end_time"):
+                        task_state["end_time"] = time.time()
 
                 if uid:
-                    deduct_credit(int(uid), len(combos))
+                    actual_checked = task_state.get("done", len(combos))
+                    deduct_credit(int(uid), actual_checked)
 
                 # Clean up temp file
                 try:
@@ -988,7 +1023,7 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                 except Exception:
                     pass
 
-                print(f"\n[HOÀN THÀNH FILE BATCH {task_id}] Tổng: {task_state['total']} | Sống: {task_state['hits']} | Trắng: {task_state['trang']} (File lưu tại results/)\n", flush=True)
+                print(f"\n[HOÀN THÀNH FILE BATCH {task_id}] Tổng: {task_state['done']}/{task_state['total']} | Sống: {task_state['hits']} | Trắng: {task_state['trang']} (File lưu tại results/)\n", flush=True)
 
             threading.Thread(target=run_file_batch, daemon=True).start()
             self._send_json({"task_id": task_id, "total": len(combos)})

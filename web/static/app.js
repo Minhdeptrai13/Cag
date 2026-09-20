@@ -392,8 +392,22 @@ async function loadDashboardStats() {
 document.getElementById('btnRefreshDashboard').addEventListener('click', loadDashboardStats);
 
 // ── TAB 2: PLAYGROUND TOOL (BATCH CHECKER 500 LUỒNG) ───────────────────────
+// ── CLIENT SESSION MUTEX & PERSISTENCE ────────────────────────────────────
+function getClientSessionId() {
+  let cid = localStorage.getItem('aov_client_session_id');
+  if (!cid) {
+    cid = 'client_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now().toString(36);
+    localStorage.setItem('aov_client_session_id', cid);
+  }
+  return cid;
+}
+const currentClientId = getClientSessionId();
+
 const threadRange = document.getElementById('threadRange');
 const threadDisplay = document.getElementById('threadDisplay');
+const threadNoticeBox = document.getElementById('threadNoticeBox');
+const threadNoticeIcon = document.getElementById('threadNoticeIcon');
+const threadNoticeText = document.getElementById('threadNoticeText');
 const batchText = document.getElementById('batchText');
 const btnStartBatch = document.getElementById('btnStartBatch');
 const btnStopBatch = document.getElementById('btnStopBatch');
@@ -402,9 +416,38 @@ const uploadZone = document.getElementById('uploadZone');
 const fileInput = document.getElementById('fileInput');
 const batchResultsList = document.getElementById('batchResultsList');
 
-threadRange.addEventListener('input', () => {
-  threadDisplay.textContent = `${threadRange.value} LUỒNG`;
-});
+function updateThreadAdvisory(val) {
+  const num = parseInt(val, 10) || 20;
+  if (!threadNoticeBox) return;
+
+  if (num <= 30) {
+    threadNoticeBox.style.background = 'rgba(16, 185, 129, 0.08)';
+    threadNoticeBox.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+    threadNoticeBox.style.color = 'var(--green-neon)';
+    if (threadNoticeIcon) threadNoticeIcon.textContent = '✓';
+    if (threadNoticeText) threadNoticeText.textContent = 'TỐI ƯU & ỔN ĐỊNH NHẤT: Khuyến nghị 10-30 luồng khi không dùng Proxy (1-2s/acc).';
+  } else if (num <= 60) {
+    threadNoticeBox.style.background = 'rgba(245, 158, 11, 0.08)';
+    threadNoticeBox.style.borderColor = 'rgba(245, 158, 11, 0.3)';
+    threadNoticeBox.style.color = 'var(--gold-metallic)';
+    if (threadNoticeIcon) threadNoticeIcon.textContent = '⚠️';
+    if (threadNoticeText) threadNoticeText.textContent = 'CẢNH BÁO TẢI CAO: Có thể gây nghẽn kết nối nếu mạng gia đình không có băng thông lớn.';
+  } else {
+    threadNoticeBox.style.background = 'rgba(239, 68, 68, 0.1)';
+    threadNoticeBox.style.borderColor = 'rgba(239, 68, 68, 0.35)';
+    threadNoticeBox.style.color = 'var(--red-neon)';
+    if (threadNoticeIcon) threadNoticeIcon.textContent = '🛑';
+    if (threadNoticeText) threadNoticeText.textContent = 'CỰC ĐOAN (DỄ TIMEOUT): Chỉ nên kéo trên 60 luồng khi có Proxy xoay vòng. Chạy trực tiếp IP nhà mạng sẽ bị Garena drop packet!';
+  }
+}
+
+if (threadRange) {
+  threadRange.addEventListener('input', () => {
+    threadDisplay.textContent = `${threadRange.value} LUỒNG`;
+    updateThreadAdvisory(threadRange.value);
+  });
+  updateThreadAdvisory(threadRange.value);
+}
 
 uploadZone.addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', (e) => {
@@ -434,9 +477,14 @@ if (btnStopBatch) {
       await fetch('/api/batch/stop', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ task_id: activeTaskId || '' })
+        body: JSON.stringify({ 
+          task_id: activeTaskId || '',
+          client_id: currentClientId
+        })
       });
       clearInterval(pollInterval);
+      clearInterval(batchTimerInterval);
+      localStorage.removeItem('aov_active_task_id');
       document.getElementById('batchProgStatus').textContent = 'ĐÃ DỪNG BỞI NGƯỜI DÙNG';
       showToast('ĐÃ DỪNG TIẾN TRÌNH QUÉT THÀNH CÔNG!');
     } catch (e) {
@@ -466,6 +514,8 @@ btnStartBatch.addEventListener('click', async () => {
   btnStartBatch.style.display = 'none';
   if (btnStopBatch) {
     btnStopBatch.style.display = 'inline-flex';
+    btnStopBatch.disabled = false;
+    btnStopBatch.textContent = 'DỪNG QUÉT';
   }
 
   try {
@@ -475,12 +525,14 @@ btnStartBatch.addEventListener('click', async () => {
       body: JSON.stringify({
         combos: lines,
         threads: threads,
+        client_id: currentClientId,
         user_id: currentUser ? currentUser.id : null
       })
     });
     const data = await res.json();
     if (data.status === 'ok' || data.success) {
       activeTaskId = data.task_id;
+      localStorage.setItem('aov_active_task_id', activeTaskId);
       pollBatchProgress(activeTaskId);
     } else {
       showToast(data.error || 'Khởi chạy thất bại');
@@ -596,6 +648,7 @@ function pollBatchProgress(taskId) {
         if (timerBadge) timerBadge.textContent = `⏱️ ${formatElapsedDuration(finalElapsed)}`;
         if (speedBadge) speedBadge.textContent = `${(progress / Math.max(0.5, finalElapsed / 1000)).toFixed(1)} acc/s`;
 
+        localStorage.removeItem('aov_active_task_id');
         btnStartBatch.disabled = false;
         btnStartBatch.style.display = 'inline-flex';
         btnStartBatch.textContent = 'BẮT ĐẦU QUÉT';
@@ -612,6 +665,7 @@ function pollBatchProgress(taskId) {
       if (consecutivePollErrors >= 15) {
         clearInterval(pollInterval);
         clearInterval(batchTimerInterval);
+        localStorage.removeItem('aov_active_task_id');
         btnStartBatch.disabled = false;
         btnStartBatch.style.display = 'inline-flex';
         btnStartBatch.textContent = 'BẮT ĐẦU QUÉT';
@@ -621,6 +675,16 @@ function pollBatchProgress(taskId) {
     }
   }, 1000);
 }
+
+// Auto-resume running batch on page reload if activeTaskId exists
+window.addEventListener('DOMContentLoaded', () => {
+  const savedTaskId = localStorage.getItem('aov_active_task_id');
+  if (savedTaskId) {
+    activeTaskId = savedTaskId;
+    document.getElementById('batchProgressBox').style.display = 'block';
+    pollBatchProgress(activeTaskId);
+  }
+});
 
 window.copyTextToClipboard = function(text, msg) {
   if (!text) return;
