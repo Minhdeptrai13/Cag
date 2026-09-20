@@ -817,6 +817,8 @@ class AOVWebHandler(BaseHTTPRequestHandler):
         # ── 13. AI STUDIO COPILOT RAG CHAT (/api/ai/chat) ─────────────────────
         elif path == "/api/ai/chat":
             user_msg = str(payload.get("message") or payload.get("prompt") or "").strip()
+            user_name = str(payload.get("user_name") or payload.get("display_name") or "Tris").strip()
+            user_id = payload.get("user_id")
             history = payload.get("history", [])
             task_id = payload.get("task_id", "")
 
@@ -832,7 +834,7 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                             "recent_hits": t.get("all_hits", [])[-10:]
                         }
 
-            reply = chat_with_copilot(user_msg, history=history, batch_context=batch_context)
+            reply = chat_with_copilot(user_msg, history=history, batch_context=batch_context, user_name=user_name)
             self._send_json({"success": True, "status": "ok", "reply": reply, "response": reply})
             return
 

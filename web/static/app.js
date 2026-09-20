@@ -587,10 +587,16 @@ async function sendAICanvasMessage(text) {
   const typing = appendAIMessage('assistant', 'Đang trích xuất dữ liệu RAG và phân tích...', true);
 
   try {
+    const userName = currentUser ? (currentUser.display_name || currentUser.username || 'Tris') : 'Tris';
     const res = await fetch('/api/ai/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: text, task_id: activeTaskId || '' })
+      body: JSON.stringify({
+        prompt: text,
+        task_id: activeTaskId || '',
+        user_name: userName,
+        user_id: currentUser ? currentUser.id : 0
+      })
     });
     const data = await res.json();
     typing.remove();
@@ -856,16 +862,6 @@ function updateAvatarPreview(val) {
 function loadSettings() {
   if (!currentUser) return;
 
-  // Render 8 Preset Avatars
-  const grid = document.getElementById('presetAvatarGrid');
-  if (grid) {
-    grid.innerHTML = PRESET_AVATARS.map(av => `
-      <div class="preset-avatar-item ${currentUser.avatar_url === av ? 'active' : ''}" onclick="selectPresetAvatar('${av}')">
-        ${av}
-      </div>
-    `).join('');
-  }
-
   // Populate Inputs
   const userInp = document.getElementById('settingUsername');
   if (userInp) userInp.value = currentUser.username || '';
@@ -877,22 +873,11 @@ function loadSettings() {
   if (emailInp) emailInp.value = currentUser.email || '';
 
   const avtUrlInp = document.getElementById('settingAvatarUrl');
-  if (avtUrlInp) avtUrlInp.value = (currentUser.avatar_url && currentUser.avatar_url.startsWith('http')) ? currentUser.avatar_url : '';
+  if (avtUrlInp) avtUrlInp.value = (currentUser.avatar_url && (currentUser.avatar_url.startsWith('http') || currentUser.avatar_url.startsWith('data:image'))) ? (currentUser.avatar_url.startsWith('http') ? currentUser.avatar_url : '') : '';
 
   selectedAvatarChoice = currentUser.avatar_url || '';
   updateAvatarPreview(selectedAvatarChoice);
 }
-
-window.selectPresetAvatar = function(av) {
-  selectedAvatarChoice = av;
-  const avtUrlInp = document.getElementById('settingAvatarUrl');
-  if (avtUrlInp) avtUrlInp.value = '';
-  document.querySelectorAll('.preset-avatar-item').forEach(el => {
-    if (el.textContent.trim() === av) el.classList.add('active');
-    else el.classList.remove('active');
-  });
-  updateAvatarPreview(av);
-};
 
 // File upload direct avatar handler
 const fileInpAvatar = document.getElementById('settingAvatarFileInput');
