@@ -55,6 +55,12 @@ STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 _TASKS = {}
 _TASKS_LOCK = threading.Lock()
 
+# Upload sessions for large (MB/GB) files
+_UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
+os.makedirs(_UPLOAD_DIR, exist_ok=True)
+_UPLOAD_SESSIONS = {}
+_UPLOAD_LOCK = threading.Lock()
+
 
 class AOVWebHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
@@ -160,11 +166,14 @@ class AOVWebHandler(BaseHTTPRequestHandler):
         # ── 4. Web Batch Task Status ──────────────────────────────────────────
         if path == "/api/task-status":
             task_id = query.get("task_id", [""])[0] or query.get("id", [""])[0]
+            offset = int(query.get("offset", [0])[0] or 0)
             with _TASKS_LOCK:
                 task = _TASKS.get(task_id)
                 if not task:
                     self._send_json({"error": f"Task '{task_id}' not found"}, 404)
                     return
+                all_res = task["results"]
+                new_slice = all_res[offset:] if offset < len(all_res) else []
                 resp_data = {
                     "total": task["total"],
                     "done": task["done"],
@@ -173,8 +182,9 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                     "invalid": task["invalid"],
                     "is_running": task["is_running"],
                     "status": "DONE" if not task["is_running"] else "RUNNING",
-                    "results": list(task["results"]),
+                    "results": new_slice,
                     "all_hits_count": len(task["all_hits"]),
+                    "next_offset": len(all_res),
                 }
             self._send_json(resp_data)
             return
@@ -327,8 +337,8 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                 return
 
             combos_raw = payload.get("combos", [])
-            threads = int(payload.get("threads", 5) or 5)
-            threads = max(1, min(threads, 30))
+            threads = int(payload.get("threads", 10) or 10)
+            threads = max(1, min(threads, 500))
 
             combos = []
             for item in combos_raw:
@@ -438,8 +448,8 @@ class AOVWebHandler(BaseHTTPRequestHandler):
         # ── 10. WEB UI: CHECK BATCH ───────────────────────────────────────────
         elif path == "/api/check-batch":
             combos_raw = payload.get("combos", [])
-            threads = int(payload.get("threads", 5) or 5)
-            threads = max(1, min(threads, 30))
+            threads = int(payload.get("threads", 10) or 10)
+            threads = max(1, min(threads, 500))
             uid = payload.get("user_id")
 
             combos = []
@@ -514,6 +524,148 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                 print(f"\n[HOÀN THÀNH BATCH {task_id}] Tổng: {task_state['total']} | Sống: {task_state['hits']} | Trắng TTT: {task_state['trang']} (File lưu tại results/)\n", flush=True)
 
             threading.Thread(target=run_batch, daemon=True).start()
+            self._send_json({"task_id": task_id, "total": len(combos)})
+            return
+
+        # ── 11. CHUNKED UPLOAD FOR LARGE (MB/GB) COMBO FILES ──────────────────
+        elif path == "/api/upload-chunk":
+            upload_id = str(payload.get("upload_id", "")).strip()
+            chunk_data = payload.get("chunk", "")
+            is_last = bool(payload.get("is_last", False))
+
+            if not upload_id:
+                upload_id = str(uuid.uuid4())[:12]
+
+            temp_path = os.path.join(_UPLOAD_DIR, f"{upload_id}.tmp")
+
+            try:
+                with open(temp_path, "a", encoding="utf-8", errors="ignore") as f:
+                    if chunk_data:
+                        f.write(chunk_data)
+            except Exception as e:
+                self._send_json({"success": False, "error": f"Lỗi ghi chunk: {str(e)}"}, 500)
+                return
+
+            if is_last:
+                # Count total lines efficiently without loading entire file to RAM
+                total_valid = 0
+                try:
+                    with open(temp_path, "r", encoding="utf-8", errors="ignore") as f:
+                        for line in f:
+                            l = line.strip()
+                            if l and not l.startswith("#") and any(sep in l for sep in (":", "|", ";", "\t", " ", "/")):
+                                total_valid += 1
+                except Exception:
+                    total_valid = 0
+
+                self._send_json({
+                    "success": True,
+                    "upload_id": upload_id,
+                    "is_complete": True,
+                    "total_valid": total_valid
+                })
+            else:
+                self._send_json({
+                    "success": True,
+                    "upload_id": upload_id,
+                    "is_complete": False
+                })
+            return
+
+        # ── 12. RUN BATCH DIRECTLY FROM UPLOADED LARGE FILE ───────────────────
+        elif path == "/api/check-uploaded-file":
+            upload_id = str(payload.get("upload_id", "")).strip()
+            threads = int(payload.get("threads", 10) or 10)
+            threads = max(1, min(threads, 500))
+            uid = payload.get("user_id")
+
+            temp_path = os.path.join(_UPLOAD_DIR, f"{upload_id}.tmp")
+            if not os.path.exists(temp_path):
+                self._send_json({"error": "File tải lên không tồn tại hoặc đã bị xoá!"}, 404)
+                return
+
+            # Read combos generator-style or memory-efficient list
+            combos = []
+            try:
+                with open(temp_path, "r", encoding="utf-8", errors="ignore") as f:
+                    for line in f:
+                        u, p = parse_combo_line(line)
+                        if u and p:
+                            combos.append((u, p))
+            except Exception as e:
+                self._send_json({"error": f"Lỗi đọc file: {str(e)}"}, 500)
+                return
+
+            if not combos:
+                self._send_json({"error": "Không tìm thấy dòng tài khoản hợp lệ trong file!"}, 400)
+                return
+
+            task_id = str(uuid.uuid4())[:8]
+            task_state = {
+                "total": len(combos),
+                "done": 0,
+                "hits": 0,
+                "trang": 0,
+                "invalid": 0,
+                "is_running": True,
+                "results": [],
+                "all_hits": [],
+            }
+
+            with _TASKS_LOCK:
+                _TASKS[task_id] = task_state
+
+            def run_file_batch():
+                os.makedirs("results", exist_ok=True)
+                live_path = os.path.join("results", f"file_hits_{task_id}.txt")
+                trang_path = os.path.join("results", f"file_trang_{task_id}.txt")
+
+                print(f"\n[BẮT ĐẦU FILE BATCH {task_id}] File: {upload_id}.tmp | Tổng: {len(combos)} tài khoản | Luồng: {threads}", flush=True)
+
+                def check_worker(pair):
+                    a, p = pair
+                    r = check_account(a, p)
+                    with _TASKS_LOCK:
+                        task_state["done"] += 1
+                        task_state["results"].append(r)
+                        done_str = f"[{task_state['done']}/{task_state['total']}]"
+                        if r["status"] == "HIT":
+                            task_state["hits"] += 1
+                            task_state["all_hits"].append(r)
+                            full_line = format_account_full_info(r)
+                            if r.get("is_trang"):
+                                task_state["trang"] += 1
+                                with open(trang_path, "a", encoding="utf-8") as ft:
+                                    ft.write(full_line + "\n")
+                            with open(live_path, "a", encoding="utf-8") as fh:
+                                fh.write(full_line + "\n")
+                            print(f"{done_str} {full_line}", flush=True)
+                        else:
+                            if r["status"] == "INVALID":
+                                task_state["invalid"] += 1
+                            print(f"{done_str} {a}:{p} | STATUS : {r.get('status')} | DETAIL : {r.get('message', 'FAIL')}", flush=True)
+
+                    if uid:
+                        save_check_history(int(uid), f"{a}:{p}", r.get("status", "FAIL"), r)
+
+                with ThreadPoolExecutor(max_workers=threads) as executor:
+                    executor.map(check_worker, combos)
+
+                with _TASKS_LOCK:
+                    task_state["is_running"] = False
+
+                if uid:
+                    deduct_credit(int(uid), len(combos))
+
+                # Clean up temp file
+                try:
+                    os.remove(temp_path)
+                except Exception:
+                    pass
+
+                print(f"\n[HOÀN THÀNH FILE BATCH {task_id}] Tổng: {task_state['total']} | Sống: {task_state['hits']} | Trắng: {task_state['trang']} (File lưu tại results/)\n", flush=True)
+
+            threading.Thread(target=run_file_batch, daemon=True).start()
             self._send_json({"task_id": task_id, "total": len(combos)})
             return
 

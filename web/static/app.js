@@ -521,27 +521,142 @@ on(uploadZone, 'drop', (e) => {
   if (file) handleLoadedFile(file);
 });
 
+let selectedLargeFile = null;
+let currentResultsOffset = 0;
+
+function formatFileSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+}
+
 function handleLoadedFile(file) {
-  if (fileChosen) fileChosen.textContent = `[ ${file.name} - ${(file.size / 1024).toFixed(1)} KB ]`;
-  const reader = new FileReader();
-  reader.onload = (ev) => {
-    batchText.value = ev.target.result;
-    showToast(`ĐÃ NẠP FILE: ${file.name}`);
-  };
-  reader.readAsText(file);
+  selectedLargeFile = file;
+  const sizeStr = formatFileSize(file.size);
+  if (fileChosen) fileChosen.textContent = `[ ${file.name} - ${sizeStr} ]`;
+
+  // If file is > 5 MB, do NOT load into textarea to prevent browser freeze
+  if (file.size > 5 * 1024 * 1024) {
+    batchText.value = `[FILE LỚN ĐƯỢC CHỌN: ${file.name} (${sizeStr})]\n-> File sẽ được truyền stream siêu tốc trực tiếp lên server không làm đơ trình duyệt. Nhấn 'BẮT ĐẦU QUÉT' để chạy ngay!`;
+    batchText.disabled = true;
+    showToast(`ĐÃ SẴN SÀNG STREAM FILE LỚN (${sizeStr})`);
+  } else {
+    batchText.disabled = false;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      batchText.value = ev.target.result;
+      showToast(`ĐÃ NẠP FILE: ${file.name} (${sizeStr})`);
+    };
+    reader.readAsText(file);
+  }
 }
 
 on(btnClearBatch, 'click', () => {
   batchText.value = '';
+  batchText.disabled = false;
+  selectedLargeFile = null;
   if (fileChosen) fileChosen.textContent = '';
   if (fileInput) fileInput.value = '';
   showToast('ĐÃ XÓA TRẮNG');
 });
 
+async function uploadLargeFileInChunks(file) {
+  const chunkSize = 2 * 1024 * 1024; // 2MB per chunk
+  const totalChunks = Math.ceil(file.size / chunkSize);
+  let uploadId = '';
+
+  progressWrap.style.display = 'block';
+  progressBarFill.style.width = '0%';
+  progressStatus.textContent = `Đang tải stream file lên server (0/${totalChunks})...`;
+
+  for (let i = 0; i < totalChunks; i++) {
+    const start = i * chunkSize;
+    const end = Math.min(file.size, start + chunkSize);
+    const blob = file.slice(start, end);
+    const textChunk = await blob.text();
+    const isLast = (i === totalChunks - 1);
+
+    const resp = await fetch('/api/upload-chunk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        upload_id: uploadId,
+        chunk: textChunk,
+        is_last: isLast
+      })
+    });
+
+    const resJson = await resp.json();
+    if (!resJson.success) {
+      throw new Error(resJson.error || 'Lỗi truyền chunk file');
+    }
+
+    uploadId = resJson.upload_id;
+    const uploadPct = Math.round(((i + 1) / totalChunks) * 100);
+    progressBarFill.style.width = `${uploadPct}%`;
+    progressRatio.textContent = `${uploadPct}%`;
+    progressStatus.textContent = `Đang tải stream file (${i + 1}/${totalChunks} chunks - ${uploadPct}%)...`;
+
+    if (isLast) {
+      return { uploadId, totalValid: resJson.total_valid };
+    }
+  }
+}
+
 on(btnStartBatch, 'click', async () => {
+  const threads = Math.min(500, Math.max(1, parseInt(threadInput.value, 10) || 50));
+
+  // Reset Console
+  allResults = [];
+  currentResultsOffset = 0;
+  batchResultsList.innerHTML = '';
+  updateCounters();
+
+  document.getElementById('btnBatchText').style.display = 'none';
+  document.getElementById('btnBatchLoader').style.display = 'inline-block';
+  btnStartBatch.disabled = true;
+
+  // Case 1: Large File Streaming (> 5 MB)
+  if (selectedLargeFile && selectedLargeFile.size > 5 * 1024 * 1024) {
+    try {
+      const { uploadId, totalValid } = await uploadLargeFileInChunks(selectedLargeFile);
+      progressStatus.textContent = `Khởi động ${threads} luồng quét cho ${totalValid} tài khoản...`;
+      progressBarFill.style.width = '0%';
+      progressRatio.textContent = `0/${totalValid} (0%)`;
+
+      const resp = await fetch('/api/check-uploaded-file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          upload_id: uploadId,
+          threads: threads,
+          user_id: currentUser ? currentUser.id : null
+        })
+      });
+
+      const data = await resp.json();
+      if (data.error) {
+        showToast('LỖI: ' + data.error);
+        resetBatchUI();
+        return;
+      }
+
+      activeTaskId = data.task_id;
+      startTaskPolling(activeTaskId);
+      return;
+    } catch (err) {
+      showToast('LỖI TẢI FILE LỚN: ' + err.message);
+      resetBatchUI();
+      return;
+    }
+  }
+
+  // Case 2: Standard Textarea Combo List
   const text = batchText.value.trim();
   if (!text) {
     showToast('VUI LÒNG DÁN COMBO HOẶC CHỌN FILE .TXT');
+    resetBatchUI();
     return;
   }
 
@@ -551,23 +666,13 @@ on(btnStartBatch, 'click', async () => {
 
   if (lines.length === 0) {
     showToast('KHÔNG TÌM THẤY DÒNG COMBO HỢP LỆ');
+    resetBatchUI();
     return;
   }
 
-  const threads = parseInt(threadInput.value, 10) || 10;
-
-  // Reset Console
-  allResults = [];
-  batchResultsList.innerHTML = '';
-  updateCounters();
-
-  document.getElementById('btnBatchText').style.display = 'none';
-  document.getElementById('btnBatchLoader').style.display = 'inline-block';
-  btnStartBatch.disabled = true;
-
   progressWrap.style.display = 'block';
   progressBarFill.style.width = '0%';
-  progressStatus.textContent = 'Khởi động luồng...';
+  progressStatus.textContent = `Khởi động ${threads} luồng...`;
   progressRatio.textContent = `0/${lines.length} (0%)`;
 
   try {
@@ -604,10 +709,11 @@ function resetBatchUI() {
 
 function startTaskPolling(taskId) {
   if (pollInterval) clearInterval(pollInterval);
+  currentResultsOffset = 0;
 
   pollInterval = setInterval(async () => {
     try {
-      const resp = await fetch(`/api/task-status?task_id=${taskId}`);
+      const resp = await fetch(`/api/task-status?task_id=${taskId}&offset=${currentResultsOffset}`);
       const data = await resp.json();
 
       if (data.error) {
@@ -623,12 +729,12 @@ function startTaskPolling(taskId) {
 
       progressBarFill.style.width = `${pct}%`;
       progressRatio.textContent = `${done}/${total} (${pct}%)`;
-      progressStatus.textContent = data.is_running ? `Đang quét (${done}/${total})...` : 'Hoàn thành!';
+      progressStatus.textContent = data.is_running ? `Đang quét (${done}/${total} - ${pct}%)...` : 'Hoàn thành!';
 
-      const results = data.results || [];
-      if (results.length > allResults.length) {
-        const newItems = results.slice(allResults.length);
-        allResults = results;
+      const newItems = data.results || [];
+      if (newItems.length > 0) {
+        allResults = allResults.concat(newItems);
+        currentResultsOffset = (data.next_offset !== undefined) ? data.next_offset : allResults.length;
         renderNewBatchItems(newItems);
         updateCounters();
       }
@@ -644,7 +750,7 @@ function startTaskPolling(taskId) {
     } catch (e) {
       console.error('Polling error:', e);
     }
-  }, 700);
+  }, 600);
 }
 
 function renderNewBatchItems(items) {
