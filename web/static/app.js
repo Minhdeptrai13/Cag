@@ -528,7 +528,7 @@ const aiMainChatBody = document.getElementById('aiMainChatBody');
 const aiCanvasForm = document.getElementById('aiCanvasForm');
 const aiCanvasInput = document.getElementById('aiCanvasInput');
 
-document.querySelectorAll('.ai-prompt-btn').forEach(btn => {
+document.querySelectorAll('.ai-pill-btn, .ai-prompt-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     const q = btn.getAttribute('data-query');
     if (q) {
