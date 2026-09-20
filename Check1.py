@@ -1222,7 +1222,7 @@ SKIN_SS = {
     "11113": "Violet Huyết Ma Thần", "11115": "Violet Thần long tỷ tỷ", "11118": "Violet Huyết ma thần",
     "11202": "Yorn Thế Tử Nguyệt Tộc", "11204": "Yorn Long thần soái",
     "11212": "Yorn Vệ Binh ngân hà", "11604": "Butterfly Nữ Quái Nổi Loạn",
-    "11611": "Butterfly Thánh nữ khởi nguyên", "11614": "Butterfly Kim ngư thần nữ",
+    "11611": "Butterfly Thánh nữ khởi nguyên", "11614": "Butterfly Kim ngư thần nữ", "11616": "Butterfly Thánh nữ khởi nguyên",
     "11619": "Butterfly Rockgirl Siêu Đẳng", "11808": "Alice Quân Nhạc Athanor", "12008": "Mina Linh Xà yêu vũ",
     "12011": "Mina Tiệc bãi biển", "12304": "Maloch Đại Tướng Robot", "12606": "Arduin Bạch vệ chiến giáp",
     "12608": "Arduin Ngạo Hổ Hàn Đao", "12801": "Lữ Bố Tiệc Bãi Biển", "12804": "Lữ Bố Tiệc Bãi Biển",
@@ -1254,7 +1254,7 @@ SKIN_SS = {
     "50111": "Tel'Annas Vũ khúc yêu hồ", "50117": "Tel'Annas Thiên Vũ Thần Long", "50120": "Tel'annas Kỷ Nguyên Hổ Phách",
     "50121": "Tel'annas Tiệc bãi biển", "50605": "Omen Đao phủ tận thế",
     "50613": "Omen Liệt Hỏa Thiên Cang", "51003": "Liliana Nguyệt mị ly", "51004": "Liliana Tiểu thơ anh đào",
-    "51005": "Liliana Tân nguyệt mị ly", "51008": "Liliana WaVe", "51009": "Liliana WaVe",
+    "51005": "Liliana Tân nguyệt mị ly",
     "51013": "Liliana Lưu Thủy Thần Long", "51208": "Rourke Bách Tướng Lão Đại",
     "51306": "Zata Chí tôn Tà Phượng", "51504": "Richter Kiếm thần Susanoo", "51802": "Quillen Đặc công mãng xà",
     "51808": "Quillen Nghịch thiên long đế", "51814": "Quillen Thẩm phán Trăng khuyết", "51904": "Annette Tiệc bãi biển",
@@ -1267,7 +1267,7 @@ SKIN_SS = {
     "53611": "Aoi Bách thú triều Long",
     "53703": "Allain Tuyết sơn song kiếm", "54507": "Yue Hỗn Độn Thần Ma",
     "54607": "Teeri Vân Y Cẩm Tú", "54802": "Bijan Hoàng kim cơ giáp", "54805": "Bijan Lữ Hành Thời Không",
-    "54806": "Bijan Giai điệu Giáng Sinh", "56301": "Heino Nhật Ký Tình Yêu", "56703": "Erin Tình yêu cổ tích",
+    "56301": "Heino Nhật Ký Tình Yêu", "56703": "Erin Tình yêu cổ tích",
     "56704": "Erin Huyễn Ảnh Mị Điệp", "59802": "Bolt Baron Thiên Phủ", "59901": "Billow Thiên Tướng - Độ Ách",
     "59902": "Billow T-Rex Bất Bại", "152103": "Điêu Thuyền Tiệc bãi biển", "152111": "Điêu Thuyền WaVe",
 }
@@ -1346,6 +1346,7 @@ SKIN_OTHER = {
     "52907": "Volkath S - Quang vinh", "53110": "Keera Quán quân", "53203": "Thorne Quán quân",
     "53205": "Thorne Ước nguyện giáng sinh", "53508": "Sinestrea S-Quang vinh", "53607": "Aoi Quán quân",
     "54007": "Bright Nhà thám hiểm", "54204": "Tachi S-Vinh Quang",
+    "51008": "Liliana WaVe", "51009": "Liliana WaVe", "54806": "Bijan Giai điệu Giáng Sinh",
 }
 
 SKIN_ID_MAP = {
@@ -1386,7 +1387,7 @@ SKIN_ID_MAP = {
     "11602": "Butterfly Xuân nữ ngổ ngáo", "11603": "Butterfly Teen Nữ Công Nghệ", "11604": "Butterfly Nữ Quái Nổi Loạn", "11605": "Butterfly Quận Chúa Đế Chế",
     "11606": "Butterfly Đông êm đềm", "11607": "Butterfly Phượng Cửu Thiên", "11608": "Butterfly Cẩm y vệ: Chu Tước", "11609": "Butterfly Asuna Tia chớp",
     "11610": "Butterfly Stacia", "11611": "Butterfly Thánh nữ khởi nguyên", "11612": "Butterfly Kim ngư thần nữ", "11613": "Butterfly Gánh anh đến cùng",
-    "11614": "Butterfly Tình yêu nổi loạn", "11615": "Butterfly Rockgirl Siêu Đẳng", "11616": "Butterfly Bình minh tận thế", "11617": "Butterfly Ninh Tần",
+    "11614": "Butterfly Tình yêu nổi loạn", "11615": "Butterfly Rockgirl Siêu Đẳng", "11616": "Butterfly Thánh nữ khởi nguyên", "11617": "Butterfly Ninh Tần",
     "11618": "Butterfly Thỏ may mắn", "11619": "Butterfly Rockgirl Siêu Đẳng", "11700": "Ormarr", "11701": "Ormarr Cựu chiến binh",
     "11702": "Ormarr Thông Thỏa Thích", "11703": "Ormarr Giáo Viên Thể Hình", "11704": "Ormarr CĐV Cuồng nhiệt", "11705": "Ormarr Quỷ vệ",
     "11706": "Ormarr Chuyện của nhà nông", "11800": "Alice", "11801": "Alice Nhà chiêm tinh", "11802": "Alice Bé Gấu Tuyết",

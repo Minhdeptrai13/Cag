@@ -87,6 +87,7 @@ SKIN_SS = {
     # Butterfly
     "11604": "Butterfly Nữ Quái Nổi Loạn",
     "11611": "Butterfly Thánh nữ khởi nguyên",
+    "11616": "Butterfly Thánh nữ khởi nguyên",
     "11612": "Butterfly Kim Ngư Thần Nữ",
     # Maloch
     "12304": "Maloch Đại Tướng Robot",
@@ -203,6 +204,12 @@ SKIN_SS = {
     "53311": "Laville Thợ Săn Truy Ảnh",
     "59802": "Bolt Baron Thiên Phủ",
     "59902": "Billow T-Rex Bất Bại",
+    # Tiệc Bãi Biển & S+ Hữu Hạn Bậc SS
+    "10801": "Gildur Tiệc Bãi Biển", "10802": "Gildur Tiệc Bãi Biển",
+    "14403": "Taara Tiệc bãi biển", "14404": "Taara Tiệc bãi biển",
+    "53104": "Keera Tiệc bãi biển",
+    "11109": "Violet Vợ người ta", "11110": "Violet Vợ người ta",
+    "16709": "Ngộ Không Tân niên Võ Thần", "16710": "Ngộ Không Tân niên Võ Thần",
 }
 
 # ── Skin Anime / Hợp Tác Bản Quyền ─────────────────────────────────────────
@@ -333,6 +340,7 @@ SKIN_OTHER = {
     "52804": "Qi Blogger Ẩm thực",
     "12906": "Triệu Vân Thần tài",
     "16304": "Ryoma Samurai huyền thoại",
+    "54806": "Bijan Giai điệu Giáng Sinh",
 }
 
 

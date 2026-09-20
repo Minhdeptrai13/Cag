@@ -206,29 +206,60 @@ def chat_with_copilot(
     if enable_thinking:
         thought_process = generate_reasoning_steps(user_message, u, enable_deep_research)
 
-    candidate_models = [
-        "inclusionai/ling-3.0-flash-vl:free",
-        "kilo-auto/free",
-        "qwen/qwen3.8-27b:free"
-    ]
-
-    for model_name in candidate_models:
-        try:
-            payload = {
-                "model": model_name,
+    gateways = [
+        # Gateway 1: LLMTech Qwen 3.8 27B NVFP4
+        (
+            LLMTECH_GATEWAY_URL,
+            {
+                "model": LLMTECH_MODEL,
                 "messages": messages,
                 "max_tokens": 1024 if enable_deep_research else 768,
                 "temperature": 0.6 if enable_deep_research else 0.7
-            }
+            },
+            {"Content-Type": "application/json", "Authorization": f"Bearer {LLMTECH_PUBLIC_KEY}"}
+        ),
+        # Gateway 2: Kilo AI Auto Free
+        (
+            KILO_GATEWAY_URL,
+            {
+                "model": "kilo-auto/free",
+                "messages": messages,
+                "max_tokens": 1024 if enable_deep_research else 768,
+                "temperature": 0.6 if enable_deep_research else 0.7
+            },
+            {"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"}
+        ),
+        # Gateway 3: Kilo AI Ling 3.0 Flash
+        (
+            KILO_GATEWAY_URL,
+            {
+                "model": "inclusionai/ling-3.0-flash-vl:free",
+                "messages": messages,
+                "max_tokens": 1024 if enable_deep_research else 768,
+                "temperature": 0.6 if enable_deep_research else 0.7
+            },
+            {"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"}
+        ),
+        # Gateway 4: Pollinations OpenAI endpoint (No auth, zero rate limits)
+        (
+            "https://text.pollinations.ai/openai",
+            {
+                "messages": messages,
+                "model": "openai",
+                "temperature": 0.7
+            },
+            {"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"}
+        ),
+    ]
+
+    for g_url, g_payload, g_headers in gateways:
+        try:
             req = urllib.request.Request(
-                KILO_GATEWAY_URL,
-                data=json.dumps(payload).encode("utf-8"),
-                headers={
-                    "Content-Type": "application/json",
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AOV-Copilot/3.0"
-                }
+                g_url,
+                data=json.dumps(g_payload).encode("utf-8"),
+                headers=g_headers
             )
-            with urllib.request.urlopen(req, timeout=3.5) as resp:
+            with urllib.request.urlopen(req, timeout=6.0) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
                 reply = data["choices"][0]["message"]["content"].strip()
                 if is_valid_ai_reply(reply):
@@ -273,64 +304,16 @@ def generate_reasoning_steps(prompt: str, user_name: str, deep_mode: bool) -> st
 
 
 def dynamic_intelligence_response(prompt: str, batch_context: dict, user_name: str = "Tris") -> str:
-    """Dynamic generator analyzing user prompt contextually without rigid if-else blocks"""
+    """Conversational fallback when external gateways are experiencing temporary network latency."""
     u = user_name or "Tris"
-    pl = prompt.lower().strip()
-    msg_lower = pl
+    return f"""Chào **{u}**! Tôi đã phân tích câu hỏi của bạn: **"{prompt.strip()}"**.
 
-    # Code generation request
-    if "check acc" in msg_lower or "code" in msg_lower or "python" in msg_lower or "tool" in msg_lower:
-        return f"""Chào **{u}**! Dưới đây là mã nguồn Python mẫu tối ưu kiểm tra tài khoản Liên Quân siêu tốc:
+Tôi là trợ lý AI chuyên sâu về tối ưu kiểm tra tài khoản, định giá trang phục Liên Quân Mobile (SSS, Anime, SS, WaVe, S+) và phát triển hệ thống tự động.
 
-```python
-import asyncio
-import aiohttp
+Tôi có thể trực tiếp:
+- Thẩm định giá trị tài khoản và độ hiếm dàn skin theo dữ liệu mới nhất.
+- Hướng dẫn cấu hình API socket Garena siêu tốc.
+- Kiểm tra tài khoản trực tiếp (nhập lệnh: `check acc <tài khoản>:<mật khẩu>`).
 
-async def check_garena_account(username: str, password: str, session: aiohttp.ClientSession):
-    url = "https://auth.garena.com/oauth/login"
-    payload = {{
-        "account": username,
-        "password": password,
-        "format": "json"
-    }}
-    headers = {{
-        "User-Agent": "GarenaClient/1.2.0 (Windows NT 10.0; Win64; x64)",
-        "Content-Type": "application/x-www-form-urlencoded"
-    }}
-    try:
-        async with session.post(url, data=payload, headers=headers, timeout=5) as resp:
-            data = await resp.json()
-            if data.get("error"):
-                return {{"status": "FAILED", "msg": data.get("error")}}
-            return {{"status": "SUCCESS", "token": data.get("token")}}
-    except Exception as e:
-        return {{"status": "ERROR", "msg": str(e)}}
-
-# Ví dụ chạy batch kiểm tra
-async def main():
-    async with aiohttp.ClientSession() as session:
-        result = await check_garena_account("player_demo", "secret_pass", session)
-        print("Kết quả:", result)
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-
-> [KHUYẾN NGHỊ]: Sử dụng `aiohttp` để kiểm tra song song hàng ngàn tài khoản mà không gây nghẽn tiến trình!"""
-
-    # Check identity
-    if any(k in pl for k in ("tôi là ai", "ai đây", "biết tôi không", "who am i", "tên tôi")):
-        return f"""Bạn chính là **{u}**! 
-
-Hệ thống AOV Studio đã nhận diện và đồng bộ danh tính của {u} trên toàn bộ phiên làm việc. Hôm nay {u} muốn tôi hỗ trợ viết code, phân tích lô tài khoản hay kiểm định dàn skin nào?"""
-
-    # General conversation
-    return f"""Chào **{u}**! Tôi đã tiếp nhận yêu cầu của bạn: **"{prompt.strip()}"**.
-
-Tôi có thể hỗ trợ:
-1. [LẬP TRÌNH]: Viết code / script tự động (Python, JavaScript, cURL API...).
-2. [ĐỊNH GIÁ]: Định giá & thẩm định nick VIP (SSS Thứ Nguyên, Anime Collab, SS Hữu hạn...).
-3. [KIẾN TRÚC]: Cấu hình luồng quét & API Gateway.
-
-{u} cần tôi giải quyết cụ thể phần nào tiếp theo nào?"""
+{u} muốn trao đổi chi tiết về chủ đề nào tiếp theo?"""
 
