@@ -52,33 +52,32 @@ def build_system_rag_prompt(batch_context: dict = None, user_name: str = "Tris")
         trang = batch_context.get("trang", 0)
         recent_hits = batch_context.get("recent_hits", [])
         context_str = f"""
-LIVE TELEMETRY CỦA BATCH HIỆN TẠI TRÊN WEB:
-- Tổng tài khoản đang quét: {total}
-- Số acc LIVE (HITS): {hits}
-- Số acc TRẮNG TTT (không dính SĐT/CCCD/Mail): {trang}
-- Mẫu các acc sống vừa tìm thấy:
+LIVE TELEMETRY BATCH HIỆN TẠI TRÊN HỆ THỐNG:
+- Tổng acc đang quét: {total} | Acc LIVE: {hits} | Acc Trắng TTT: {trang}
+- 5 Acc sống gần nhất:
 """
         for h in recent_hits[:5]:
             ingame = h.get("ingame") or "Chưa đặt tên"
             rank = h.get("rank") or "Chưa Đấu Hạng"
-            skins = h.get("skins_vip") or "Không có skin VIP"
-            context_str += f"  * Acc {h.get('account')}: Ingame={ingame} | Rank={rank} | Skin VIP={skins} | Trạng thái={h.get('tinh_trang')}\n"
+            skins = h.get("skins_vip") or "0 Skin VIP"
+            context_str += f"  * {h.get('account')}: {ingame} | {rank} | {skins} | {h.get('tinh_trang')}\n"
 
-    return f"""Bạn là AOV Studio Copilot - Chuyên gia AI phân tích tài khoản Liên Quân Mobile và cố vấn kỹ thuật đắc lực của người dùng tên là {user_name}.
-Luôn xưng hô thân mật, gọi đúng tên "{user_name}" một cách tự nhiên trong câu trả lời.
-KIẾN THỨC CỐT LÕI VỀ LIÊN QUÂN MOBILE:
-1. Phân loại bậc Skin:
-   - SSS / Thứ Nguyên Vệ Thần (Đắt đỏ nhất, hiệu ứng tối thượng): {sss_sample}...
-   - Anime Bản Quyền (SAO, Kimetsu, Bleach, Hunter x Hunter, JJK, AOT...): {anime_sample}...
-   - Bậc SS / SS Hữu Hạn (Hiệu ứng biến về, âm thanh riêng): {ss_sample}...
-2. Giá trị tài khoản:
-   - Acc "Trắng Thông Tin" (Chưa cài SĐT, Mail, CCCD) có giá trị cao nhất vì người mua đổi thông tin ngay lập tức.
-   - Acc dính SĐT hoặc CCCD bị giảm giá trị đáng kể.
-{context_str}
-NHIỆM VỤ CỦA BẠN:
-- Phân tích, tư vấn giá bán, lọc tài khoản theo yêu cầu của {user_name}.
-- Trả lời siêu tốc, thông minh, ngắn gọn, đi thẳng vào trọng tâm, tuyệt đối không lặp lại khuôn mẫu máy móc.
-"""
+    return f"""Bạn là AOV Studio Senior Copilot - Chuyên gia công nghệ hệ thống & thẩm định tài khoản Liên Quân Mobile hàng đầu, hỗ trợ cho người dùng {user_name}.
+
+QUY TẮC PHẢN HỒI BẮT BUỘC:
+1. KHÔNG BAO GIỜ lặp lại hay chép lại câu hỏi của người dùng ("Chào bạn, tôi đã phân tích câu hỏi: ...").
+2. KHÔNG chào hỏi vòng vo, sáo rỗng. Hãy đi thẳng vào nội dung phân tích, trả lời trực diện vấn đề.
+3. KHÔNG sử dụng emoji màu mè. Chỉ dùng định dạng Markdown chuẩn (bold, bullet, code block, quote).
+4. Giữ phong thái chuyên nghiệp, am hiểu sâu sắc về kiến trúc mạng (socket, session Garena, bypass bot), định giá thị trường và game meta Liên Quân.
+
+KIẾN THỨC NGHIỆP VỤ LIÊN QUÂN MOBILE & GARENA:
+- Acc Trắng Thông Tin (TTT): Chưa kích hoạt Số Điện Thoại (SĐT), chưa xác thực CCCD/CMND, chưa liên kết Facebook, và chưa cài Email xác thực (hoặc Email ảo chưa xác minh). Đây là loại tài khoản giá trị nhất vì người mua có thể đăng nhập vào https://account.garena.com và thêm ngay SĐT/Email chính chủ để đổi mật khẩu ngay lập tức mà không sợ bị chủ cũ back/khôi phục tài khoản.
+- Acc Dính SĐT/CCCD: Phải đổi thông tin qua SMS OTP hoặc hỗ trợ Garena (chờ 30 ngày ngâm hoặc xác minh CCCD), rủi ro cao, giá trị giảm 40% - 70%.
+- Bậc Skin cao cấp:
+  * Bậc SSS / Thứ Nguyên Vệ Thần / Vô Địch: {sss_sample}...
+  * Bậc Anime Collab (SAO Kirito/Asuna, Kimetsu Tanjiro/Nezuko, Bleach, HxH, JJK, Sailor Moon...): {anime_sample}...
+  * Bậc SS / SS Tuyệt Sắc / SS Hữu Hạn: {ss_sample}...
+{context_str}"""
 
 
 # ── Dynamic Keyless LLM Pool via freellmpool ──────────────────────────────
@@ -206,6 +205,32 @@ def chat_with_copilot(
     if enable_thinking:
         thought_process = generate_reasoning_steps(user_message, u, enable_deep_research)
 
+    # Try Priority Tier: Multi-Provider LLM Pool (freellmpool)
+    pool = get_free_llm_pool()
+    if pool:
+        try:
+            pool_reply = pool.chat(messages, max_tokens=1024 if enable_deep_research else 800)
+            reply_text = getattr(pool_reply, "text", str(pool_reply)).strip()
+            if is_valid_ai_reply(reply_text):
+                return {
+                    "reply": reply_text,
+                    "thought": thought_process,
+                    "account_result": None
+                }
+        except Exception as pe:
+            # If max_tokens kwarg not supported, retry with standard signature
+            try:
+                pool_reply = pool.chat(messages)
+                reply_text = getattr(pool_reply, "text", str(pool_reply)).strip()
+                if is_valid_ai_reply(reply_text):
+                    return {
+                        "reply": reply_text,
+                        "thought": thought_process,
+                        "account_result": None
+                    }
+            except Exception:
+                pass
+
     gateways = [
         # Gateway 1: LLMTech Qwen 3.8 27B NVFP4
         (
@@ -245,7 +270,7 @@ def chat_with_copilot(
             "https://text.pollinations.ai/openai",
             {
                 "messages": messages,
-                "model": "openai",
+                "model": "openai-fast",
                 "temperature": 0.7
             },
             {"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"}
@@ -259,7 +284,7 @@ def chat_with_copilot(
                 data=json.dumps(g_payload).encode("utf-8"),
                 headers=g_headers
             )
-            with urllib.request.urlopen(req, timeout=6.0) as resp:
+            with urllib.request.urlopen(req, timeout=10.0) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
                 reply = data["choices"][0]["message"]["content"].strip()
                 if is_valid_ai_reply(reply):
@@ -271,7 +296,7 @@ def chat_with_copilot(
         except Exception:
             continue
 
-    # Fallback to local dynamic intelligence
+    # Fallback to smart contextual local intelligence (never echo user question)
     fallback_reply = dynamic_intelligence_response(user_message, batch_context, user_name=u)
     return {
         "reply": fallback_reply,
@@ -284,36 +309,88 @@ def generate_reasoning_steps(prompt: str, user_name: str, deep_mode: bool) -> st
     """Generates Chain-of-Thought (CoT) steps for the Accordion thinking viewer"""
     pl = prompt.lower()
     steps = [
-        f"1. Phân tích ngữ cảnh người dùng: Xác định người gửi là `{user_name}`, trích xuất ý định (Intent Detection).",
-        f"2. Kích hoạt bộ nhớ RAG: Tải cấu trúc phân loại Skin SSS/Anime và tiêu chuẩn bảo mật tài khoản Garena."
+        f"1. Phân tích ngữ cảnh & tri thức: Tiếp nhận chỉ lệnh của {user_name}, trích xuất đặc trưng câu hỏi.",
+        "2. Kích hoạt RAG Core: Khai thác cơ sở dữ liệu phân cấp Skin SSS/Anime/SS và tiêu chuẩn bảo mật tài khoản Garena."
     ]
-    if any(k in pl for k in ("code", "python", "script", "viết", "hàm")):
-        steps.append("3. Khối sinh mã (Code Synthesizer): Lựa chọn thư viện `aiohttp` / `asyncio` để tối đa hóa I/O bất đồng bộ.")
-        steps.append("4. Tối ưu thuật toán: Áp dụng Connection Pool và xử lý timeout chống rò rỉ socket.")
-    elif any(k in pl for k in ("giá", "định giá", "bao nhiêu", "tiền")):
-        steps.append("3. Ma trận định giá (Valuation Matrix): Đối chiếu độ hiếm Skin Thứ Nguyên Vệ Thần và tình trạng liên kết SĐT/Mail.")
-        steps.append("4. Hiệu chỉnh giá trị: Giảm trừ rủi ro đối với acc dính thông tin cá nhân.")
+    if any(k in pl for k in ("code", "python", "script", "viết", "hàm", "socket")):
+        steps.append("3. Khối sinh mã (Code Synthesizer): Phân tích giao thức TLS/TCP, tối ưu Connection Pool và async I/O.")
+        steps.append("4. Tối ưu kiến trúc: Áp dụng non-blocking socket và cơ chế tự phục hồi lỗi kết nối.")
+    elif any(k in pl for k in ("trắng", "đổi mật khẩu", "bảo mật", "sđt", "cccd", "mail")):
+        steps.append("3. Khảo sát luồng xác thực Garena: Kiểm tra tính độc lập của Email, SĐT, CCCD và cơ chế khôi phục mật khẩu.")
+        steps.append("4. Thẩm định an toàn giao dịch: Xác định khả năng bảo vệ tài khoản sau khi đổi pass.")
+    elif any(k in pl for k in ("giá", "định giá", "bao nhiêu", "tiền", "bán")):
+        steps.append("3. Ma trận định giá (Valuation Matrix): Đối chiếu độ hiếm Skin SSS, Anime giới hạn và tình trạng liên kết thông tin.")
+        steps.append("4. Hiệu chỉnh chiết khấu thị trường: Tính toán độ thanh khoản dựa trên rank và tướng hot pick.")
     else:
-        steps.append("3. Kiểm định luồng dữ liệu và tổng hợp tri thức nghiệp vụ chuyên sâu.")
+        steps.append("3. Kiểm định luồng suy luận nghiệp vụ chuyên sâu và tổng hợp giải pháp kỹ thuật.")
 
     if deep_mode:
-        steps.append("5. [Deep-Research Engine]: Quét mở rộng tham số cấu hình socket và kiến trúc mở rộng tải cao.")
+        steps.append("5. [Deep-Research Engine]: Kích hoạt tổng hợp phân tích đa tầng, đào sâu thuật toán và cơ chế bảo mật hệ thống.")
 
-    steps.append("6. Hoàn tất chuỗi tư duy logic. Chuyển giao phản hồi đến giao diện người dùng.")
+    steps.append("6. Hoàn tất chuỗi tư duy logic. Chuyển giao phản hồi chi tiết tới giao diện người dùng.")
     return "\n".join(steps)
 
 
 def dynamic_intelligence_response(prompt: str, batch_context: dict, user_name: str = "Tris") -> str:
-    """Conversational fallback when external gateways are experiencing temporary network latency."""
+    """Smart contextual answer when external gateways have temporary latency."""
+    p_lower = prompt.lower()
     u = user_name or "Tris"
-    return f"""Chào **{u}**! Tôi đã phân tích câu hỏi của bạn: **"{prompt.strip()}"**.
 
-Tôi là trợ lý AI chuyên sâu về tối ưu kiểm tra tài khoản, định giá trang phục Liên Quân Mobile (SSS, Anime, SS, WaVe, S+) và phát triển hệ thống tự động.
+    # Intent 1: Acc trắng thông tin & đổi pass
+    if any(k in p_lower for k in ("trắng", "đổi pass", "đổi mật khẩu", "thông tin an toàn", "ttt")):
+        return f"""**Tiêu chuẩn Acc Trắng Thông Tin (TTT) an toàn & Đổi mật khẩu ngay trong Garena:**
 
-Tôi có thể trực tiếp:
-- Thẩm định giá trị tài khoản và độ hiếm dàn skin theo dữ liệu mới nhất.
-- Hướng dẫn cấu hình API socket Garena siêu tốc.
-- Kiểm tra tài khoản trực tiếp (nhập lệnh: `check acc <tài khoản>:<mật khẩu>`).
+1. **Định nghĩa chuẩn Acc Trắng Thông Tin (100% TTT):**
+   - **Số điện thoại (SĐT)**: Hoàn toàn chưa đăng ký (trạng thái: *Chưa kích hoạt*).
+   - **Email**: Chưa đăng ký hoặc chỉ có Email ảo chưa từng bấm xác thực link kích hoạt.
+   - **CCCD/CMND**: Trống 100%, chưa từng lưu số định danh vào hệ thống xác thực của Garena.
+   - **Liên kết mạng xã hội**: Không gắn tài khoản Facebook, Google hay Apple ID.
 
-{u} muốn trao đổi chi tiết về chủ đề nào tiếp theo?"""
+2. **Quy trình đổi mật khẩu an toàn tuyệt đối:**
+   - **Bước 1**: Đăng nhập trực tiếp vào trung tâm quản lý tài khoản chính thức: `https://account.garena.com`.
+   - **Bước 2**: Tại mục **Bảo mật**, chọn **Đăng ký Số Điện Thoại** và nhập SĐT chính chủ của bạn trước.
+   - **Bước 3**: Nhập mã OTP từ SMS để xác minh SĐT thành công.
+   - **Bước 4**: Sau khi đã gắn SĐT chính chủ, tiến hành chọn **Đổi mật khẩu** ngay lập tức qua mã xác thực OTP gửi về SĐT của bạn.
+   - **Bước 5**: Thêm Email chính chủ và kích hoạt để nhận thông báo biến động tài khoản.
+
+3. **Lưu ý then chốt khi giao dịch:**
+   - Nếu acc đã bị gắn SĐT hoặc CCCD của người khác, tuyệt đối không thể đổi mật khẩu an toàn vì chủ cũ có thể gửi yêu cầu hỗ trợ (Ticket Garena) kèm ảnh CCCD để thu hồi tài khoản bất kỳ lúc nào."""
+
+    # Intent 2: Định giá tài khoản & skin
+    if any(k in p_lower for k in ("giá", "định giá", "bao nhiêu", "tiền", "bán")):
+        return f"""**Nguyên tắc thẩm định & định giá tài khoản Liên Quân Mobile chuẩn thị trường:**
+
+1. **Trọng số Bậc Skin:**
+   - **Skin SSS / Thứ Nguyên Vệ Thần (Tulen, Nakroth, Tel'Annas, Lauriel, Violet...)**: Chiếm từ 400.000đ - 1.500.000đ/skin tùy theo độ hot và hiệu ứng biến về.
+   - **Skin Anime Collab Bản Quyền (SAO, Kimetsu, Jujutsu Kaisen, Bleach, Sailor Moon...)**: Thường có giá trị sưu tầm cao vì không mở bán lại thường xuyên (từ 250.000đ - 600.000đ/skin).
+   - **Skin SS Tuyệt Sắc / SS Hữu Hạn**: Dao động từ 80.000đ - 200.000đ/skin.
+
+2. **Hệ số Thông Tin Tài Khoản:**
+   - **Acc Trắng Thông Tin (TTT)**: Giữ nguyên 100% giá trị thị trường, thanh khoản cực nhanh.
+   - **Acc Dính SĐT (Còn pass)**: Bị trừ từ 30% - 50% giá trị do rủi ro tranh chấp.
+   - **Acc Dính CCCD**: Bị trừ từ 50% - 70% giá trị (rất khó bán cho người dùng cá nhân).
+
+Để tôi thẩm định chuẩn xác cho bạn, bạn có thể gõ trực tiếp tên dàn skin VIP hoặc dùng cú pháp: `check acc <tài_khoản>:<mật_khẩu>`."""
+
+    # Intent 3: Giới thiệu bản thân & Năng lực
+    if any(k in p_lower for k in ("bạn là ai", "bạn thực sự là gì", "mày là ai", "ai đấy")):
+        return f"""Tôi là **AOV Studio Copilot** - Hệ thống trợ lý AI chuyên sâu về tự động hóa & thẩm định tài khoản Liên Quân Mobile.
+
+**Các năng lực cốt lõi:**
+1. **Kiểm tra & Phân tích Tài khoản Trực tiếp**: Nhập `check acc user:pass`, tôi sẽ kích hoạt Core Engine gọi socket xác thực Garena, trích xuất toàn bộ rank, tướng, dàn skin VIP, trạng thái SĐT/CCCD/Mail theo thời gian thực.
+2. **Thẩm định & Định giá Dàn Skin**: Tra cứu chính xác dữ liệu hơn 1.400 trang phục Liên Quân (từ bậc SSS, Anime bản quyền tới SS/S+), phân tích giá trị quy đổi thị trường.
+3. **Kiến trúc & Tối ưu Hệ thống**: Hỗ trợ viết code Python, tối ưu multithreading/socket scanner, xử lý bypass rate limit và cơ chế lọc dữ liệu batch lớn.
+
+Bạn đang cần xử lý tác vụ hay giải quyết vấn đề kỹ thuật nào?"""
+
+    # Default General Architecture / AOV Query Answer
+    return f"""Hệ thống đã ghi nhận yêu cầu của {u}.
+
+Hiện tại Copilot đã liên kết đồng bộ với cơ sở dữ liệu hơn 1.400 Skin Liên Quân Mobile và công cụ kiểm định Garena Socket đa luồng. 
+
+**Bạn có thể yêu cầu:**
+- Phân tích chi tiết độ an toàn hoặc phương pháp đổi thông tin tài khoản Garena.
+- Thẩm định giá trị một tài khoản cụ thể theo danh sách skin VIP đang sở hữu.
+- Kiểm tra trực tiếp một tài khoản bằng cách gõ: `check acc <tài_khoản>:<mật_khẩu>`.
+- Tư vấn giải pháp kiến trúc mã nguồn Python cho hệ thống quét hàng loạt (batch worker, connection pool, rate limiting)."""
 
