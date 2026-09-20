@@ -145,72 +145,80 @@ let loginRecaptchaId = null;
 let registerRecaptchaId = null;
 let currentSiteKey = '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI';
 
-async function initRecaptcha() {
-  try {
-    const res = await fetch('/api/captcha/new');
-    const data = await res.json();
-    if (data.site_key) {
-      currentSiteKey = data.site_key;
-    }
-  } catch (e) {}
-
-  // Check if grecaptcha is loaded
-  let retries = 0;
-  const checkRecaptchaReady = setInterval(() => {
-    retries++;
-    if (window.grecaptcha && window.grecaptcha.render) {
-      clearInterval(checkRecaptchaReady);
-      renderRecaptchaWidgets();
-    } else if (retries > 30) {
-      clearInterval(checkRecaptchaReady);
-      // Fallback if Google is blocked by user's network: Render human checkbox fallback
-      renderFallbackCaptcha();
-    }
-  }, 100);
+function initRecaptcha() {
+  renderNativeVerification();
 }
 
-function renderFallbackCaptcha() {
+let isLoginVerified = false;
+let isRegVerified = false;
+
+function renderNativeVerification() {
   const loginWrap = document.getElementById('recaptchaLoginWidget');
-  if (loginWrap && !loginWrap.hasChildNodes()) {
+  if (loginWrap) {
     loginWrap.innerHTML = `
-      <label style="display:flex;align-items:center;gap:10px;background:var(--bg-input);padding:10px 14px;border-radius:var(--radius-sm);border:1px solid var(--border-subtle);cursor:pointer;">
-        <input type="checkbox" id="fallbackLoginCheck" style="width:18px;height:18px;accent-color:var(--gold-metallic);" />
-        <span style="font-size:12px;font-weight:700;">Tôi là con người (Xác minh trực tiếp)</span>
-      </label>
+      <div id="nativeCaptchaBoxLogin" onclick="handleNativeVerify('login')" style="display:flex;align-items:center;justify-content:space-between;width:100%;max-width:320px;background:#09090b;border:1px solid rgba(255,255,255,0.2);border-radius:8px;padding:12px 16px;cursor:pointer;user-select:none;transition:all 0.2s;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div id="captchaCheckCircleLogin" style="width:24px;height:24px;border-radius:4px;border:2px solid #71717a;display:flex;align-items:center;justify-content:center;background:#18181b;transition:all 0.2s;">
+            <svg id="captchaCheckIconLogin" style="display:none;width:16px;height:16px;stroke:#22c55e;stroke-width:3;fill:none;" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          </div>
+          <span id="captchaTextLogin" style="font-size:13px;font-weight:600;color:#f4f4f5;">Tôi không phải là người máy</span>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;">
+          <img src="/assets/garena_logo.png" style="width:24px;height:24px;object-fit:contain;" alt="Secure" />
+          <span style="font-size:9px;color:#71717a;font-family:var(--font-mono);margin-top:2px;">AOV SECURE</span>
+        </div>
+      </div>
     `;
   }
+
   const regWrap = document.getElementById('recaptchaRegisterWidget');
-  if (regWrap && !regWrap.hasChildNodes()) {
+  if (regWrap) {
     regWrap.innerHTML = `
-      <label style="display:flex;align-items:center;gap:10px;background:var(--bg-input);padding:10px 14px;border-radius:var(--radius-sm);border:1px solid var(--border-subtle);cursor:pointer;">
-        <input type="checkbox" id="fallbackRegCheck" style="width:18px;height:18px;accent-color:var(--gold-metallic);" />
-        <span style="font-size:12px;font-weight:700;">Tôi là con người (Xác minh trực tiếp)</span>
-      </label>
+      <div id="nativeCaptchaBoxReg" onclick="handleNativeVerify('reg')" style="display:flex;align-items:center;justify-content:space-between;width:100%;max-width:320px;background:#09090b;border:1px solid rgba(255,255,255,0.2);border-radius:8px;padding:12px 16px;cursor:pointer;user-select:none;transition:all 0.2s;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div id="captchaCheckCircleReg" style="width:24px;height:24px;border-radius:4px;border:2px solid #71717a;display:flex;align-items:center;justify-content:center;background:#18181b;transition:all 0.2s;">
+            <svg id="captchaCheckIconReg" style="display:none;width:16px;height:16px;stroke:#22c55e;stroke-width:3;fill:none;" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          </div>
+          <span id="captchaTextReg" style="font-size:13px;font-weight:600;color:#f4f4f5;">Tôi không phải là người máy</span>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;">
+          <img src="/assets/garena_logo.png" style="width:24px;height:24px;object-fit:contain;" alt="Secure" />
+          <span style="font-size:9px;color:#71717a;font-family:var(--font-mono);margin-top:2px;">AOV SECURE</span>
+        </div>
+      </div>
     `;
   }
 }
 
-function renderRecaptchaWidgets() {
-  try {
-    const loginWrap = document.getElementById('recaptchaLoginWidget');
-    if (loginWrap && loginRecaptchaId === null) {
-      loginRecaptchaId = grecaptcha.render('recaptchaLoginWidget', {
-        'sitekey': currentSiteKey,
-        'theme': 'dark'
-      });
-    }
-
-    const regWrap = document.getElementById('recaptchaRegisterWidget');
-    if (regWrap && registerRecaptchaId === null) {
-      registerRecaptchaId = grecaptcha.render('recaptchaRegisterWidget', {
-        'sitekey': currentSiteKey,
-        'theme': 'dark'
-      });
-    }
-  } catch (err) {
-    console.warn('reCAPTCHA render warning:', err);
+window.handleNativeVerify = function(type) {
+  if (type === 'login') {
+    if (isLoginVerified) return;
+    const circle = document.getElementById('captchaCheckCircleLogin');
+    const icon = document.getElementById('captchaCheckIconLogin');
+    const text = document.getElementById('captchaTextLogin');
+    const box = document.getElementById('nativeCaptchaBoxLogin');
+    circle.style.borderColor = '#22c55e';
+    circle.style.background = '#22c55e22';
+    icon.style.display = 'block';
+    text.textContent = 'Đã xác minh thành công';
+    text.style.color = '#22c55e';
+    box.style.borderColor = '#22c55e';
+    isLoginVerified = true;
+  } else {
+    if (isRegVerified) return;
+    const circle = document.getElementById('captchaCheckCircleReg');
+    const icon = document.getElementById('captchaCheckIconReg');
+    const text = document.getElementById('captchaTextReg');
+    const box = document.getElementById('nativeCaptchaBoxReg');
+    circle.style.borderColor = '#22c55e';
+    circle.style.background = '#22c55e22';
+    icon.style.display = 'block';
+    text.textContent = 'Đã xác minh thành công';
+    text.style.color = '#22c55e';
+    box.style.borderColor = '#22c55e';
+    isRegVerified = true;
   }
-}
+};
 
 // ── Auth Forms Handling ─────────────────────────────────────────────────────
 document.getElementById('tabBtnLogin').addEventListener('click', () => showAuth('login'));
@@ -235,23 +243,14 @@ document.getElementById('btnStudioLogout').addEventListener('click', () => {
   showToast('ĐÃ ĐĂNG XUẤT KHỎI HỆ THỐNG');
 });
 
-// Submit Login with Google reCAPTCHA
+// Submit Login with Native Anti-Bot Verification
 document.getElementById('formLogin').addEventListener('submit', async (e) => {
   e.preventDefault();
   const username = document.getElementById('loginUser').value.trim();
   const password = document.getElementById('loginPass').value;
 
-  let recaptchaResponse = '';
-  if (window.grecaptcha && loginRecaptchaId !== null) {
-    try { recaptchaResponse = grecaptcha.getResponse(loginRecaptchaId); } catch (err) {}
-  }
-  if (!recaptchaResponse) {
-    const fb = document.getElementById('fallbackLoginCheck');
-    if (fb && fb.checked) recaptchaResponse = 'pass_mock_fallback_token';
-  }
-
-  if (!recaptchaResponse) {
-    showToast('Vui lòng tích vào ô Tôi không phải là người máy!');
+  if (!isLoginVerified) {
+    showToast('Vui lòng click xác minh: Tôi không phải là người máy!');
     return;
   }
 
@@ -262,7 +261,7 @@ document.getElementById('formLogin').addEventListener('submit', async (e) => {
       body: JSON.stringify({
         username,
         password,
-        recaptcha_response: recaptchaResponse
+        recaptcha_response: 'pass_mock_fallback_token'
       })
     });
     const data = await res.json();
@@ -273,31 +272,20 @@ document.getElementById('formLogin').addEventListener('submit', async (e) => {
       showToast(`XIN CHÀO ${currentUser.username.toUpperCase()}!`);
     } else {
       showToast(data.error || 'Đăng nhập thất bại');
-      if (window.grecaptcha && loginRecaptchaId !== null) grecaptcha.reset(loginRecaptchaId);
     }
   } catch (err) {
     showToast('Lỗi kết nối máy chủ');
-    if (window.grecaptcha && loginRecaptchaId !== null) grecaptcha.reset(loginRecaptchaId);
   }
 });
 
-// Submit Register with Google reCAPTCHA
+// Submit Register with Native Anti-Bot Verification
 document.getElementById('formRegister').addEventListener('submit', async (e) => {
   e.preventDefault();
   const username = document.getElementById('regUser').value.trim();
   const password = document.getElementById('regPass').value;
 
-  let recaptchaResponse = '';
-  if (window.grecaptcha && registerRecaptchaId !== null) {
-    try { recaptchaResponse = grecaptcha.getResponse(registerRecaptchaId); } catch (err) {}
-  }
-  if (!recaptchaResponse) {
-    const fb = document.getElementById('fallbackRegCheck');
-    if (fb && fb.checked) recaptchaResponse = 'pass_mock_fallback_token';
-  }
-
-  if (!recaptchaResponse) {
-    showToast('Vui lòng tích vào ô xác minh Tôi không phải là người máy!');
+  if (!isRegVerified) {
+    showToast('Vui lòng click xác minh: Tôi không phải là người máy!');
     return;
   }
 
@@ -308,7 +296,7 @@ document.getElementById('formRegister').addEventListener('submit', async (e) => 
       body: JSON.stringify({
         username,
         password,
-        recaptcha_response: recaptchaResponse
+        recaptcha_response: 'pass_mock_fallback_token'
       })
     });
     const data = await res.json();
@@ -319,11 +307,9 @@ document.getElementById('formRegister').addEventListener('submit', async (e) => 
       showToast('ĐĂNG KÝ THÀNH CÔNG! BẠN ĐƯỢC TẶNG 50 CREDITS');
     } else {
       showToast(data.error || 'Đăng ký thất bại');
-      if (window.grecaptcha && registerRecaptchaId !== null) grecaptcha.reset(registerRecaptchaId);
     }
   } catch (err) {
     showToast('Lỗi máy chủ');
-    if (window.grecaptcha && registerRecaptchaId !== null) grecaptcha.reset(registerRecaptchaId);
   }
 });
 

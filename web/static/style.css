@@ -9,37 +9,37 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 :root {
-  /* DARK THEME: TRẮNG - CAM - VÀNG HOÀNG GIA */
-  --bg-black: #0c0a09;
-  --bg-deep: #14110e;
-  --bg-surface: #1c1917;
-  --bg-card: rgba(28, 25, 23, 0.85);
-  --bg-card-hover: rgba(41, 37, 36, 0.95);
-  --bg-input: #171412;
+  /* DARK THEME: TRẮNG - ĐEN - BẠC (MONOCHROME LUXURY) */
+  --bg-black: #000000;
+  --bg-deep: #09090b;
+  --bg-surface: #121215;
+  --bg-card: rgba(18, 18, 21, 0.9);
+  --bg-card-hover: rgba(26, 26, 30, 0.95);
+  --bg-input: #09090b;
 
-  --violet-neon: #ea580c; /* Orange accent */
-  --violet-glow: rgba(234, 88, 12, 0.35);
-  --indigo-core: #f97316; /* Bright Orange */
-  --indigo-glow: rgba(249, 115, 22, 0.3);
+  --violet-neon: #ffffff;
+  --violet-glow: rgba(255, 255, 255, 0.2);
+  --indigo-core: #e4e4e7;
+  --indigo-glow: rgba(228, 228, 231, 0.2);
 
-  --gold-metallic: #f59e0b;
-  --gold-light: #fbbf24;
-  --gold-glow: rgba(245, 158, 11, 0.4);
+  --gold-metallic: #ffffff;
+  --gold-light: #f4f4f5;
+  --gold-glow: rgba(255, 255, 255, 0.3);
 
   --white-ice: #ffffff;
-  --white-soft: #fffbeb;
+  --white-soft: #fafafa;
   --text-primary: #ffffff;
-  --text-secondary: #d6d3d1;
-  --text-muted: #a8a29e;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
 
-  --green-neon: #10b981;
-  --green-glow: rgba(16, 185, 129, 0.25);
+  --green-neon: #22c55e;
+  --green-glow: rgba(34, 197, 94, 0.25);
   --red-neon: #ef4444;
   --red-glow: rgba(239, 68, 68, 0.25);
 
-  --border-subtle: rgba(245, 158, 11, 0.15);
-  --border-violet: rgba(234, 88, 12, 0.45);
-  --border-gold: rgba(245, 158, 11, 0.45);
+  --border-subtle: rgba(255, 255, 255, 0.12);
+  --border-violet: rgba(255, 255, 255, 0.3);
+  --border-gold: rgba(255, 255, 255, 0.4);
 
   --font-display: 'Outfit', -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
@@ -52,32 +52,32 @@
 }
 
 [data-theme="light"] {
-  /* LIGHT/CYBER THEME: XANH ĐEN - TÍM NEON - SẮC NÉT KHÔNG CHÓI */
-  --bg-black: #0f172a;
-  --bg-deep: #1e1b4b;
-  --bg-surface: #1e293b;
-  --bg-card: rgba(30, 41, 59, 0.88);
-  --bg-card-hover: rgba(51, 65, 85, 0.95);
-  --bg-input: #0f172a;
+  /* LIGHT THEME: TRẮNG TINH KHÔI - ĐEN TUYỀN (MONOCHROME MINIMAL) */
+  --bg-black: #ffffff;
+  --bg-deep: #f4f4f5;
+  --bg-surface: #ffffff;
+  --bg-card: rgba(255, 255, 255, 0.95);
+  --bg-card-hover: #f4f4f5;
+  --bg-input: #f4f4f5;
 
-  --violet-neon: #c084fc; /* Neon Purple */
-  --violet-glow: rgba(192, 132, 252, 0.35);
-  --indigo-core: #818cf8; /* Mystic Indigo */
-  --indigo-glow: rgba(129, 140, 248, 0.3);
+  --violet-neon: #09090b;
+  --violet-glow: rgba(9, 9, 11, 0.15);
+  --indigo-core: #18181b;
+  --indigo-glow: rgba(24, 24, 27, 0.15);
 
-  --gold-metallic: #38bdf8; /* Cyan Blue Metallic */
-  --gold-light: #7dd3fc;
-  --gold-glow: rgba(56, 189, 248, 0.35);
+  --gold-metallic: #09090b;
+  --gold-light: #27272a;
+  --gold-glow: rgba(0, 0, 0, 0.15);
 
-  --white-ice: #ffffff;
-  --white-soft: #f8fafc;
-  --text-primary: #f8fafc;
-  --text-secondary: #cbd5e1;
-  --text-muted: #94a3b8;
+  --white-ice: #000000;
+  --white-soft: #09090b;
+  --text-primary: #09090b;
+  --text-secondary: #52525b;
+  --text-muted: #71717a;
 
-  --border-subtle: rgba(192, 132, 252, 0.18);
-  --border-violet: rgba(192, 132, 252, 0.45);
-  --border-gold: rgba(56, 189, 248, 0.45);
+  --border-subtle: rgba(0, 0, 0, 0.1);
+  --border-violet: rgba(0, 0, 0, 0.25);
+  --border-gold: rgba(0, 0, 0, 0.35);
 }
 
 * {
