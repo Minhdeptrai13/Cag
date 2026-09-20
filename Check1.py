@@ -127,7 +127,7 @@ FC_MOBILE_VN_APP_ID = 100155
 DF_GARENA_CLIENT_ID = 100151
 
 # ── Global State & Concurrency ────────────────────────────────────────────────
-_HOST_IP = None
+_HOST_IP = "103.247.205.14"
 _HOST_IP_lock = threading.Lock()
 
 _HTTP_POOL = None
@@ -169,14 +169,26 @@ def _ensure_http_pool():
 
 
 # ── Socket & Connection Helpers ───────────────────────────────────────────────
-def _resolve_host_ip(timeout: int = 5) -> str:
-    """Resolve HOST to a connectable IP. Probe DNS + known pool, then cache."""
+def _resolve_host_ip(timeout: float = 0.8) -> str:
+    """Resolve HOST to a connectable IP. Fast-probes known IP pool first, then DNS fallback."""
     global _HOST_IP
     if _HOST_IP:
         return _HOST_IP
     with _HOST_IP_lock:
         if _HOST_IP:
             return _HOST_IP
+
+        known_pool = ["103.247.205.14", "103.247.205.15", "103.247.205.16", "103.247.205.17", "103.247.205.18"]
+        for ip in known_pool:
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.settimeout(timeout)
+                s.connect((ip, PORT))
+                s.close()
+                _HOST_IP = ip
+                return ip
+            except Exception:
+                continue
 
         candidate_ips = []
         try:
@@ -188,11 +200,6 @@ def _resolve_host_ip(timeout: int = 5) -> str:
         except Exception:
             pass
 
-        known_pool = [f"103.247.205.{i}" for i in range(14, 25)]
-        for ip in known_pool:
-            if ip not in candidate_ips:
-                candidate_ips.append(ip)
-
         for ip in candidate_ips:
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -203,6 +210,9 @@ def _resolve_host_ip(timeout: int = 5) -> str:
                 return ip
             except Exception:
                 continue
+
+        _HOST_IP = "103.247.205.14"
+        return _HOST_IP
 
         try:
             _HOST_IP = socket.gethostbyname(HOST)
