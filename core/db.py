@@ -74,6 +74,17 @@ def init_db():
             except sqlite3.OperationalError:
                 pass  # column already exists
 
+        # Auto-migration for users table: display_name, avatar_url, email
+        for col_def in [
+            ("display_name", "TEXT"),
+            ("avatar_url", "TEXT"),
+            ("email", "TEXT"),
+        ]:
+            try:
+                conn.execute(f"ALTER TABLE users ADD COLUMN {col_def[0]} {col_def[1]}")
+            except sqlite3.OperationalError:
+                pass  # column already exists
+
         # 4. Giftcodes Table
         conn.execute("""
             CREATE TABLE IF NOT EXISTS giftcodes (
@@ -194,6 +205,9 @@ def login_user(username: str, password: str) -> dict:
             "user": {
                 "id": row["id"],
                 "username": row["username"],
+                "display_name": (row["display_name"] if "display_name" in row.keys() and row["display_name"] else row["username"]),
+                "avatar_url": (row["avatar_url"] if "avatar_url" in row.keys() and row["avatar_url"] else ""),
+                "email": (row["email"] if "email" in row.keys() and row["email"] else ""),
                 "role": row["role"],
                 "credits": row["credits"],
                 "api_key": api_key,
@@ -207,7 +221,7 @@ def login_user(username: str, password: str) -> dict:
 def get_user_profile(user_id: int) -> dict:
     conn = get_db()
     try:
-        row = conn.execute("SELECT id, username, role, credits, created_at FROM users WHERE id = ?", (user_id,)).fetchone()
+        row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
         if not row:
             return {"success": False, "error": "Không tìm thấy người dùng"}
         key_row = conn.execute("SELECT api_key FROM api_keys WHERE user_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1", (user_id,)).fetchone()
@@ -216,9 +230,65 @@ def get_user_profile(user_id: int) -> dict:
             "user": {
                 "id": row["id"],
                 "username": row["username"],
+                "display_name": (row["display_name"] if "display_name" in row.keys() and row["display_name"] else row["username"]),
+                "avatar_url": (row["avatar_url"] if "avatar_url" in row.keys() and row["avatar_url"] else ""),
+                "email": (row["email"] if "email" in row.keys() and row["email"] else ""),
                 "role": row["role"],
                 "credits": row["credits"],
-                "api_key": key_row["api_key"] if key_row else ""
+                "api_key": key_row["api_key"] if key_row else "",
+                "created_at": row["created_at"]
+            }
+        }
+    finally:
+        conn.close()
+
+
+def update_user_profile(user_id: int, display_name: str = None, avatar_url: str = None, email: str = None) -> dict:
+    """
+    Update display_name, avatar_url, and email.
+    CRITICAL: username is strictly immutable and cannot be altered.
+    """
+    conn = get_db()
+    try:
+        user = conn.execute("SELECT id, username FROM users WHERE id = ?", (user_id,)).fetchone()
+        if not user:
+            return {"success": False, "error": "Không tìm thấy người dùng!"}
+        
+        updates = []
+        params = []
+        if display_name is not None:
+            clean_display = str(display_name).strip()[:50]
+            updates.append("display_name = ?")
+            params.append(clean_display if clean_display else user["username"])
+        if avatar_url is not None:
+            clean_avatar = str(avatar_url).strip()[:500]
+            updates.append("avatar_url = ?")
+            params.append(clean_avatar)
+        if email is not None:
+            clean_email = str(email).strip()[:100]
+            updates.append("email = ?")
+            params.append(clean_email)
+        
+        if not updates:
+            return {"success": True, "message": "Không có gì thay đổi."}
+        
+        params.append(user_id)
+        sql = f"UPDATE users SET {', '.join(updates)} WHERE id = ?"
+        with conn:
+            conn.execute(sql, tuple(params))
+            
+        updated = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+        return {
+            "success": True,
+            "message": "Cập nhật hồ sơ tài khoản thành công!",
+            "user": {
+                "id": updated["id"],
+                "username": updated["username"],
+                "display_name": (updated["display_name"] if "display_name" in updated.keys() and updated["display_name"] else updated["username"]),
+                "avatar_url": (updated["avatar_url"] if "avatar_url" in updated.keys() and updated["avatar_url"] else ""),
+                "email": (updated["email"] if "email" in updated.keys() and updated["email"] else ""),
+                "role": updated["role"],
+                "credits": updated["credits"]
             }
         }
     finally:
@@ -299,12 +369,15 @@ def revoke_api_key(user_id: int, api_key: str) -> dict:
     try:
         with conn:
             cur = conn.execute(
-                "UPDATE api_keys SET status = 'revoked' WHERE user_id = ? AND api_key = ?",
+                "DELETE FROM api_keys WHERE user_id = ? AND api_key = ?",
                 (user_id, api_key.strip())
             )
             if cur.rowcount == 0:
-                return {"success": False, "error": "Không tìm thấy API Key cần vô hiệu hóa"}
-        return {"success": True, "status": "ok", "message": "Đã vô hiệu hóa API Key"}
+                conn.execute(
+                    "DELETE FROM api_keys WHERE api_key = ?",
+                    (api_key.strip(),)
+                )
+        return {"success": True, "status": "ok", "message": "Đã xóa API Key vĩnh viễn khỏi tài khoản"}
     finally:
         conn.close()
 
@@ -312,7 +385,7 @@ def revoke_api_key(user_id: int, api_key: str) -> dict:
 def get_user_keys(user_id: int) -> list:
     conn = get_db()
     try:
-        rows = conn.execute("SELECT id, api_key, name, status, requests_count, created_at FROM api_keys WHERE user_id = ? ORDER BY id DESC", (user_id,)).fetchall()
+        rows = conn.execute("SELECT id, api_key, name, status, requests_count, created_at FROM api_keys WHERE user_id = ? AND status != 'revoked' ORDER BY id DESC", (user_id,)).fetchall()
         res = []
         for r in rows:
             d = dict(r)

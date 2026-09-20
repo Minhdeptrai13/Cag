@@ -94,7 +94,8 @@ function switchTab(tabId) {
     'tool': 'viewPlaygroundTool',
     'ai': 'viewPlaygroundAI',
     'api': 'viewApiKey',
-    'settings': 'viewSettings'
+    'settings': 'viewSettings',
+    'owner': 'viewOwner'
   };
 
   const targetId = tabMap[tabId] || `view${tabId.charAt(0).toUpperCase() + tabId.slice(1)}`;
@@ -107,6 +108,7 @@ function switchTab(tabId) {
   if (tabId === 'dashboard') loadDashboardStats();
   if (tabId === 'api') loadApiKeys();
   if (tabId === 'settings') loadSettings();
+  if (tabId === 'owner') loadOwnerDashboard();
 }
 
 sidebarBtns.forEach(btn => {
@@ -119,25 +121,65 @@ sidebarBtns.forEach(btn => {
 // ── User State & Profile Rendering ──────────────────────────────────────────
 function renderUserProfile() {
   if (!currentUser) return;
-  document.getElementById('studioUsername').textContent = currentUser.username || 'User';
-  document.getElementById('studioUserAvatar').textContent = (currentUser.username || 'U')[0].toUpperCase();
-  document.getElementById('studioCredits').textContent = (currentUser.credits !== undefined ? currentUser.credits : 0).toLocaleString();
-  
-  const roleEl = document.getElementById('studioUserRole');
+  const displayName = currentUser.display_name || currentUser.username || 'User';
   const role = (currentUser.role || 'user').toLowerCase();
-  roleEl.textContent = role.toUpperCase();
-  roleEl.className = `role-badge ${role}`;
+  const credits = currentUser.credits !== undefined ? currentUser.credits : 0;
 
-  // Admin Box visibility
-  const adminBox = document.getElementById('adminControlBox');
-  if (adminBox) {
-    if (role === 'owner' || role === 'admin') {
-      adminBox.style.display = 'block';
-      loadAdminUsersList();
+  // Header User Chip
+  const nameEl = document.getElementById('studioUsername');
+  if (nameEl) nameEl.textContent = displayName;
+
+  const avatarEl = document.getElementById('studioUserAvatar');
+  if (avatarEl) {
+    if (currentUser.avatar_url && currentUser.avatar_url.startsWith('http')) {
+      avatarEl.innerHTML = `<img src="${escapeHtml(currentUser.avatar_url)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.onerror=null;this.parentElement.textContent='${displayName[0].toUpperCase()}';"/>`;
+    } else if (currentUser.avatar_url && currentUser.avatar_url.length <= 4) {
+      avatarEl.textContent = currentUser.avatar_url;
     } else {
-      adminBox.style.display = 'none';
+      avatarEl.textContent = displayName[0].toUpperCase();
     }
   }
+
+  const creditsEl = document.getElementById('studioCredits');
+  if (creditsEl) creditsEl.textContent = credits.toLocaleString();
+
+  const roleEl = document.getElementById('studioUserRole');
+  if (roleEl) {
+    roleEl.textContent = role.toUpperCase();
+    roleEl.className = `role-badge ${role}`;
+  }
+
+  // Dropdown Header info
+  const ddAvatar = document.getElementById('ddAvatar');
+  if (ddAvatar) {
+    if (currentUser.avatar_url && currentUser.avatar_url.startsWith('http')) {
+      ddAvatar.innerHTML = `<img src="${escapeHtml(currentUser.avatar_url)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />`;
+    } else if (currentUser.avatar_url && currentUser.avatar_url.length <= 4) {
+      ddAvatar.textContent = currentUser.avatar_url;
+    } else {
+      ddAvatar.textContent = displayName[0].toUpperCase();
+    }
+  }
+  const ddName = document.getElementById('ddDisplayName');
+  if (ddName) ddName.textContent = displayName;
+
+  const ddSub = document.getElementById('ddSubUsername');
+  if (ddSub) ddSub.textContent = `@${currentUser.username}`;
+
+  const ddCred = document.getElementById('ddCredits');
+  if (ddCred) ddCred.textContent = credits.toLocaleString();
+
+  // Topup syntax preview
+  const synPrev = document.getElementById('topupSyntaxPreview');
+  if (synPrev) synPrev.textContent = `NAP ${currentUser.username.toUpperCase()}`;
+
+  // Role permissions (Owner / Admin Panel button)
+  const isPrivileged = (role === 'owner' || role === 'admin');
+  const sidebarOwnerBtn = document.getElementById('sidebarBtnOwner');
+  if (sidebarOwnerBtn) sidebarOwnerBtn.style.display = isPrivileged ? 'flex' : 'none';
+
+  const ddAdminPanel = document.getElementById('ddBtnAdminPanel');
+  if (ddAdminPanel) ddAdminPanel.style.display = isPrivileged ? 'flex' : 'none';
 }
 
 // ── Google reCAPTCHA Engine for Login & Register ────────────────────────────
@@ -686,86 +728,436 @@ document.getElementById('btnCreateNewApiKey').addEventListener('click', async ()
   }
 });
 
-// ── TAB 5: SETTINGS & ADMIN ─────────────────────────────────────────────────
-function loadSettings() {
-  if (!currentUser) return;
-  document.getElementById('settUsername').textContent = currentUser.username || '-';
-  document.getElementById('settRole').textContent = (currentUser.role || 'USER').toUpperCase();
-  document.getElementById('settCredits').textContent = `${(currentUser.credits || 0).toLocaleString()} CR`;
+// ── USER DROPDOWN MENU & TOPUP MODAL LOGIC ─────────────────────────────────
+const userChipDropdownBtn = document.getElementById('userChipDropdownBtn');
+const userDropdownMenu = document.getElementById('userDropdownMenu');
+const modalTopup = document.getElementById('modalTopup');
+
+if (userChipDropdownBtn && userDropdownMenu) {
+  userChipDropdownBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isShown = userDropdownMenu.style.display === 'block';
+    userDropdownMenu.style.display = isShown ? 'none' : 'block';
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!userDropdownMenu.contains(e.target) && !userChipDropdownBtn.contains(e.target)) {
+      userDropdownMenu.style.display = 'none';
+    }
+  });
 }
 
-document.getElementById('formRedeemCode').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  if (!currentUser) return;
-  const code = document.getElementById('inputRedeemCode').value.trim();
-  try {
-    const res = await fetch('/api/user/redeem', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: currentUser.id, code })
-    });
-    const data = await res.json();
-    if (data.success) {
-      currentUser.credits = data.new_credits;
-      localStorage.setItem('aov_user', JSON.stringify(currentUser));
-      renderUserProfile();
-      loadSettings();
-      document.getElementById('inputRedeemCode').value = '';
-      showToast(`NẠP THÀNH CÔNG +${data.credits_added} CREDITS!`);
-    } else {
-      showToast(data.error || 'Mã Giftcode không hợp lệ');
-    }
-  } catch (err) {
-    showToast('Lỗi máy chủ');
-  }
-});
+// Topup Modal Trigger
+const creditsPillTopup = document.getElementById('creditsPillTopup');
+const ddBtnTopup = document.getElementById('ddBtnTopup');
+const btnCloseTopupModal = document.getElementById('btnCloseTopupModal');
 
-async function loadAdminUsersList() {
+function openTopupModal() {
+  if (userDropdownMenu) userDropdownMenu.style.display = 'none';
+  if (modalTopup) {
+    modalTopup.style.display = 'flex';
+    const synPrev = document.getElementById('topupSyntaxPreview');
+    if (synPrev && currentUser) synPrev.textContent = `NAP ${currentUser.username.toUpperCase()}`;
+  }
+}
+function closeTopupModal() {
+  if (modalTopup) modalTopup.style.display = 'none';
+}
+
+if (creditsPillTopup) creditsPillTopup.addEventListener('click', openTopupModal);
+if (ddBtnTopup) ddBtnTopup.addEventListener('click', openTopupModal);
+if (btnCloseTopupModal) btnCloseTopupModal.addEventListener('click', closeTopupModal);
+
+// Modal redeem giftcode
+const btnModalRedeem = document.getElementById('btnModalRedeemGiftcode');
+if (btnModalRedeem) {
+  btnModalRedeem.addEventListener('click', async () => {
+    const input = document.getElementById('inputModalGiftcode');
+    const code = input ? input.value.trim() : '';
+    if (!code) return showToast('Vui lòng nhập mã Giftcode');
+    try {
+      const res = await fetch('/api/user/redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: currentUser.id, code })
+      });
+      const data = await res.json();
+      if (data.success) {
+        currentUser.credits = data.new_credits;
+        localStorage.setItem('aov_user', JSON.stringify(currentUser));
+        renderUserProfile();
+        input.value = '';
+        closeTopupModal();
+        showToast(`NẠP THÀNH CÔNG +${data.credits_added} CREDITS!`);
+      } else {
+        showToast(data.error || 'Mã Giftcode không hợp lệ');
+      }
+    } catch (e) {
+      showToast('Lỗi kết nối máy chủ');
+    }
+  });
+}
+
+// Dropdown Navigation items
+const ddBtnSettings = document.getElementById('ddBtnSettings');
+if (ddBtnSettings) {
+  ddBtnSettings.addEventListener('click', () => {
+    if (userDropdownMenu) userDropdownMenu.style.display = 'none';
+    switchTab('settings');
+  });
+}
+
+const ddBtnAdminPanel = document.getElementById('ddBtnAdminPanel');
+if (ddBtnAdminPanel) {
+  ddBtnAdminPanel.addEventListener('click', () => {
+    if (userDropdownMenu) userDropdownMenu.style.display = 'none';
+    switchTab('owner');
+  });
+}
+
+const ddBtnLogout = document.getElementById('ddBtnLogout');
+if (ddBtnLogout) {
+  ddBtnLogout.addEventListener('click', () => {
+    if (userDropdownMenu) userDropdownMenu.style.display = 'none';
+    currentUser = null;
+    currentApiKey = null;
+    localStorage.removeItem('aov_user');
+    showLanding();
+    showToast('ĐÃ ĐĂNG XUẤT TÀI KHOẢN');
+  });
+}
+
+// ── TAB 5: SETTINGS & PROFILE CUSTOMIZATION ─────────────────────────────────
+const PRESET_AVATARS = ['🐔', '🔥', '⚔️', '🐲', '💀', '🐺', '🛡️', '⚡'];
+let selectedAvatarChoice = '';
+
+function updateAvatarPreview(val) {
+  const pBox = document.getElementById('settingAvatarPreviewBox');
+  const pText = document.getElementById('settingAvatarPreviewText');
+  const pImg = document.getElementById('settingAvatarPreviewImg');
+  if (!pBox || !pText || !pImg) return;
+
+  if (val && val.startsWith('http')) {
+    pImg.src = val;
+    pImg.style.display = 'block';
+    pText.style.display = 'none';
+  } else if (val) {
+    pImg.style.display = 'none';
+    pText.style.display = 'block';
+    pText.textContent = val;
+  } else {
+    pImg.style.display = 'none';
+    pText.style.display = 'block';
+    const initChar = (currentUser.display_name || currentUser.username || 'U')[0].toUpperCase();
+    pText.textContent = initChar;
+  }
+}
+
+function loadSettings() {
   if (!currentUser) return;
+
+  // Render 8 Preset Avatars
+  const grid = document.getElementById('presetAvatarGrid');
+  if (grid) {
+    grid.innerHTML = PRESET_AVATARS.map(av => `
+      <div class="preset-avatar-item ${currentUser.avatar_url === av ? 'active' : ''}" onclick="selectPresetAvatar('${av}')">
+        ${av}
+      </div>
+    `).join('');
+  }
+
+  // Populate Inputs
+  const userInp = document.getElementById('settingUsername');
+  if (userInp) userInp.value = currentUser.username || '';
+
+  const nameInp = document.getElementById('settingDisplayName');
+  if (nameInp) nameInp.value = currentUser.display_name || currentUser.username || '';
+
+  const emailInp = document.getElementById('settingEmail');
+  if (emailInp) emailInp.value = currentUser.email || '';
+
+  const avtUrlInp = document.getElementById('settingAvatarUrl');
+  if (avtUrlInp) avtUrlInp.value = (currentUser.avatar_url && currentUser.avatar_url.startsWith('http')) ? currentUser.avatar_url : '';
+
+  selectedAvatarChoice = currentUser.avatar_url || '';
+  updateAvatarPreview(selectedAvatarChoice);
+}
+
+window.selectPresetAvatar = function(av) {
+  selectedAvatarChoice = av;
+  const avtUrlInp = document.getElementById('settingAvatarUrl');
+  if (avtUrlInp) avtUrlInp.value = '';
+  document.querySelectorAll('.preset-avatar-item').forEach(el => {
+    if (el.textContent.trim() === av) el.classList.add('active');
+    else el.classList.remove('active');
+  });
+  updateAvatarPreview(av);
+};
+
+const settingAvatarUrl = document.getElementById('settingAvatarUrl');
+if (settingAvatarUrl) {
+  settingAvatarUrl.addEventListener('input', (e) => {
+    const val = e.target.value.trim();
+    if (val) {
+      selectedAvatarChoice = val;
+      document.querySelectorAll('.preset-avatar-item').forEach(el => el.classList.remove('active'));
+      updateAvatarPreview(val);
+    } else {
+      selectedAvatarChoice = '';
+      updateAvatarPreview('');
+    }
+  });
+}
+
+const btnSaveProfile = document.getElementById('btnSaveProfile');
+if (btnSaveProfile) {
+  btnSaveProfile.addEventListener('click', async () => {
+    if (!currentUser) return;
+    const displayName = (document.getElementById('settingDisplayName').value || '').trim();
+    const email = (document.getElementById('settingEmail').value || '').trim();
+    const avatarUrl = selectedAvatarChoice.trim();
+
+    try {
+      btnSaveProfile.disabled = true;
+      btnSaveProfile.textContent = 'ĐANG LƯU...';
+      const res = await fetch('/api/user/profile/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: currentUser.id,
+          display_name: displayName,
+          avatar_url: avatarUrl,
+          email: email
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.user) {
+        currentUser.display_name = data.user.display_name;
+        currentUser.avatar_url = data.user.avatar_url;
+        currentUser.email = data.user.email;
+        localStorage.setItem('aov_user', JSON.stringify(currentUser));
+        renderUserProfile();
+        loadSettings();
+        showToast('ĐÃ CẬP NHẬT HỒ SƠ TÀI KHOẢN THÀNH CÔNG!');
+      } else {
+        showToast(data.error || 'Cập nhật thất bại');
+      }
+    } catch (e) {
+      showToast('Lỗi máy chủ khi lưu hồ sơ');
+    } finally {
+      btnSaveProfile.disabled = false;
+      btnSaveProfile.innerHTML = `<svg class="svg-icon icon-sm" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg> LƯU THAY ĐỔI CÀI ĐẶT`;
+    }
+  });
+}
+
+// Redeem Giftcode Form in Settings
+const formRedeemCode = document.getElementById('formRedeemCode');
+if (formRedeemCode) {
+  formRedeemCode.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!currentUser) return;
+    const code = document.getElementById('inputRedeemCode').value.trim();
+    try {
+      const res = await fetch('/api/user/redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: currentUser.id, code })
+      });
+      const data = await res.json();
+      if (data.success) {
+        currentUser.credits = data.new_credits;
+        localStorage.setItem('aov_user', JSON.stringify(currentUser));
+        renderUserProfile();
+        document.getElementById('inputRedeemCode').value = '';
+        showToast(`NẠP THÀNH CÔNG +${data.credits_added} CREDITS!`);
+      } else {
+        showToast(data.error || 'Mã Giftcode không hợp lệ');
+      }
+    } catch (err) {
+      showToast('Lỗi máy chủ');
+    }
+  });
+}
+
+// ── TAB 6: TRANG QUẢN TRỊ OWNER (ADMIN & OWNER PANEL) ────────────────────────
+async function loadOwnerDashboard() {
+  if (!currentUser) return;
+  const isPrivileged = (currentUser.role === 'owner' || currentUser.role === 'admin');
+  if (!isPrivileged) {
+    showToast('BẠN KHÔNG CÓ QUYỀN TRUY CẬP TRANG QUẢN TRỊ OWNER');
+    switchTab('dashboard');
+    return;
+  }
+
   try {
-    const res = await fetch(`/api/admin/users?user_id=${currentUser.id}`);
+    const res = await fetch(`/api/admin/overview?user_id=${currentUser.id}`);
     const data = await res.json();
-    if (data.success) {
-      const tbody = document.getElementById('adminUserListTbody');
-      tbody.innerHTML = (data.users || []).map(u => `
-        <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
-          <td style="padding:10px 8px;">#${u.id}</td>
-          <td style="padding:10px 8px;"><strong>${escapeHtml(u.username)}</strong></td>
-          <td style="padding:10px 8px;"><span class="role-badge ${u.role}">${(u.role||'user').toUpperCase()}</span></td>
-          <td style="padding:10px 8px;color:var(--gold-light);font-family:var(--font-mono);">${u.credits.toLocaleString()} CR</td>
-          <td style="padding:10px 8px;">
-            <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="promptAdjustCredit('${u.username}')">+ CR</button>
+    if (!data.success) {
+      showToast(data.error || 'Không tải được dữ liệu quản trị');
+      return;
+    }
+
+    const ov = data.overview || {};
+    document.getElementById('ownerTotalUsers').textContent = (ov.total_users || 0).toLocaleString();
+    document.getElementById('ownerTotalCredits').textContent = (ov.total_credits || 0).toLocaleString();
+
+    // Render User List
+    const uTbody = document.getElementById('ownerUserListTbody');
+    if (uTbody) {
+      uTbody.innerHTML = (ov.users || []).map(u => `
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+          <td style="padding:10px 8px;font-family:var(--font-mono);color:var(--text-muted);">#${u.id}</td>
+          <td style="padding:10px 8px;font-weight:700;color:#fff;">${escapeHtml(u.username)}</td>
+          <td style="padding:10px 8px;color:var(--text-secondary);">${escapeHtml(u.display_name || u.username)}</td>
+          <td style="padding:10px 8px;"><span class="role-badge ${u.role}">${(u.role || 'user').toUpperCase()}</span></td>
+          <td style="padding:10px 8px;font-family:var(--font-mono);color:var(--gold-light);font-weight:700;">${(u.credits || 0).toLocaleString()} CR</td>
+          <td style="padding:10px 8px;text-align:right;">
+            <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;margin-right:4px;" onclick="ownerAdjustCredits(${u.id}, '${escapeHtml(u.username)}', 1)">+ CỘNG CR</button>
+            <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;margin-right:4px;color:var(--red-neon);" onclick="ownerAdjustCredits(${u.id}, '${escapeHtml(u.username)}', -1)">- TRỪ CR</button>
+            ${currentUser.role === 'owner' && u.id !== currentUser.id ? `
+              <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="ownerChangeRole(${u.id}, '${escapeHtml(u.username)}', '${u.role}')">ĐỔI ROLE</button>
+            ` : ''}
           </td>
         </tr>
       `).join('');
     }
+
+    // Render Giftcode List
+    const gTbody = document.getElementById('ownerGiftcodeListTbody');
+    if (gTbody) {
+      if (!ov.giftcodes || ov.giftcodes.length === 0) {
+        gTbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text-muted);">Chưa có Giftcode nào được tạo.</td></tr>`;
+      } else {
+        gTbody.innerHTML = ov.giftcodes.map(g => `
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+            <td style="padding:10px 8px;font-family:var(--font-mono);font-weight:700;color:#fff;">${escapeHtml(g.code)}</td>
+            <td style="padding:10px 8px;font-family:var(--font-mono);color:var(--green-neon);">+${(g.credits || 0).toLocaleString()} CR</td>
+            <td style="padding:10px 8px;font-family:var(--font-mono);color:var(--text-secondary);">${g.used_count || 0} / ${g.max_uses || 1}</td>
+            <td style="padding:10px 8px;font-size:11px;color:var(--text-muted);">${g.created_at ? new Date(g.created_at * 1000).toLocaleDateString('vi-VN') : '-'}</td>
+            <td style="padding:10px 8px;text-align:right;">
+              <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;color:var(--red-neon);" onclick="ownerDeleteGiftcode('${escapeHtml(g.code)}')">XÓA</button>
+            </td>
+          </tr>
+        `).join('');
+      }
+    }
   } catch (e) {
-    console.error('Admin users error:', e);
+    showToast('Lỗi nạp dữ liệu Owner Dashboard');
   }
 }
 
-window.promptAdjustCredit = async function(targetUsername) {
-  const deltaStr = prompt(`Nhập số credits muốn cộng/trừ cho ${targetUsername}:`, "100");
-  if (!deltaStr) return;
-  const delta = parseInt(deltaStr, 10);
-  if (isNaN(delta)) return;
+const btnRefreshOwner = document.getElementById('btnRefreshOwnerData');
+if (btnRefreshOwner) btnRefreshOwner.addEventListener('click', loadOwnerDashboard);
 
+// Form Tạo Giftcode
+const formCreateGift = document.getElementById('formOwnerCreateGiftcode');
+if (formCreateGift) {
+  formCreateGift.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!currentUser) return;
+    const code = document.getElementById('ownerGiftCode').value.trim();
+    const credits = parseInt(document.getElementById('ownerGiftCredits').value, 10);
+    const max_uses = parseInt(document.getElementById('ownerGiftMaxUses').value, 10);
+
+    try {
+      const res = await fetch('/api/admin/giftcodes/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requester_id: currentUser.id,
+          code,
+          credits,
+          max_uses
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message || 'Đã tạo Giftcode thành công!');
+        document.getElementById('ownerGiftCode').value = '';
+        loadOwnerDashboard();
+      } else {
+        showToast(data.error || 'Tạo Giftcode thất bại');
+      }
+    } catch (err) {
+      showToast('Lỗi máy chủ khi tạo Giftcode');
+    }
+  });
+}
+
+window.ownerAdjustCredits = async function(targetId, targetUsername, sign) {
+  const label = sign > 0 ? 'CỘNG' : 'TRỪ';
+  const valStr = prompt(`Nhập số lượng Credits muốn ${label} cho [${targetUsername}]:`, "500");
+  if (!valStr) return;
+  const val = parseInt(valStr, 10);
+  if (isNaN(val) || val <= 0) return showToast('Số lượng không hợp lệ');
+
+  const amount = sign > 0 ? val : -val;
   try {
-    const res = await fetch('/api/admin/adjust-credits', {
+    const res = await fetch('/api/admin/users/credits', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        admin_id: currentUser.id,
-        target_username: targetUsername,
-        credits_delta: delta
+        requester_id: currentUser.id,
+        target_user_id: targetId,
+        amount: amount
       })
     });
     const data = await res.json();
     if (data.success) {
-      showToast(`ĐÃ CẬP NHẬT CREDITS CHO ${targetUsername}!`);
-      loadAdminUsersList();
+      showToast(data.message || 'Cập nhật Credits thành công!');
+      loadOwnerDashboard();
     } else {
       showToast(data.error || 'Cập nhật thất bại');
+    }
+  } catch (e) {
+    showToast('Lỗi máy chủ');
+  }
+};
+
+window.ownerChangeRole = async function(targetId, targetUsername, currentRole) {
+  const newRole = currentRole === 'admin' ? 'user' : 'admin';
+  if (!confirm(`Bạn có chắc chắn muốn chuyển quyền của [${targetUsername}] từ [${currentRole.toUpperCase()}] sang [${newRole.toUpperCase()}]?`)) return;
+
+  try {
+    const res = await fetch('/api/admin/users/role', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requester_id: currentUser.id,
+        target_user_id: targetId,
+        new_role: newRole
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.message || 'Đã đổi quyền thành công!');
+      loadOwnerDashboard();
+    } else {
+      showToast(data.error || 'Không thể đổi quyền');
+    }
+  } catch (e) {
+    showToast('Lỗi máy chủ');
+  }
+};
+
+window.ownerDeleteGiftcode = async function(code) {
+  if (!confirm(`Bạn có chắc muốn xóa vĩnh viễn Giftcode [${code}]?`)) return;
+  try {
+    const res = await fetch('/api/admin/giftcodes/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requester_id: currentUser.id,
+        code: code
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(`ĐÃ XÓA GIFTCODE [${code}]!`);
+      loadOwnerDashboard();
+    } else {
+      showToast(data.error || 'Xóa thất bại');
     }
   } catch (e) {
     showToast('Lỗi máy chủ');
@@ -781,8 +1173,11 @@ function applyTheme(th) {
 }
 applyTheme(currentTheme);
 
-document.getElementById('btnLandingTheme').addEventListener('click', () => applyTheme(currentTheme === 'dark' ? 'light' : 'dark'));
-document.getElementById('btnStudioTheme').addEventListener('click', () => applyTheme(currentTheme === 'dark' ? 'light' : 'dark'));
+const btnLandingTheme = document.getElementById('btnLandingTheme');
+if (btnLandingTheme) btnLandingTheme.addEventListener('click', () => applyTheme(currentTheme === 'dark' ? 'light' : 'dark'));
+
+const btnStudioTheme = document.getElementById('btnStudioTheme');
+if (btnStudioTheme) btnStudioTheme.addEventListener('click', () => applyTheme(currentTheme === 'dark' ? 'light' : 'dark'));
 
 // Bootstrap
 (function init() {

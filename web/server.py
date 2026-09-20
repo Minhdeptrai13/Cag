@@ -49,7 +49,7 @@ from core.db import (
     save_check_history, get_user_history, clear_user_history,
     redeem_giftcode, admin_get_all_users, admin_adjust_credits,
     admin_update_role, admin_list_giftcodes, admin_create_giftcode,
-    admin_delete_giftcode
+    admin_delete_giftcode, update_user_profile
 )
 
 # Initialize Database on server start
@@ -155,6 +155,30 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                 return
             keys = get_user_keys(int(uid))
             self._send_json({"success": True, "status": "ok", "keys": keys})
+            return
+
+        # ── 2b. Admin / Owner Overview ─────────────────────────────────────────
+        if path == "/api/admin/overview":
+            uid = query.get("user_id", [""])[0]
+            if not uid or not uid.isdigit():
+                self._send_json({"success": False, "error": "Thiếu user_id"}, 400)
+                return
+            users_res = admin_get_all_users(int(uid))
+            if not users_res.get("success"):
+                self._send_json(users_res, 403)
+                return
+            giftcodes_res = admin_list_giftcodes(int(uid))
+            users_list = users_res.get("users", [])
+            total_credits = sum(u.get("credits", 0) for u in users_list)
+            self._send_json({
+                "success": True,
+                "overview": {
+                    "total_users": len(users_list),
+                    "total_credits": total_credits,
+                    "users": users_list,
+                    "giftcodes": giftcodes_res.get("giftcodes", [])
+                }
+            })
             return
 
         # ── 3. Check History API ──────────────────────────────────────────────
@@ -338,6 +362,72 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                 return
             res = clear_user_history(int(uid))
             self._send_json(res)
+            return
+
+        # ── 6b. USER: UPDATE PROFILE (Avatar, Display Name, Email) ───────────
+        if path in ("/api/user/profile/update", "/api/profile/update"):
+            uid = payload.get("user_id")
+            if not uid:
+                self._send_json({"success": False, "error": "Thiếu user_id"}, 400)
+                return
+            display_name = payload.get("display_name")
+            avatar_url = payload.get("avatar_url")
+            email = payload.get("email")
+            res = update_user_profile(int(uid), display_name=display_name, avatar_url=avatar_url, email=email)
+            status_code = 200 if res["success"] else 400
+            self._send_json(res, status_code)
+            return
+
+        # ── 6c. ADMIN / OWNER: ADJUST USER CREDITS ───────────────────────────
+        if path == "/api/admin/users/credits":
+            req_id = payload.get("requester_id")
+            target_id = payload.get("target_user_id")
+            amount = payload.get("amount", 0)
+            if not req_id or not target_id:
+                self._send_json({"success": False, "error": "Thiếu thông tin người yêu cầu hoặc mục tiêu"}, 400)
+                return
+            res = admin_adjust_credits(int(req_id), int(target_id), int(amount))
+            status_code = 200 if res["success"] else 403
+            self._send_json(res, status_code)
+            return
+
+        # ── 6d. ADMIN / OWNER: UPDATE USER ROLE ──────────────────────────────
+        if path == "/api/admin/users/role":
+            req_id = payload.get("requester_id")
+            target_id = payload.get("target_user_id")
+            new_role = payload.get("new_role", "").strip().lower()
+            if not req_id or not target_id or not new_role:
+                self._send_json({"success": False, "error": "Thiếu thông tin phân quyền"}, 400)
+                return
+            res = admin_update_role(int(req_id), int(target_id), new_role)
+            status_code = 200 if res["success"] else 403
+            self._send_json(res, status_code)
+            return
+
+        # ── 6e. ADMIN / OWNER: CREATE GIFTCODE ───────────────────────────────
+        if path == "/api/admin/giftcodes/create":
+            req_id = payload.get("requester_id")
+            code = payload.get("code", "")
+            credits_val = payload.get("credits", 0)
+            max_uses = payload.get("max_uses", 1)
+            if not req_id or not code or credits_val <= 0:
+                self._send_json({"success": False, "error": "Dữ liệu giftcode không hợp lệ"}, 400)
+                return
+            res = admin_create_giftcode(int(req_id), code, int(credits_val), int(max_uses))
+            status_code = 200 if res["success"] else 403
+            self._send_json(res, status_code)
+            return
+
+        # ── 6f. ADMIN / OWNER: DELETE GIFTCODE ───────────────────────────────
+        if path == "/api/admin/giftcodes/delete":
+            req_id = payload.get("requester_id")
+            code = payload.get("code", "")
+            if not req_id or not code:
+                self._send_json({"success": False, "error": "Thiếu thông tin xóa giftcode"}, 400)
+                return
+            res = admin_delete_giftcode(int(req_id), code)
+            status_code = 200 if res["success"] else 403
+            self._send_json(res, status_code)
             return
 
         # ── 7. DEVELOPER REST API: CHECK SINGLE (/api/v1/check) ───────────────
