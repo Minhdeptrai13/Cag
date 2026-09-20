@@ -738,10 +738,10 @@ function appendAIMessage(role, content, isTyping = false, thought = null) {
         <div class="ai-thought-accordion" id="${accId}">
           <div class="ai-thought-header" onclick="toggleThoughtAccordion('${accId}')">
             <span class="ai-thought-title">
-              <span class="thought-brain-icon">🧠</span>
+              <svg class="svg-icon icon-xs thought-brain-icon" viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z"></path><line x1="9" y1="21" x2="15" y2="21"></line></svg>
               <span>Chuỗi suy nghĩ (Reasoning Process)</span>
             </span>
-            <span class="ai-thought-chevron">▼</span>
+            <svg class="svg-icon icon-xs ai-thought-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"></polyline></svg>
           </div>
           <div class="ai-thought-content">${escapeHtml(thought)}</div>
         </div>

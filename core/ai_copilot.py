@@ -154,7 +154,7 @@ def chat_with_copilot(
                 credits_left = usr.get("credits", 0)
                 if usr.get("role") != "admin" and credits_left < 1:
                     return {
-                        "reply": f"⚠️ **Thông báo hạn mức**: Tài khoản của **{u}** đã hết Credits để thực hiện check trực tiếp qua AI! Vui lòng nạp thêm Giftcode hoặc liên hệ Admin.",
+                        "reply": f"[CẢNH BÁO HẠN MỨC] Tài khoản của **{u}** đã hết Credits để thực hiện check trực tiếp qua AI! Vui lòng nạp thêm Giftcode hoặc liên hệ Admin.",
                         "thought": "Xác nhận yêu cầu check tài khoản qua Live API -> Kiểm tra hạn mức người dùng -> Phát hiện số dư Credits = 0 -> Chặn gọi API để bảo vệ số dư.",
                         "account_result": None
                     }
@@ -174,7 +174,7 @@ def chat_with_copilot(
 
         reply_md = f"""Chào **{u}**, tôi đã gọi trực tiếp Core Engine API để kiểm định tài khoản cho bạn:
 
-> 🎯 **KẾT QUẢ CHECK TRỰC TIẾP:**
+> [KẾT QUẢ CHECK TRỰC TIẾP]
 > `{formatted_line}`
 
 - **Tài khoản**: `{acc}`
@@ -316,7 +316,7 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-> 💡 **Khuyến nghị**: Sử dụng `aiohttp` để kiểm tra song song hàng ngàn tài khoản mà không gây nghẽn tiến trình!"""
+> [KHUYẾN NGHỊ]: Sử dụng `aiohttp` để kiểm tra song song hàng ngàn tài khoản mà không gây nghẽn tiến trình!"""
 
     # Check identity
     if any(k in pl for k in ("tôi là ai", "ai đây", "biết tôi không", "who am i", "tên tôi")):
@@ -327,10 +327,10 @@ Hệ thống AOV Studio đã nhận diện và đồng bộ danh tính của {u}
     # General conversation
     return f"""Chào **{u}**! Tôi đã tiếp nhận yêu cầu của bạn: **"{prompt.strip()}"**.
 
-Tôi có thể:
-1. 💻 **Viết code / script tự động** (Python, JavaScript, cURL API...).
-2. 💎 **Định giá & thẩm định nick VIP** (SSS Thứ Nguyên, Anime Collab, SS Hữu hạn...).
-3. ⚡ **Tư vấn cấu hình luồng quét & API Gateway**.
+Tôi có thể hỗ trợ:
+1. [LẬP TRÌNH]: Viết code / script tự động (Python, JavaScript, cURL API...).
+2. [ĐỊNH GIÁ]: Định giá & thẩm định nick VIP (SSS Thứ Nguyên, Anime Collab, SS Hữu hạn...).
+3. [KIẾN TRÚC]: Cấu hình luồng quét & API Gateway.
 
 {u} cần tôi giải quyết cụ thể phần nào tiếp theo nào?"""
 
