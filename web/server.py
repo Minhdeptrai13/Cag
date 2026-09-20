@@ -194,7 +194,7 @@ class AOVWebHandler(BaseHTTPRequestHandler):
             return
 
         # ── 4. Web Batch Task Status ──────────────────────────────────────────
-        if path == "/api/task-status":
+        if path in ("/api/task-status", "/api/batch/status", "/api/task/status"):
             task_id = query.get("task_id", [""])[0] or query.get("id", [""])[0]
             offset = int(query.get("offset", [0])[0] or 0)
             with _TASKS_LOCK:
@@ -205,14 +205,18 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                 all_res = task["results"]
                 new_slice = all_res[offset:] if offset < len(all_res) else []
                 resp_data = {
+                    "task_id": task_id,
                     "total": task["total"],
                     "done": task["done"],
+                    "progress": task["done"],
                     "hits": task["hits"],
                     "trang": task["trang"],
                     "invalid": task["invalid"],
                     "is_running": task["is_running"],
+                    "is_done": not task["is_running"],
                     "status": "DONE" if not task["is_running"] else "RUNNING",
-                    "results": new_slice,
+                    "results": all_res,
+                    "new_results": new_slice,
                     "all_hits_count": len(task["all_hits"]),
                     "next_offset": len(all_res),
                 }
@@ -591,7 +595,7 @@ class AOVWebHandler(BaseHTTPRequestHandler):
             return
 
         # ── 10. WEB UI: CHECK BATCH ───────────────────────────────────────────
-        elif path == "/api/check-batch":
+        elif path in ("/api/check-batch", "/api/batch/start", "/api/batch/check"):
             combos_raw = payload.get("combos", [])
             threads = int(payload.get("threads", 10) or 10)
             threads = max(1, min(threads, 500))
@@ -678,7 +682,7 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                 print(f"\n[KẾT THÚC BATCH {task_id}] Tổng: {task_state['done']}/{task_state['total']} | Sống: {task_state['hits']} | Trắng TTT: {task_state['trang']} (File lưu tại results/)\n", flush=True)
 
             threading.Thread(target=run_batch, daemon=True).start()
-            self._send_json({"task_id": task_id, "total": len(combos)})
+            self._send_json({"status": "ok", "success": True, "task_id": task_id, "total": len(combos)})
             return
 
         # ── 10.1 STOP RUNNING BATCH TASK ──────────────────────────────────────
