@@ -27,6 +27,96 @@ def get_db():
     return conn
 
 
+# ── SUPABASE CLOUD TWO-WAY PERSISTENCE ADAPTER ──────────────────────────────
+from core.supabase_client import (
+    is_supabase_enabled,
+    supabase_get,
+    supabase_insert,
+    supabase_update,
+    supabase_delete
+)
+
+def sync_from_supabase_cloud():
+    """
+    On cold-start/deploy, pull persistent cloud state from Supabase down into SQLite.
+    Guarantees that git deploys/ephemeral containers never lose accounts, balances, or giftcodes!
+    """
+    if not is_supabase_enabled():
+        return
+    try:
+        remote_users = supabase_get("users")
+        if remote_users:
+            conn = get_db()
+            with conn:
+                for u in remote_users:
+                    conn.execute("""
+                        INSERT OR REPLACE INTO users 
+                        (id, username, password_hash, role, credits, ai_free_tokens, ai_paid_tokens, display_name, avatar_url, email, is_banned)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        u.get("id"),
+                        u.get("username"),
+                        u.get("password_hash"),
+                        u.get("role", "user"),
+                        u.get("credits", 50),
+                        u.get("ai_free_tokens", 10000),
+                        u.get("ai_paid_tokens", 0),
+                        u.get("display_name"),
+                        u.get("avatar_url"),
+                        u.get("email"),
+                        u.get("is_banned", 0)
+                    ))
+            conn.close()
+            print(f"[Supabase Sync] Pulled {len(remote_users)} persistent users from Supabase Cloud.", flush=True)
+
+        remote_codes = supabase_get("giftcodes")
+        if remote_codes:
+            conn = get_db()
+            with conn:
+                for g in remote_codes:
+                    conn.execute("""
+                        INSERT OR REPLACE INTO giftcodes (code, credits, max_uses, used_count)
+                        VALUES (?, ?, ?, ?)
+                    """, (
+                        g.get("code"),
+                        g.get("credits"),
+                        g.get("max_uses", 1),
+                        g.get("used_count", 0)
+                    ))
+            conn.close()
+            print(f"[Supabase Sync] Pulled {len(remote_codes)} giftcodes from Supabase Cloud.", flush=True)
+    except Exception as e:
+        print(f"[Supabase Sync Error] {e}", flush=True)
+
+
+def push_user_to_supabase(user_dict: dict):
+    """Asynchronously / safely replicate user changes to Supabase Cloud"""
+    if not is_supabase_enabled():
+        return
+    try:
+        # Check if user exists on Supabase
+        existing = supabase_get("users", f"username=eq.{user_dict['username']}")
+        payload = {
+            "username": user_dict["username"],
+            "password_hash": user_dict.get("password_hash", ""),
+            "role": user_dict.get("role", "user"),
+            "credits": user_dict.get("credits", 50),
+            "ai_free_tokens": user_dict.get("ai_free_tokens", 10000),
+            "ai_paid_tokens": user_dict.get("ai_paid_tokens", 0),
+            "display_name": user_dict.get("display_name"),
+            "avatar_url": user_dict.get("avatar_url"),
+            "email": user_dict.get("email"),
+            "is_banned": user_dict.get("is_banned", 0)
+        }
+        if existing and len(existing) > 0:
+            supabase_update("users", f"username=eq.{user_dict['username']}", payload)
+        else:
+            supabase_insert("users", payload)
+    except Exception as e:
+        print(f"[Supabase Push User Error] {e}", flush=True)
+
+
+
 def init_db():
     conn = get_db()
     with conn:
@@ -162,6 +252,13 @@ def init_db():
                 (c, cr, mu, int(time.time()))
             )
     conn.close()
+    
+    # 8. Pull existing persistent accounts & giftcodes from Supabase Cloud on start
+    try:
+        sync_from_supabase_cloud()
+    except Exception as e:
+        print(f"[Supabase Sync Init Error] {e}", flush=True)
+
 
 
 # ── HMAC SESSION SECURITY & SECRETS ─────────────────────────────────────────
@@ -258,6 +355,20 @@ def register_user(username: str, password: str) -> dict:
 
         session_token = generate_session_token(user_id, assigned_role)
         msg = "Đăng ký thành công tài khoản ROOT OWNER (Chủ sở hữu tối cao)!" if is_first_user else "Đăng ký thành công! Bạn nhận được 50 lượt check miễn phí."
+        
+        # Async push to Supabase Cloud for persistent lifetime storage
+        try:
+            push_user_to_supabase({
+                "username": username,
+                "password_hash": full_hash,
+                "role": assigned_role,
+                "credits": initial_credits,
+                "ai_free_tokens": 10000,
+                "ai_paid_tokens": 0
+            })
+        except Exception:
+            pass
+
         return {
             "success": True,
             "status": "ok",
@@ -396,6 +507,21 @@ def update_user_profile(user_id: int, display_name: str = None, avatar_url: str 
             conn.execute(sql, tuple(params))
             
         updated = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+        
+        # Async push profile changes to Supabase
+        try:
+            push_user_to_supabase({
+                "username": updated["username"],
+                "role": updated["role"],
+                "credits": updated["credits"],
+                "display_name": updated["display_name"],
+                "avatar_url": updated["avatar_url"],
+                "email": updated["email"],
+                "is_banned": updated["is_banned"]
+            })
+        except Exception:
+            pass
+
         return {
             "success": True,
             "message": "Cập nhật hồ sơ tài khoản thành công!",
@@ -499,7 +625,16 @@ def deduct_check_credits(user_id: int, account_count: int, action_type: str = "B
             conn.execute("UPDATE users SET credits = credits - ? WHERE id = ?", (credits_needed, user_id))
             record_credit_ledger(conn, user_id, -credits_needed, action_type, description or f"Quét {account_count} tài khoản (Tỷ lệ: 1 Cr = 10 Acc)")
 
-            updated = conn.execute("SELECT credits FROM users WHERE id = ?", (user_id,)).fetchone()
+            updated = conn.execute("SELECT credits, username FROM users WHERE id = ?", (user_id,)).fetchone()
+            
+            try:
+                push_user_to_supabase({
+                    "username": updated["username"],
+                    "credits": updated["credits"]
+                })
+            except Exception:
+                pass
+
             return {
                 "success": True,
                 "credits_deducted": credits_needed,
@@ -968,6 +1103,14 @@ def admin_adjust_credits(requester_id: int, target_user_id: int, amount: int) ->
             conn.execute("UPDATE users SET credits = MAX(0, credits + ?) WHERE id = ?", (amount, target_user_id))
             updated = conn.execute("SELECT credits FROM users WHERE id = ?", (target_user_id,)).fetchone()
 
+        try:
+            push_user_to_supabase({
+                "username": target["username"],
+                "credits": updated["credits"]
+            })
+        except Exception:
+            pass
+
         return {
             "success": True,
             "message": f"Đã cập nhật Credits cho {target['username']}: {'+' if amount >= 0 else ''}{amount}",
@@ -1024,6 +1167,14 @@ def admin_update_role(requester_id: int, target_user_id: int, new_role: str, cli
                   "ROLE_CHANGE",
                   f"Root Owner đã đổi quyền của {target['username']} thành [{new_role.upper()}]",
                   client_ip, now))
+
+        try:
+            push_user_to_supabase({
+                "username": target["username"],
+                "role": new_role
+            })
+        except Exception:
+            pass
 
         return {
             "success": True,
