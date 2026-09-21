@@ -2326,15 +2326,28 @@ function renderMarkdownAI(text) {
   return html;
 }
 
-function appendAIMessage(role, content, thought, imageDataUrl) {
+function appendAIMessage(role, content, thought, imageDataUrl, fileName, fileSize) {
   if (!aiMainChatBody) return;
 
   const now = new Date();
   const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 
+  // Strip <think>...</think> blocks from assistant replies (DeepSeek-style)
+  let displayContent = content || '';
+  let extractedThought = thought;
+  if (role === 'assistant') {
+    const thinkMatch = displayContent.match(/<think>([\s\S]*?)<\/think>/i);
+    if (thinkMatch) {
+      if (!extractedThought) extractedThought = thinkMatch[1].trim();
+      displayContent = displayContent.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    }
+  }
+
+  // Thought accordion
   let thoughtHtml = '';
-  if (thought && role === 'assistant') {
-    const lines = thought.split('\n').filter(Boolean).map(l => `<div style="font-size:11.5px;color:var(--text-secondary);padding:2px 0;">${escapeHtml(l)}</div>`).join('');
+  if (extractedThought && role === 'assistant') {
+    const lines = extractedThought.split('\n').filter(Boolean)
+      .map(l => `<div style="font-size:11.5px;color:var(--text-secondary);padding:2px 0;">${escapeHtml(l)}</div>`).join('');
     thoughtHtml = `
       <details class="ai-thought-accordion" style="margin-bottom:8px;">
         <summary style="cursor:pointer;font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:0.5px;list-style:none;display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--bg-surface);border-radius:var(--radius-sm);border:1px solid var(--border-subtle);">
@@ -2345,9 +2358,46 @@ function appendAIMessage(role, content, thought, imageDataUrl) {
       </details>`;
   }
 
+  // Rich image preview (zoomable)
   let imagePreviewHtml = '';
   if (imageDataUrl && role === 'user') {
-    imagePreviewHtml = `<div style="margin-bottom:8px;"><img src="${imageDataUrl}" style="max-width:200px;max-height:150px;border-radius:8px;border:1px solid var(--border-subtle);object-fit:cover;" alt="Ảnh đính kèm" /></div>`;
+    imagePreviewHtml = `
+      <div style="margin-bottom:10px;">
+        <img src="${imageDataUrl}"
+          style="max-width:220px;max-height:180px;border-radius:10px;border:1.5px solid var(--border-subtle);object-fit:cover;cursor:zoom-in;transition:transform 0.2s,box-shadow 0.2s;box-shadow:0 2px 12px rgba(0,0,0,0.3);"
+          alt="Ảnh đính kèm"
+          onclick="(function(el){
+            const ov=document.createElement('div');
+            ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:99999;display:flex;align-items:center;justify-content:center;cursor:zoom-out;';
+            const img2=document.createElement('img');
+            img2.src=el.src;
+            img2.style.cssText='max-width:90vw;max-height:90vh;border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,0.6);';
+            ov.appendChild(img2);
+            ov.onclick=()=>ov.remove();
+            document.body.appendChild(ov);
+          })(this)"
+          title="Click để phóng to" />
+      </div>`;
+  }
+
+  // Rich file attachment card
+  let fileCardHtml = '';
+  if (fileName && role === 'user') {
+    const ext = (fileName.split('.').pop() || '').toLowerCase();
+    const sizeStr = fileSize ? (fileSize >= 1024 ? `${(fileSize/1024).toFixed(1)} KB` : `${fileSize} B`) : '';
+    const iconMap = {
+      txt: '📄', py: '🐍', js: '📜', json: '📋', csv: '📊',
+      md: '📝', html: '🌐', css: '🎨', log: '📃', xml: '📰'
+    };
+    const icon = iconMap[ext] || '📎';
+    fileCardHtml = `
+      <div style="display:inline-flex;align-items:center;gap:10px;margin-bottom:8px;padding:8px 14px;background:var(--bg-surface);border:1.5px solid var(--border-subtle);border-radius:10px;max-width:260px;">
+        <span style="font-size:22px;flex-shrink:0;">${icon}</span>
+        <div style="overflow:hidden;">
+          <div style="font-size:12px;font-weight:700;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;">${escapeHtml(fileName)}</div>
+          ${sizeStr ? `<div style="font-size:10px;color:var(--text-muted);">${sizeStr}</div>` : ''}
+        </div>
+      </div>`;
   }
 
   const avatarHtml = role === 'assistant'
@@ -2364,8 +2414,9 @@ function appendAIMessage(role, content, thought, imageDataUrl) {
     <div class="ai-msg-bubble">
       <div class="ai-sender-name">${senderName}</div>
       ${thoughtHtml}
+      ${fileCardHtml}
       ${imagePreviewHtml}
-      <div class="ai-msg-text">${renderMarkdownAI(content)}</div>
+      <div class="ai-msg-text">${renderMarkdownAI(displayContent)}</div>
     </div>`;
   aiMainChatBody.appendChild(row);
   aiMainChatBody.scrollTop = aiMainChatBody.scrollHeight;
@@ -2574,8 +2625,9 @@ async function sendAICanvasMessage(messageOverride) {
   const imgDataUrl = aiPendingImage ? aiPendingImage.dataUrl : null;
   const msgText = msg || (imgData ? '(Phân tích ảnh)' : '(Phân tích file)');
 
-  // Append user message to chat
-  appendAIMessage('user', msgText, null, imgDataUrl);
+  // Append user message to chat (with rich preview for image/file)
+  const fileSizeBytes = aiPendingFile && aiPendingFile.content ? new Blob([aiPendingFile.content]).size : 0;
+  appendAIMessage('user', msgText, null, imgDataUrl, fileName || null, fileSizeBytes || 0);
 
   // Reset input & tray
   if (aiCanvasInput) { aiCanvasInput.value = ''; aiCanvasInput.style.height = 'auto'; }

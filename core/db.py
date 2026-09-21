@@ -970,16 +970,22 @@ def admin_update_role(requester_id: int, target_user_id: int, new_role: str, cli
     conn = get_db()
     try:
         req = conn.execute("SELECT role FROM users WHERE id = ?", (requester_id,)).fetchone()
-        
+
         # BẪY AN NINH: Không để lộ logic 'Chỉ Root Owner...'
         if not req or req["role"] != "owner":
-            log_admin_audit(
-                admin_id=requester_id,
-                target_id=target_user_id,
-                action="SECURITY_VIOLATION_ESCALATION",
-                details=f"Cố tình can thiệp thăng cấp quyền lên [{new_role}] cho user_id={target_user_id}",
-                ip_address=client_ip
-            )
+            # Log security violation using same connection
+            now = int(time.time())
+            try:
+                with conn:
+                    conn.execute("""
+                        INSERT INTO admin_audit_logs (admin_id, target_id, action, details, ip_address, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """, (requester_id, target_user_id,
+                          "SECURITY_VIOLATION_ESCALATION",
+                          f"Cố tình can thiệp thăng cấp quyền lên [{new_role}] cho user_id={target_user_id}",
+                          client_ip, now))
+            except Exception:
+                pass
             return {
                 "success": False,
                 "error": "[CẢNH BÁO HỆ THỐNG] Phát hiện hành vi bất thường và can thiệp trái phép! Địa chỉ IP và định danh của bạn đã được ghi nhận vào nhật ký thanh tra an ninh.",
@@ -996,15 +1002,16 @@ def admin_update_role(requester_id: int, target_user_id: int, new_role: str, cli
         if not target:
             return {"success": False, "error": "Không tìm thấy người dùng!"}
 
+        now = int(time.time())
         with conn:
             conn.execute("UPDATE users SET role = ? WHERE id = ?", (new_role, target_user_id))
-            log_admin_audit(
-                admin_id=requester_id,
-                target_id=target_user_id,
-                action="ROLE_CHANGE",
-                details=f"Root Owner đã đổi quyền của {target['username']} thành [{new_role.upper()}]",
-                ip_address=client_ip
-            )
+            conn.execute("""
+                INSERT INTO admin_audit_logs (admin_id, target_id, action, details, ip_address, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (requester_id, target_user_id,
+                  "ROLE_CHANGE",
+                  f"Root Owner đã đổi quyền của {target['username']} thành [{new_role.upper()}]",
+                  client_ip, now))
 
         return {
             "success": True,
@@ -1032,9 +1039,15 @@ def admin_ban_user(requester_id: int, target_user_id: int, reason: str = "Vi ph�
         if target["role"] == "owner":
             return {"success": False, "error": "Không thể khóa tài khoản Root Owner tối cao!"}
 
+        now = int(time.time())
         with conn:
             conn.execute("UPDATE users SET is_banned = 1, ban_reason = ? WHERE id = ?", (reason, target_user_id))
-            log_admin_audit(requester_id, target_user_id, "BAN_USER", f"Đã khóa tài khoản {target['username']}. Lý do: {reason}", client_ip)
+            conn.execute("""
+                INSERT INTO admin_audit_logs (admin_id, target_id, action, details, ip_address, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (requester_id, target_user_id, "BAN_USER",
+                  f"Đã khóa tài khoản {target['username']}. Lý do: {reason}",
+                  client_ip, now))
 
         return {"success": True, "message": f"Đã khóa vĩnh viễn tài khoản [{target['username']}] thành công!"}
     finally:
@@ -1057,9 +1070,15 @@ def admin_unban_user(requester_id: int, target_user_id: int, client_ip: str = ""
         if not target:
             return {"success": False, "error": "Không tìm thấy người dùng!"}
 
+        now = int(time.time())
         with conn:
             conn.execute("UPDATE users SET is_banned = 0, ban_reason = NULL WHERE id = ?", (target_user_id,))
-            log_admin_audit(requester_id, target_user_id, "UNBAN_USER", f"Đã mở khóa tài khoản {target['username']}", client_ip)
+            conn.execute("""
+                INSERT INTO admin_audit_logs (admin_id, target_id, action, details, ip_address, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (requester_id, target_user_id, "UNBAN_USER",
+                  f"?? mở khóa tài khoản {target['username']}",
+                  client_ip, now))
 
         return {"success": True, "message": f"Đã mở khóa thành công cho tài khoản [{target['username']}]!"}
     finally:
@@ -1086,9 +1105,15 @@ def admin_set_user_tier(requester_id: int, target_user_id: int, tier: str, clien
         if not target:
             return {"success": False, "error": "Không tìm thấy người dùng!"}
 
+        now = int(time.time())
         with conn:
             conn.execute("UPDATE users SET tier = ? WHERE id = ?", (tier, target_user_id))
-            log_admin_audit(requester_id, target_user_id, "SET_TIER", f"Cấp gói [{tier.upper()}] cho {target['username']}", client_ip)
+            conn.execute("""
+                INSERT INTO admin_audit_logs (admin_id, target_id, action, details, ip_address, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (requester_id, target_user_id, "SET_TIER",
+                  f"Cấp gói [{tier.upper()}] cho {target['username']}",
+                  client_ip, now))
 
         return {"success": True, "message": f"Đã cập nhật gói thành viên của {target['username']} thành [{tier.upper()}]!"}
     finally:

@@ -150,71 +150,90 @@ def chat_with_copilot(
     u = user_name or "Tris"
     msg_raw = user_message.strip()
 
-    # ── 1. Check if user instructed to check an account directly via AI ───────
-    combo_detected = None
-    # Only match if there is an explicit separator : | ; / or format "check acc user pass"
-    matches = re.findall(r'([a-zA-Z0-9_\-\.]{3,30}[:|;/][^\s]{4,40})', msg_raw)
-    is_check_acc_intent = any(k in msg_raw.lower() for k in ("check acc", "check nick", "kiểm tra acc", "check tài khoản", "check hộ", "quét acc"))
-
-    if not matches and is_check_acc_intent:
-        # Check if space-separated combo was provided specifically after 'check acc'
-        m_space = re.search(r'(?:check acc|check nick|check hộ|quét acc)\s+([a-zA-Z0-9_\-\.]{3,30})\s+([^\s]{4,40})', msg_raw, re.IGNORECASE)
+    # ── 1. Multi-Account Check via Tool Protocol ───────────────────────────────
+    # Detect if user is submitting a list of combos to check (5+ combos or explicit check intent)
+    combo_matches = re.findall(r'([a-zA-Z0-9_\-\.]{3,30})\s*[:|;/]\s*([^\s\|,]{4,40})', msg_raw)
+    # Also try "user pass" space-separated pattern if separator-based fails for single combo
+    is_check_intent = any(k in msg_raw.lower() for k in (
+        "check acc", "check nick", "kiểm tra acc", "check tài khoản",
+        "check hộ", "quét acc", "check combo", "check thông tin"
+    ))
+    space_combo = None
+    if not combo_matches and is_check_intent:
+        m_space = re.search(
+            r'(?:check acc|check nick|check hộ|quét acc)\s+([a-zA-Z0-9_\-\.]{3,30})\s+([^\s]{4,40})',
+            msg_raw, re.IGNORECASE
+        )
         if m_space:
-            combo_detected = (m_space.group(1), m_space.group(2))
+            space_combo = (m_space.group(1), m_space.group(2))
 
-    if matches and is_check_acc_intent:
-        for candidate in matches:
-            acc, pwd = parse_combo_line(candidate)
-            if acc and pwd:
-                combo_detected = (acc, pwd)
-                break
+    # Build final combo list to check
+    combos_to_check = []
+    if combo_matches and (is_check_intent or len(combo_matches) >= 3):
+        for acc_raw, pwd_raw in combo_matches:
+            combos_to_check.append((acc_raw.strip(), pwd_raw.strip()))
+    elif space_combo:
+        combos_to_check.append(space_combo)
 
-    if combo_detected:
-        acc, pwd = combo_detected
-        # Check user credit if user_id is provided
+    if combos_to_check:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        # Credit/token check
         credits_left = 999
         if user_id:
             profile_res = get_user_profile(user_id)
             if profile_res.get("success") and profile_res.get("user"):
                 usr = profile_res["user"]
                 credits_left = usr.get("credits", 0)
-                if usr.get("role") != "admin" and credits_left < 1:
+                cost = len(combos_to_check)
+                if usr.get("role") != "admin" and credits_left < cost:
                     return {
-                        "reply": f"[CẢNH BÁO HẠN MỨC] Tài khoản của **{u}** đã hết Credits để thực hiện check trực tiếp qua AI! Vui lòng nạp thêm Giftcode hoặc liên hệ Admin.",
-                        "thought": "Xác nhận yêu cầu check tài khoản qua Live API -> Kiểm tra hạn mức người dùng -> Phát hiện số dư Credits = 0 -> Chặn gọi API để bảo vệ số dư.",
-                        "account_result": None
+                        "reply": f"[CẢNH BÁO HẠN MỨC] Tài khoản của **{u}** cần **{cost} Credits** để check {len(combos_to_check)} tài khoản nhưng chỉ còn **{credits_left} Credits**. Vui lòng nạp thêm Giftcode.",
+                        "thought": None, "account_result": None
                     }
-                deduct_credit(user_id, 1)
-                credits_left = max(0, credits_left - 1)
+                for _ in combos_to_check:
+                    deduct_credit(user_id, 1)
+                credits_left = max(0, credits_left - cost)
 
-        # Direct execution via Core Engine
-        res = check_account(acc, pwd)
-        formatted_line = format_account_full_info(res)
-        status_tag = res.get("status", "FAIL")
+        # Parallel check with thread pool
+        results = []
+        with ThreadPoolExecutor(max_workers=min(len(combos_to_check), 8)) as executor:
+            future_map = {executor.submit(check_account, acc, pwd): (acc, pwd) for acc, pwd in combos_to_check}
+            for future in as_completed(future_map):
+                acc, pwd = future_map[future]
+                try:
+                    res = future.result(timeout=12)
+                    results.append((acc, pwd, res))
+                except Exception as e:
+                    results.append((acc, pwd, {"status": "ERROR", "tinh_trang": str(e)}))
 
-        thought_log = f"""1. Trích xuất intent: Kiểm tra trực tiếp tài khoản `{acc}` qua Live Core Engine.
-2. Kiểm tra quyền & Trừ 1 Credit người dùng `{u}` (Số dư còn lại: {credits_left} Credits).
-3. Khởi tạo Garena Handshake Session & Mã hóa thông tin đăng nhập.
-4. Quét profile Liên Quân Mobile: Trạng thái = {status_tag} | Thông tin = {res.get('tinh_trang', 'Không rõ')}.
-5. Tổng hợp dữ liệu trả về cho {u}."""
+        # Build formatted result block
+        result_lines = []
+        live_count = sum(1 for _, _, r in results if r.get("status") == "LIVE")
+        die_count = sum(1 for _, _, r in results if r.get("status") in ("DIE", "FAIL"))
+        for acc, pwd, res in results:
+            result_lines.append(format_account_full_info(res))
 
-        reply_md = f"""Chào **{u}**, tôi đã gọi trực tiếp Core Engine API để kiểm định tài khoản cho bạn:
+        result_block = "\n".join(result_lines)
+        thought_log = (
+            f"1. Phát hiện {len(combos_to_check)} combo tài khoản trong yêu cầu của {u}.\n"
+            f"2. Gọi Core Engine song song ({min(len(combos_to_check),8)} luồng) để kiểm định.\n"
+            f"3. Trừ {len(combos_to_check)} Credits (còn lại: {credits_left} Credits).\n"
+            f"4. Kết quả: {live_count} LIVE | {die_count} DIE/FAIL | Tổng {len(results)} tài khoản.\n"
+            f"5. Tổng hợp \u0026 phân tích kết quả gửi trả cho {u}."
+        )
 
-> [KẾT QUẢ CHECK TRỰC TIẾP]
-> `{formatted_line}`
-
-- **Tài khoản**: `{acc}`
-- **Trạng thái**: `{status_tag}` ({res.get('tinh_trang', 'Chưa rõ')})
-- **Ingame**: **{res.get('ingame') or 'Chưa đặt tên'}**
-- **Rank**: **{res.get('rank') or 'Chưa Đấu Hạng'}**
-- **Skin VIP**: {res.get('skins_vip') or '0 Skin VIP'}
-- **Credit còn lại**: `{credits_left}` Credits (đã trừ 1 Credit thành công)"""
-
+        summary_md = (
+            f"Đã kiểm định xong **{len(results)} tài khoản** cho **{u}** (đã trừ {len(combos_to_check)} Credits):\n\n"
+            f"```\n{result_block}\n```\n\n"
+            f"**Tóm tắt:** 🟢 {live_count} LIVE | 🔴 {die_count} DIE/FAIL"
+        )
         return {
-            "reply": reply_md,
+            "reply": summary_md,
             "thought": thought_log if enable_thinking else None,
-            "account_result": res
+            "account_result": results[0][2] if len(results) == 1 else None
         }
+
 
     # ── 2. Standard Generation with Thinking & Deep Research ──────────────────
     system_prompt = build_system_rag_prompt(batch_context, user_name=u)
