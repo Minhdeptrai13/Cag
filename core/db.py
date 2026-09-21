@@ -10,7 +10,15 @@ import secrets
 import sqlite3
 import time
 
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "aov_saas.db")
+# DB_PATH: read from env var DB_PATH (set this on deploy platform to a persistent volume path)
+# Falls back to <project_root>/data/aov_saas.db so git deploys don't wipe the DB
+_ROOT = os.path.dirname(os.path.dirname(__file__))
+DB_PATH = os.environ.get(
+    "DB_PATH",
+    os.path.join(_ROOT, "data", "aov_saas.db")
+)
+# Ensure the data directory exists
+os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
 
 def get_db():
@@ -367,7 +375,11 @@ def update_user_profile(user_id: int, display_name: str = None, avatar_url: str 
             updates.append("display_name = ?")
             params.append(clean_display if clean_display else user["username"])
         if avatar_url is not None:
-            clean_avatar = str(avatar_url).strip()[:500]
+            clean_avatar = str(avatar_url).strip()
+            # Support both URLs (http...) and base64 data URLs (data:image/...;base64,...)
+            # No aggressive truncation - base64 images can be large
+            if len(clean_avatar) > 600000:
+                return {"success": False, "error": "Ảnh quá lớn để lưu trữ! Vui lòng nén ảnh nhỏ hơn (< 400KB)."}
             updates.append("avatar_url = ?")
             params.append(clean_avatar)
         if email is not None:

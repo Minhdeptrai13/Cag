@@ -4,9 +4,11 @@ __pycache__/
 *.so
 .env
 results/
+res/
 scratch/
 bin/
 .buildozer/
 aov_checker.zip
 *.log
 *.db
+data/*.db
