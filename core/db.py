@@ -74,11 +74,18 @@ def init_db():
             except sqlite3.OperationalError:
                 pass  # column already exists
 
-        # Auto-migration for users table: display_name, avatar_url, email
+        # Auto-migration for users table (additive, safe for existing DBs)
         for col_def in [
             ("display_name", "TEXT"),
             ("avatar_url", "TEXT"),
             ("email", "TEXT"),
+            ("is_banned", "INTEGER DEFAULT 0"),
+            ("ban_reason", "TEXT"),
+            ("tier", "TEXT DEFAULT 'free'"),
+            ("ai_usage_counter", "INTEGER DEFAULT 0"),
+            # AI Token Economy (replaces old 10-message credit model)
+            ("ai_free_tokens", "INTEGER DEFAULT 10000"),
+            ("ai_paid_tokens", "INTEGER DEFAULT 0"),
         ]:
             try:
                 conn.execute(f"ALTER TABLE users ADD COLUMN {col_def[0]} {col_def[1]}")
@@ -107,8 +114,33 @@ def init_db():
             )
         """)
 
-        # Remove hardcoded admin creation so first real registered user becomes Root Owner
-        # (Preserve existing tables and giftcodes)
+        # 6. Immutable Credit Transactions Ledger (Sổ Cái Bất Biến)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS credit_transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                amount INTEGER NOT NULL,
+                balance_before INTEGER NOT NULL,
+                balance_after INTEGER NOT NULL,
+                action_type TEXT NOT NULL,
+                description TEXT,
+                created_at INTEGER NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+
+        # 7. Admin Audit & Security Violation Logs (Nhật Ký Thanh Tra & Vi Phạm)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS admin_audit_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                admin_id INTEGER,
+                target_id INTEGER,
+                action TEXT NOT NULL,
+                details TEXT,
+                ip_address TEXT,
+                created_at INTEGER NOT NULL
+            )
+        """)
 
         # Default Giftcodes for testing/freebies if not exists
         default_codes = [
@@ -122,6 +154,52 @@ def init_db():
                 (c, cr, mu, int(time.time()))
             )
     conn.close()
+
+
+# ── HMAC SESSION SECURITY & SECRETS ─────────────────────────────────────────
+SERVER_SESSION_SECRET = os.environ.get("SERVER_SESSION_SECRET", "aov_triz_root_secure_vault_2026_cipher_key_!@#$")
+
+def generate_session_token(user_id: int, role: str) -> str:
+    """Generate tamper-proof HMAC-SHA256 authenticated session token"""
+    ts = int(time.time())
+    payload = f"{user_id}:{role}:{ts}"
+    sig = hmac.new(SERVER_SESSION_SECRET.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"{payload}.{sig}"
+
+def verify_session_token(token: str) -> dict:
+    """Verify session token and extract verified user_id and role"""
+    if not token or "." not in token:
+        return {"valid": False, "error": "Missing or invalid token format"}
+    try:
+        payload, sig = token.rsplit(".", 1)
+        expected_sig = hmac.new(SERVER_SESSION_SECRET.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(sig, expected_sig):
+            return {"valid": False, "error": "Token signature mismatch (Tampering detected)"}
+        parts = payload.split(":")
+        if len(parts) < 3:
+            return {"valid": False, "error": "Malformed token payload"}
+        uid = int(parts[0])
+        role = parts[1]
+        
+        # Verify in database that user exists and is not banned
+        conn = get_db()
+        try:
+            row = conn.execute("SELECT id, role, is_banned, credits, tier FROM users WHERE id = ?", (uid,)).fetchone()
+            if not row:
+                return {"valid": False, "error": "User does not exist"}
+            if row["is_banned"]:
+                return {"valid": False, "is_banned": True, "error": "Tài khoản của bạn đã bị khóa do vi phạm quy tắc!"}
+            return {
+                "valid": True,
+                "user_id": uid,
+                "role": row["role"],
+                "credits": row["credits"],
+                "tier": row["tier"] if "tier" in row.keys() else "free"
+            }
+        finally:
+            conn.close()
+    except Exception as e:
+        return {"valid": False, "error": f"Token verification error: {str(e)}"}
 
 
 def _hash_password(password: str, salt: str) -> str:
@@ -140,15 +218,20 @@ def register_user(username: str, password: str) -> dict:
         full_hash = f"{salt}${pwd_hash}"
         now = int(time.time())
         with conn:
-            # Check if this is the very first account registered
-            row = conn.execute("SELECT COUNT(*) as count FROM users").fetchone()
-            is_first_user = (row["count"] == 0) if row else False
+            # QUY TẮC BẤT BIẾN: Chỉ duy nhất người đầu tiên là Root Owner
+            # Kiểm tra xem đã có bất kỳ tài khoản Owner nào tồn tại chưa
+            owner_row = conn.execute("SELECT id FROM users WHERE role = 'owner' LIMIT 1").fetchone()
+            count_row = conn.execute("SELECT COUNT(*) as count FROM users").fetchone()
+            total_users = count_row["count"] if count_row else 0
+
+            is_first_user = (owner_row is None and total_users == 0)
             assigned_role = "owner" if is_first_user else "user"
             initial_credits = 999999 if is_first_user else 50
+            assigned_tier = "vip_unlimited" if is_first_user else "free"
 
             cur = conn.execute(
-                "INSERT INTO users (username, password_hash, role, credits, created_at) VALUES (?, ?, ?, ?, ?)",
-                (username, full_hash, assigned_role, initial_credits, now)
+                "INSERT INTO users (username, password_hash, role, credits, tier, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (username, full_hash, assigned_role, initial_credits, assigned_tier, now)
             )
             user_id = cur.lastrowid
             key_prefix = "aov_owner_" if is_first_user else "aov_live_"
@@ -158,15 +241,25 @@ def register_user(username: str, password: str) -> dict:
                 "INSERT INTO api_keys (user_id, api_key, name, status, created_at) VALUES (?, ?, ?, 'active', ?)",
                 (user_id, key_val, key_name, now)
             )
+
+            # Ghi sổ cái khởi tạo credits
+            conn.execute("""
+                INSERT INTO credit_transactions (user_id, amount, balance_before, balance_after, action_type, description, created_at)
+                VALUES (?, ?, 0, ?, 'INITIAL_GRANT', ?, ?)
+            """, (user_id, initial_credits, initial_credits, f"Cấp Credits khởi tạo tài khoản [{assigned_role.upper()}]", now))
+
+        session_token = generate_session_token(user_id, assigned_role)
         msg = "Đăng ký thành công tài khoản ROOT OWNER (Chủ sở hữu tối cao)!" if is_first_user else "Đăng ký thành công! Bạn nhận được 50 lượt check miễn phí."
         return {
             "success": True,
             "status": "ok",
             "message": msg,
+            "session_token": session_token,
             "user": {
                 "id": user_id,
                 "username": username,
                 "role": assigned_role,
+                "tier": assigned_tier,
                 "credits": initial_credits,
                 "api_key": key_val,
                 "key": key_val
@@ -186,6 +279,11 @@ def login_user(username: str, password: str) -> dict:
         if not row:
             return {"success": False, "error": "Tài khoản hoặc mật khẩu không chính xác!"}
         
+        # Check if banned
+        if "is_banned" in row.keys() and row["is_banned"]:
+            reason = row["ban_reason"] or "Vi phạm điều khoản hoặc nghi vấn can thiệp hệ thống"
+            return {"success": False, "is_banned": True, "error": f"[TÀI KHOẢN BỊ KHÓA] {reason}"}
+
         stored_hash = row["password_hash"]
         if "$" not in stored_hash:
             return {"success": False, "error": "Lỗi xác thực hash!"}
@@ -199,9 +297,12 @@ def login_user(username: str, password: str) -> dict:
         key_row = conn.execute("SELECT api_key FROM api_keys WHERE user_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1", (row["id"],)).fetchone()
         api_key = key_row["api_key"] if key_row else ""
 
+        session_token = generate_session_token(row["id"], row["role"])
+
         return {
             "success": True,
             "status": "ok",
+            "session_token": session_token,
             "user": {
                 "id": row["id"],
                 "username": row["username"],
@@ -209,7 +310,10 @@ def login_user(username: str, password: str) -> dict:
                 "avatar_url": (row["avatar_url"] if "avatar_url" in row.keys() and row["avatar_url"] else ""),
                 "email": (row["email"] if "email" in row.keys() and row["email"] else ""),
                 "role": row["role"],
+                "tier": row["tier"] if "tier" in row.keys() else "free",
                 "credits": row["credits"],
+                "ai_free_tokens": row["ai_free_tokens"] if "ai_free_tokens" in row.keys() else 0,
+                "ai_paid_tokens": row["ai_paid_tokens"] if "ai_paid_tokens" in row.keys() else 0,
                 "api_key": api_key,
                 "key": api_key
             }
@@ -235,6 +339,8 @@ def get_user_profile(user_id: int) -> dict:
                 "email": (row["email"] if "email" in row.keys() and row["email"] else ""),
                 "role": row["role"],
                 "credits": row["credits"],
+                "ai_free_tokens": row["ai_free_tokens"] if "ai_free_tokens" in row.keys() else 0,
+                "ai_paid_tokens": row["ai_paid_tokens"] if "ai_paid_tokens" in row.keys() else 0,
                 "api_key": key_row["api_key"] if key_row else "",
                 "created_at": row["created_at"]
             }
@@ -331,20 +437,324 @@ def validate_api_key(api_key: str) -> dict:
         conn.close()
 
 
-def deduct_credit(user_id: int, count: int = 1):
+import math
+
+def record_credit_ledger(conn, user_id: int, amount: int, action_type: str, description: str):
+    """Ghi lại biến động số dư bất biến vào bảng credit_transactions"""
+    now = int(time.time())
+    u = conn.execute("SELECT credits FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not u:
+        return
+    current_balance = u["credits"]
+    balance_before = current_balance - amount
+    conn.execute("""
+        INSERT INTO credit_transactions (user_id, amount, balance_before, balance_after, action_type, description, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (user_id, amount, balance_before, current_balance, action_type, description, now))
+
+
+def deduct_check_credits(user_id: int, account_count: int, action_type: str = "BATCH_CHECK", description: str = "") -> dict:
+    """
+    Tỷ lệ quy đổi tối ưu: 1 CREDIT = 10 TÀI KHOẢN CHECK
+    Ví dụ: 1-10 acc = 1 Cr | 50 acc = 5 Cr | 100 acc = 10 Cr
+    Owner, Admin, hoặc gói VIP Unlimited được miễn phí vô hạn.
+    """
+    if not user_id or account_count <= 0:
+        return {"success": True, "credits_deducted": 0}
+
+    credits_needed = max(1, math.ceil(account_count / 10))
     conn = get_db()
     try:
         with conn:
-            conn.execute("UPDATE users SET credits = MAX(0, credits - ?) WHERE id = ? AND role != 'admin'", (count, user_id))
+            u = conn.execute("SELECT id, username, role, credits, tier, is_banned FROM users WHERE id = ?", (user_id,)).fetchone()
+            if not u:
+                return {"success": False, "error": "Không tìm thấy người dùng!"}
+            if u["is_banned"]:
+                return {"success": False, "error": "Tài khoản của bạn đã bị khóa do vi phạm điều khoản!"}
+
+            # Miễn phí cho Owner, Admin hoặc VIP Unlimited
+            if u["role"] in ("owner", "admin") or u["tier"] == "vip_unlimited":
+                return {"success": True, "credits_deducted": 0, "remaining_credits": u["credits"], "is_vip": True}
+
+            if u["credits"] < credits_needed:
+                return {
+                    "success": False,
+                    "error": f"Không đủ Credits! Bạn cần {credits_needed} Credits để quét {account_count} tài khoản (1 Credit = 10 Acc). Số dư hiện tại: {u['credits']} Credits.",
+                    "credits_needed": credits_needed,
+                    "credits_available": u["credits"]
+                }
+
+            conn.execute("UPDATE users SET credits = credits - ? WHERE id = ?", (credits_needed, user_id))
+            record_credit_ledger(conn, user_id, -credits_needed, action_type, description or f"Quét {account_count} tài khoản (Tỷ lệ: 1 Cr = 10 Acc)")
+
+            updated = conn.execute("SELECT credits FROM users WHERE id = ?", (user_id,)).fetchone()
+            return {
+                "success": True,
+                "credits_deducted": credits_needed,
+                "remaining_credits": updated["credits"]
+            }
     finally:
         conn.close()
 
 
-def add_credits(user_id: int, count: int):
+# AI_TOKEN_COST_TABLE - Mức tiêu thụ token theo từng tác vụ
+AI_TOKEN_COSTS = {
+    "text_per_char": 0.25,         # 1 token / 4 ký tự (input + output estimate)
+    "search_extra": 500,           # Web/live search context injection
+    "image_vision_extra": 800,     # Vision tensor + OCR analysis
+    "file_analysis_per_char": 0.25, # Same as text, capped at 2000 tokens
+    "file_analysis_max": 2000,     # Hard cap per file
+    "thinking_cot_extra": 300,     # Chain-of-Thought reasoning overhead
+    "deep_research_extra": 300,    # Deep research mode overhead
+}
+AI_FREE_TOKENS_INITIAL = 10_000    # Token free tặng khi đăng ký
+AI_TOKENS_PER_CREDIT = 2_000       # 1 Credit = 2,000 AI Tokens
+
+
+def estimate_ai_tokens(
+    message: str = "",
+    has_image: bool = False,
+    file_content: str = "",
+    enable_search: bool = False,
+    enable_thinking: bool = False,
+    enable_deep_research: bool = False,
+) -> int:
+    """Ước tính số token tiêu thụ trước khi gửi request AI"""
+    total = 0
+    # Text cost (input message + estimated output)
+    total += max(20, int(len(message) * AI_TOKEN_COSTS["text_per_char"] * 2))  # *2 for output estimate
+    # Vision cost
+    if has_image:
+        total += AI_TOKEN_COSTS["image_vision_extra"]
+    # File analysis cost
+    if file_content:
+        file_tokens = min(int(len(file_content) * AI_TOKEN_COSTS["file_analysis_per_char"]),
+                          int(AI_TOKEN_COSTS["file_analysis_max"]))
+        total += file_tokens
+    # Feature toggles
+    if enable_search:
+        total += AI_TOKEN_COSTS["search_extra"]
+    if enable_thinking:
+        total += AI_TOKEN_COSTS["thinking_cot_extra"]
+    if enable_deep_research:
+        total += AI_TOKEN_COSTS["deep_research_extra"]
+    return max(20, int(total))
+
+
+def deduct_ai_tokens(
+    user_id: int,
+    tokens_needed: int,
+    action_type: str = "AI_CHAT",
+    description: str = "",
+) -> dict:
+    """
+    Trừ AI Tokens theo thứ tự ưu tiên: Free Tokens trước -> Paid Tokens sau.
+    Owner/Admin/VIP Unlimited được miễn phí vô hạn.
+    Khi hết cả hai nguồn token -> Trả về out_of_tokens: True để frontend hiển thị prompt quy đổi.
+    """
+    if not user_id or tokens_needed <= 0:
+        return {"success": True, "tokens_deducted": 0, "charged": False}
+
+    conn = get_db()
+    try:
+        with conn:
+            u = conn.execute(
+                "SELECT id, role, credits, tier, ai_free_tokens, ai_paid_tokens FROM users WHERE id = ?",
+                (user_id,)
+            ).fetchone()
+            if not u:
+                return {"success": False, "error": "Không tìm thấy người dùng!"}
+
+            # VIP / privileged: unlimited free usage
+            if u["role"] in ("owner", "admin") or (u["tier"] or "") == "vip_unlimited":
+                return {
+                    "success": True, "charged": False,
+                    "tokens_deducted": tokens_needed,
+                    "free_tokens_remaining": u["ai_free_tokens"] or 0,
+                    "paid_tokens_remaining": u["ai_paid_tokens"] or 0,
+                }
+
+            free_t = u["ai_free_tokens"] or 0
+            paid_t = u["ai_paid_tokens"] or 0
+            total_available = free_t + paid_t
+
+            if total_available < tokens_needed:
+                return {
+                    "success": False,
+                    "out_of_tokens": True,
+                    "remaining_tokens": total_available,
+                    "free_tokens": free_t,
+                    "paid_tokens": paid_t,
+                    "credits_available": u["credits"],
+                    "rate_per_credit": AI_TOKENS_PER_CREDIT,
+                    "tokens_needed": tokens_needed,
+                    "error": (
+                        f"Bạn đã sử dụng hết Token AI! (Còn {total_available:,} tokens, cần {tokens_needed:,} tokens). "
+                        "Hãy dùng Credit của tài khoản để đổi lấy thêm Token AI và tiếp tục trò chuyện!"
+                    )
+                }
+
+            # Deduct: free first, then paid
+            free_deduct = min(free_t, tokens_needed)
+            paid_deduct = tokens_needed - free_deduct
+            new_free = free_t - free_deduct
+            new_paid = paid_t - paid_deduct
+
+            conn.execute(
+                "UPDATE users SET ai_free_tokens = ?, ai_paid_tokens = ? WHERE id = ?",
+                (new_free, new_paid, user_id)
+            )
+
+            desc = description or f"Tiêu thụ {tokens_needed:,} AI Tokens ({action_type})"
+            now = int(time.time())
+            conn.execute("""
+                INSERT INTO credit_transactions
+                    (user_id, amount, balance_before, balance_after, action_type, description, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (user_id, 0, free_t + paid_t, new_free + new_paid, action_type, desc, now))
+
+            return {
+                "success": True, "charged": True,
+                "tokens_deducted": tokens_needed,
+                "free_tokens_remaining": new_free,
+                "paid_tokens_remaining": new_paid,
+            }
+    finally:
+        conn.close()
+
+
+def convert_credits_to_tokens(user_id: int, credits_to_spend: int) -> dict:
+    """
+    Quy đổi Credits của tài khoản sang AI Paid Tokens.
+    Tỷ lệ: 1 Credit = 2,000 AI Tokens.
+    Ghi nhận bất biến vào Sổ cái Credit Transactions.
+    """
+    if not user_id or credits_to_spend <= 0:
+        return {"success": False, "error": "Số Credits quy đổi phải lớn hơn 0!"}
+
+    tokens_gained = credits_to_spend * AI_TOKENS_PER_CREDIT
+    conn = get_db()
+    try:
+        with conn:
+            u = conn.execute(
+                "SELECT id, role, credits, ai_free_tokens, ai_paid_tokens FROM users WHERE id = ?",
+                (user_id,)
+            ).fetchone()
+            if not u:
+                return {"success": False, "error": "Không tìm thấy người dùng!"}
+            if u["credits"] < credits_to_spend:
+                return {
+                    "success": False,
+                    "error": f"Không đủ Credits! Bạn có {u['credits']:,} Credits, cần {credits_to_spend:,} Credits."
+                }
+
+            # Deduct credits, add paid tokens
+            new_credits = u["credits"] - credits_to_spend
+            new_paid = (u["ai_paid_tokens"] or 0) + tokens_gained
+            conn.execute(
+                "UPDATE users SET credits = ?, ai_paid_tokens = ? WHERE id = ?",
+                (new_credits, new_paid, user_id)
+            )
+
+            # Record immutable ledger entry
+            now = int(time.time())
+            record_credit_ledger(
+                conn, user_id, -credits_to_spend,
+                "AI_TOKEN_EXCHANGE",
+                f"Quy đổi {credits_to_spend:,} Credits → +{tokens_gained:,} AI Tokens (Tỷ lệ 1 Cr = {AI_TOKENS_PER_CREDIT:,} Tokens)"
+            )
+
+            return {
+                "success": True,
+                "credits_spent": credits_to_spend,
+                "tokens_gained": tokens_gained,
+                "credits_remaining": new_credits,
+                "free_tokens_remaining": u["ai_free_tokens"] or 0,
+                "paid_tokens_remaining": new_paid,
+                "total_tokens": (u["ai_free_tokens"] or 0) + new_paid,
+                "message": f"Đã đổi thành công {credits_to_spend:,} Credits lấy +{tokens_gained:,} AI Tokens!"
+            }
+    finally:
+        conn.close()
+
+
+def record_ai_copilot_usage(user_id: int) -> dict:
+    """
+    Backward-compat wrapper: Chuyển tiếp sang hệ thống Token mới.
+    Mỗi lần gọi tương đương với 1 tin nhắn ngắn (~100 tokens).
+    """
+    return deduct_ai_tokens(
+        user_id,
+        tokens_needed=100,
+        action_type="AI_CHAT_LEGACY",
+        description="Chat AI Copilot (legacy usage)"
+    )
+
+
+def deduct_credit(user_id: int, count: int = 1):
+    """Legacy helper fallback - trừ credit và ghi ledger"""
+    conn = get_db()
+    try:
+        with conn:
+            u = conn.execute("SELECT role, credits FROM users WHERE id = ?", (user_id,)).fetchone()
+            if u and u["role"] not in ("owner", "admin"):
+                conn.execute("UPDATE users SET credits = MAX(0, credits - ?) WHERE id = ?", (count, user_id))
+                record_credit_ledger(conn, user_id, -count, "MANUAL_CHECK", f"Trừ {count} Credit lượt check đơn lẻ")
+    finally:
+        conn.close()
+
+
+def add_credits(user_id: int, count: int, reason: str = "Nạp thủ công"):
     conn = get_db()
     try:
         with conn:
             conn.execute("UPDATE users SET credits = credits + ? WHERE id = ?", (count, user_id))
+            record_credit_ledger(conn, user_id, count, "ADMIN_ADJUST", reason)
+    finally:
+        conn.close()
+
+
+def get_user_credit_history(user_id: int, limit: int = 50) -> list:
+    """Lấy danh sách sao kê biến động số dư cho người dùng"""
+    conn = get_db()
+    try:
+        rows = conn.execute("""
+            SELECT id, amount, balance_before, balance_after, action_type, description, created_at
+            FROM credit_transactions
+            WHERE user_id = ?
+            ORDER BY id DESC LIMIT ?
+        """, (user_id, limit)).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def log_admin_audit(admin_id: int, target_id: int, action: str, details: str, ip_address: str = ""):
+    """Ghi nhật ký thanh tra quản trị và các hành vi an ninh"""
+    conn = get_db()
+    try:
+        now = int(time.time())
+        with conn:
+            conn.execute("""
+                INSERT INTO admin_audit_logs (admin_id, target_id, action, details, ip_address, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (admin_id, target_id, action, details, ip_address, now))
+    finally:
+        conn.close()
+
+
+def get_admin_audit_logs(limit: int = 50) -> list:
+    """Lấy danh sách nhật ký thanh tra an ninh cho Root Owner / Admin Panel"""
+    conn = get_db()
+    try:
+        rows = conn.execute("""
+            SELECT a.*, u.username as admin_name, t.username as target_name
+            FROM admin_audit_logs a
+            LEFT JOIN users u ON a.admin_id = u.id
+            LEFT JOIN users t ON a.target_id = t.id
+            ORDER BY a.id DESC LIMIT ?
+        """, (limit,)).fetchall()
+        return [dict(r) for r in rows]
     finally:
         conn.close()
 
@@ -555,13 +965,26 @@ def admin_adjust_credits(requester_id: int, target_user_id: int, amount: int) ->
         conn.close()
 
 
-def admin_update_role(requester_id: int, target_user_id: int, new_role: str) -> dict:
-    """Promote or Demote roles. ONLY ROOT OWNER can do this."""
+def admin_update_role(requester_id: int, target_user_id: int, new_role: str, client_ip: str = "") -> dict:
+    """Promote or Demote roles. ONLY ROOT OWNER can do this. Security trap enabled."""
     conn = get_db()
     try:
         req = conn.execute("SELECT role FROM users WHERE id = ?", (requester_id,)).fetchone()
+        
+        # BẪY AN NINH: Không để lộ logic 'Chỉ Root Owner...'
         if not req or req["role"] != "owner":
-            return {"success": False, "error": "CHỈ ROOT OWNER mới có quyền thăng cấp hoặc hạ cấp Admin!"}
+            log_admin_audit(
+                admin_id=requester_id,
+                target_id=target_user_id,
+                action="SECURITY_VIOLATION_ESCALATION",
+                details=f"Cố tình can thiệp thăng cấp quyền lên [{new_role}] cho user_id={target_user_id}",
+                ip_address=client_ip
+            )
+            return {
+                "success": False,
+                "error": "[CẢNH BÁO HỆ THỐNG] Phát hiện hành vi bất thường và can thiệp trái phép! Địa chỉ IP và định danh của bạn đã được ghi nhận vào nhật ký thanh tra an ninh.",
+                "security_violation": True
+            }
 
         if target_user_id == requester_id:
             return {"success": False, "error": "Không thể tự thay đổi quyền của chính Root Owner!"}
@@ -575,11 +998,99 @@ def admin_update_role(requester_id: int, target_user_id: int, new_role: str) -> 
 
         with conn:
             conn.execute("UPDATE users SET role = ? WHERE id = ?", (new_role, target_user_id))
+            log_admin_audit(
+                admin_id=requester_id,
+                target_id=target_user_id,
+                action="ROLE_CHANGE",
+                details=f"Root Owner đã đổi quyền của {target['username']} thành [{new_role.upper()}]",
+                ip_address=client_ip
+            )
 
         return {
             "success": True,
             "message": f"Đã cập nhật quyền của {target['username']} thành [{new_role.upper()}]!"
         }
+    finally:
+        conn.close()
+
+
+def admin_ban_user(requester_id: int, target_user_id: int, reason: str = "Vi phạm quy tắc hệ thống", client_ip: str = "") -> dict:
+    """Khóa tài khoản người dùng"""
+    conn = get_db()
+    try:
+        req = conn.execute("SELECT role FROM users WHERE id = ?", (requester_id,)).fetchone()
+        if not req or req["role"] not in ("owner", "admin"):
+            return {
+                "success": False,
+                "error": "[CẢNH BÁO HỆ THỐNG] Phát hiện hành vi bất thường và can thiệp trái phép! Hành vi đã được ghi nhận.",
+                "security_violation": True
+            }
+
+        target = conn.execute("SELECT id, username, role FROM users WHERE id = ?", (target_user_id,)).fetchone()
+        if not target:
+            return {"success": False, "error": "Không tìm thấy người dùng!"}
+        if target["role"] == "owner":
+            return {"success": False, "error": "Không thể khóa tài khoản Root Owner tối cao!"}
+
+        with conn:
+            conn.execute("UPDATE users SET is_banned = 1, ban_reason = ? WHERE id = ?", (reason, target_user_id))
+            log_admin_audit(requester_id, target_user_id, "BAN_USER", f"Đã khóa tài khoản {target['username']}. Lý do: {reason}", client_ip)
+
+        return {"success": True, "message": f"Đã khóa vĩnh viễn tài khoản [{target['username']}] thành công!"}
+    finally:
+        conn.close()
+
+
+def admin_unban_user(requester_id: int, target_user_id: int, client_ip: str = "") -> dict:
+    """Mở khóa tài khoản người dùng"""
+    conn = get_db()
+    try:
+        req = conn.execute("SELECT role FROM users WHERE id = ?", (requester_id,)).fetchone()
+        if not req or req["role"] not in ("owner", "admin"):
+            return {
+                "success": False,
+                "error": "[CẢNH BÁO HỆ THỐNG] Phát hiện hành vi bất thường và can thiệp trái phép!",
+                "security_violation": True
+            }
+
+        target = conn.execute("SELECT id, username FROM users WHERE id = ?", (target_user_id,)).fetchone()
+        if not target:
+            return {"success": False, "error": "Không tìm thấy người dùng!"}
+
+        with conn:
+            conn.execute("UPDATE users SET is_banned = 0, ban_reason = NULL WHERE id = ?", (target_user_id,))
+            log_admin_audit(requester_id, target_user_id, "UNBAN_USER", f"Đã mở khóa tài khoản {target['username']}", client_ip)
+
+        return {"success": True, "message": f"Đã mở khóa thành công cho tài khoản [{target['username']}]!"}
+    finally:
+        conn.close()
+
+
+def admin_set_user_tier(requester_id: int, target_user_id: int, tier: str, client_ip: str = "") -> dict:
+    """Cấp gói thành viên (free, pro, vip_unlimited)"""
+    conn = get_db()
+    try:
+        req = conn.execute("SELECT role FROM users WHERE id = ?", (requester_id,)).fetchone()
+        if not req or req["role"] != "owner":
+            return {
+                "success": False,
+                "error": "[CẢNH BÁO HỆ THỐNG] Phát hiện hành vi bất thường và can thiệp trái phép!",
+                "security_violation": True
+            }
+
+        valid_tiers = ("free", "pro", "vip_unlimited")
+        if tier not in valid_tiers:
+            return {"success": False, "error": "Gói không hợp lệ (free, pro, vip_unlimited)"}
+
+        target = conn.execute("SELECT id, username FROM users WHERE id = ?", (target_user_id,)).fetchone()
+        if not target:
+            return {"success": False, "error": "Không tìm thấy người dùng!"}
+
+        with conn:
+            conn.execute("UPDATE users SET tier = ? WHERE id = ?", (tier, target_user_id))
+            log_admin_audit(requester_id, target_user_id, "SET_TIER", f"Cấp gói [{tier.upper()}] cho {target['username']}", client_ip)
+
+        return {"success": True, "message": f"Đã cập nhật gói thành viên của {target['username']} thành [{tier.upper()}]!"}
     finally:
         conn.close()
 

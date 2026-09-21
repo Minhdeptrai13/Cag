@@ -1,16 +1,124 @@
 /**
  * AOV STUDIO LUXURY CYBERPUNK MASTER FRONTEND (2026 EDITION)
  * 5 Core Modules: Dashboard, Playground Tool, Playground AI, API Key, Settings
- * 3 Fast Captcha Modes: 1-Click Smart, Magnetic Slider, Matrix Icon Selection
+ * Dual Theme: Light & Dark | i18n: Tiếng Việt & English
+ * Zero-Trust Session Security & Immutable Credit Ledger
  */
 
 // ── Global State ────────────────────────────────────────────────────────────
 let currentUser = null;
 let currentApiKey = null;
+let currentSessionToken = localStorage.getItem('aov_session_token') || '';
 let activeTaskId = null;
 let pollInterval = null;
 let allResults = [];
 let activeResultFilter = 'all';
+let currentLang = localStorage.getItem('aov_lang') || 'vi';
+let currentTheme = localStorage.getItem('aov_theme') || 'dark';
+
+// ── i18n Dictionary (VI / EN) ───────────────────────────────────────────────
+const I18N_DICT = {
+  vi: {
+    mode_paste: "DÁN TEXT THỦ CÔNG",
+    mode_stream: "QUÉT FILE KHỦNG (10GB+)",
+    stream_desc: "Mở trực tiếp file từ ổ cứng (1GB - 50GB). Tỷ lệ quy đổi ưu đãi: 1 Credit check được 10 tài khoản. Trình duyệt đọc từng khối nhỏ và gửi từng đợt 50 acc lên Render. Không sợ tràn RAM, không sợ lag máy chủ!",
+    stream_read: "ĐÃ ĐỌC:",
+    stream_total: "TỔNG FILE:",
+    stream_queue: "QUEUE ACC:",
+    stream_eta: "DỰ TÍNH (ETA):",
+    thread_label: "SỐ LUỒNG CHẠY:",
+    btn_start_check: "BẮT ĐẦU QUÉT",
+    btn_pause: "TẠM DỪNG",
+    btn_resume: "TIẾP TỤC",
+    btn_stop: "DỪNG",
+    btn_clear: "XÓA",
+    filter_all: "TẤT CẢ",
+    filter_trang: "TRẮNG TTT",
+    filter_vip: "ACC VIP",
+    filter_live: "ACC LIVE",
+    btn_copy: "COPY KẾT QUẢ",
+    btn_export_live: "XUẤT HITS LIVE",
+    btn_export_trang: "XUẤT ACC TRẮNG",
+    btn_redeem: "NẠP CODE",
+    ledger_title: "SAO KÊ BIẾN ĐỘNG SỐ DƯ (CREDIT LEDGER)",
+    ledger_sub: "Lịch sử cộng, trừ credits được ghi nhận bất biến bảo vệ quyền lợi minh bạch 100%. Tỷ lệ: 1 Credit = 10 Tài khoản / 1 Credit = 10 Tin nhắn AI.",
+    btn_refresh: "LÀM MỚI",
+    nav_home: "TRANG CHỦ",
+    nav_playground: "PLAYGROUND TOOL",
+    nav_ai: "PLAYGROUND AI",
+    nav_api: "API SERVICE",
+    nav_settings: "CÀI ĐẶT",
+    nav_owner: "QUẢN TRỊ OWNER"
+  },
+  en: {
+    mode_paste: "PASTE TEXT MANUALLY",
+    mode_stream: "STREAM MASSIVE FILE (10GB+)",
+    stream_desc: "Direct disk streaming (1GB - 50GB). Quota rate: 1 Credit checks 10 accounts. Browser slices blocks and dispatches 50 acc batches to Render. Zero RAM overflow, zero server freeze!",
+    stream_read: "READ:",
+    stream_total: "TOTAL FILE:",
+    stream_queue: "QUEUE ACC:",
+    stream_eta: "ESTIMATED (ETA):",
+    thread_label: "CONCURRENT THREADS:",
+    btn_start_check: "START SCAN",
+    btn_pause: "PAUSE",
+    btn_resume: "RESUME",
+    btn_stop: "STOP",
+    btn_clear: "CLEAR",
+    filter_all: "ALL",
+    filter_trang: "UNLINKED",
+    filter_vip: "VIP ACCOUNTS",
+    filter_live: "LIVE ACCOUNTS",
+    btn_copy: "COPY RESULTS",
+    btn_export_live: "EXPORT LIVE HITS",
+    btn_export_trang: "EXPORT UNLINKED",
+    btn_redeem: "REDEEM CODE",
+    ledger_title: "TRANSACTION LEDGER (CREDIT AUDIT)",
+    ledger_sub: "Immutable ledger tracking all balance changes. Rate: 1 Credit = 10 Account Checks / 1 Credit = 10 AI Messages.",
+    btn_refresh: "REFRESH",
+    nav_home: "HOME",
+    nav_playground: "PLAYGROUND TOOL",
+    nav_ai: "AI COPILOT",
+    nav_api: "API SERVICE",
+    nav_settings: "SETTINGS",
+    nav_owner: "OWNER CONSOLE"
+  }
+};
+
+function applyLanguage(lang) {
+  currentLang = lang;
+  localStorage.setItem('aov_lang', lang);
+  const dict = I18N_DICT[lang] || I18N_DICT.vi;
+  
+  const langLabel = document.getElementById('lblCurrentLang');
+  if (langLabel) langLabel.textContent = lang.toUpperCase();
+
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (dict[key]) {
+      el.textContent = dict[key];
+    }
+  });
+}
+
+function applyTheme(theme) {
+  currentTheme = theme;
+  localStorage.setItem('aov_theme', theme);
+  document.documentElement.setAttribute('data-theme', theme);
+
+  const sunIcon = document.getElementById('iconThemeSun');
+  const moonIcon = document.getElementById('iconThemeMoon');
+  const themeText = document.getElementById('lblThemeText');
+
+  if (theme === 'light') {
+    if (sunIcon) sunIcon.style.display = 'inline-block';
+    if (moonIcon) moonIcon.style.display = 'none';
+    if (themeText) themeText.textContent = 'LIGHT';
+  } else {
+    if (sunIcon) sunIcon.style.display = 'none';
+    if (moonIcon) moonIcon.style.display = 'inline-block';
+    if (themeText) themeText.textContent = 'DARK';
+  }
+}
 
 // Captcha State
 let currentCaptchaMode = 'click';
@@ -39,6 +147,16 @@ function showToast(msg, duration = 2500) {
 function escapeHtml(str) {
   if (!str) return '';
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function getAuthHeaders() {
+  const headers = { 'Content-Type': 'application/json' };
+  const token = localStorage.getItem('aov_session_token') || currentSessionToken;
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+    headers['X-Session-Token'] = token;
+  }
+  return headers;
 }
 
 // ── View & Auth Switcher ────────────────────────────────────────────────────
@@ -119,6 +237,54 @@ sidebarBtns.forEach(btn => {
 });
 
 // ── User State & Profile Rendering ──────────────────────────────────────────
+function updateAllAvatarsAcrossUI(avatarUrl, displayName) {
+  const initial = displayName ? displayName[0].toUpperCase() : 'U';
+  
+  // 1. Header User Avatar
+  const headerAvt = document.getElementById('studioUserAvatar');
+  if (headerAvt) {
+    if (avatarUrl && (avatarUrl.startsWith('http') || avatarUrl.startsWith('data:image'))) {
+      headerAvt.innerHTML = `<img src="${avatarUrl}" alt="Avatar" />`;
+    } else if (avatarUrl && avatarUrl.length <= 4) {
+      headerAvt.textContent = avatarUrl;
+    } else {
+      headerAvt.textContent = initial;
+    }
+  }
+
+  // 2. Dropdown Avatar
+  const ddAvt = document.getElementById('ddAvatar');
+  if (ddAvt) {
+    if (avatarUrl && (avatarUrl.startsWith('http') || avatarUrl.startsWith('data:image'))) {
+      ddAvt.innerHTML = `<img src="${avatarUrl}" alt="Avatar" />`;
+    } else if (avatarUrl && avatarUrl.length <= 4) {
+      ddAvt.textContent = avatarUrl;
+    } else {
+      ddAvt.textContent = initial;
+    }
+  }
+
+  // 3. Settings Preview Box
+  const pBox = document.getElementById('settingAvatarPreviewBox');
+  const pText = document.getElementById('settingAvatarPreviewText');
+  const pImg = document.getElementById('settingAvatarPreviewImg');
+  if (pBox && pText && pImg) {
+    if (avatarUrl && (avatarUrl.startsWith('http') || avatarUrl.startsWith('data:image'))) {
+      pImg.src = avatarUrl;
+      pImg.style.display = 'block';
+      pText.style.display = 'none';
+    } else if (avatarUrl && avatarUrl.length <= 4) {
+      pImg.style.display = 'none';
+      pText.style.display = 'block';
+      pText.textContent = avatarUrl;
+    } else {
+      pImg.style.display = 'none';
+      pText.style.display = 'block';
+      pText.textContent = initial;
+    }
+  }
+}
+
 function renderUserProfile() {
   if (!currentUser) return;
   const displayName = currentUser.display_name || currentUser.username || 'User';
@@ -129,16 +295,7 @@ function renderUserProfile() {
   const nameEl = document.getElementById('studioUsername');
   if (nameEl) nameEl.textContent = displayName;
 
-  const avatarEl = document.getElementById('studioUserAvatar');
-  if (avatarEl) {
-    if (currentUser.avatar_url && (currentUser.avatar_url.startsWith('http') || currentUser.avatar_url.startsWith('data:image'))) {
-      avatarEl.innerHTML = `<img src="${currentUser.avatar_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.onerror=null;this.parentElement.textContent='${displayName[0].toUpperCase()}';"/>`;
-    } else if (currentUser.avatar_url && currentUser.avatar_url.length <= 4) {
-      avatarEl.textContent = currentUser.avatar_url;
-    } else {
-      avatarEl.textContent = displayName[0].toUpperCase();
-    }
-  }
+  updateAllAvatarsAcrossUI(currentUser.avatar_url, displayName);
 
   const creditsEl = document.getElementById('studioCredits');
   if (creditsEl) creditsEl.textContent = credits.toLocaleString();
@@ -150,16 +307,6 @@ function renderUserProfile() {
   }
 
   // Dropdown Header info
-  const ddAvatar = document.getElementById('ddAvatar');
-  if (ddAvatar) {
-    if (currentUser.avatar_url && (currentUser.avatar_url.startsWith('http') || currentUser.avatar_url.startsWith('data:image'))) {
-      ddAvatar.innerHTML = `<img src="${currentUser.avatar_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />`;
-    } else if (currentUser.avatar_url && currentUser.avatar_url.length <= 4) {
-      ddAvatar.textContent = currentUser.avatar_url;
-    } else {
-      ddAvatar.textContent = displayName[0].toUpperCase();
-    }
-  }
   const ddName = document.getElementById('ddDisplayName');
   if (ddName) ddName.textContent = displayName;
 
@@ -309,7 +456,9 @@ document.getElementById('formLogin').addEventListener('submit', async (e) => {
     const data = await res.json();
     if (data.success) {
       currentUser = data.user;
+      currentSessionToken = data.session_token || '';
       localStorage.setItem('aov_user', JSON.stringify(currentUser));
+      if (currentSessionToken) localStorage.setItem('aov_session_token', currentSessionToken);
       showStudio();
       showToast(`XIN CHÀO ${currentUser.username.toUpperCase()}!`);
     } else {
@@ -344,7 +493,9 @@ document.getElementById('formRegister').addEventListener('submit', async (e) => 
     const data = await res.json();
     if (data.success) {
       currentUser = data.user;
+      currentSessionToken = data.session_token || '';
       localStorage.setItem('aov_user', JSON.stringify(currentUser));
+      if (currentSessionToken) localStorage.setItem('aov_session_token', currentSessionToken);
       showStudio();
       showToast('ĐĂNG KÝ THÀNH CÔNG! BẠN ĐƯỢC TẶNG 50 CREDITS');
     } else {
@@ -449,30 +600,360 @@ if (threadRange) {
   updateThreadAdvisory(threadRange.value);
 }
 
+// ── DUAL MODE: PASTE VS 10GB+ STREAM SCANNER ─────────────────────────────
+let currentBatchMode = 'paste'; // 'paste' or 'stream'
+let streamSelectedFile = null;
+let activeStreamScanner = null;
+
+const tabModePaste = document.getElementById('tabModePaste');
+const tabModeStream = document.getElementById('tabModeStream');
+const pasteModeContainer = document.getElementById('pasteModeContainer');
+const streamModeContainer = document.getElementById('streamModeContainer');
+const btnPauseStream = document.getElementById('btnPauseStream');
+const btnExportLive = document.getElementById('btnExportLive');
+
+function setBatchMode(mode) {
+  currentBatchMode = mode;
+  if (mode === 'stream') {
+    if (tabModeStream) {
+      tabModeStream.style.background = 'rgba(245,158,11,0.15)';
+      tabModeStream.style.color = 'var(--gold-metallic)';
+      tabModeStream.style.borderColor = 'var(--gold-metallic)';
+    }
+    if (tabModePaste) {
+      tabModePaste.style.background = 'transparent';
+      tabModePaste.style.color = 'var(--text-secondary)';
+      tabModePaste.style.borderColor = 'rgba(255,255,255,0.1)';
+    }
+    if (pasteModeContainer) pasteModeContainer.style.display = 'none';
+    if (streamModeContainer) streamModeContainer.style.display = 'block';
+  } else {
+    if (tabModePaste) {
+      tabModePaste.style.background = 'rgba(255,255,255,0.08)';
+      tabModePaste.style.color = '#fff';
+      tabModePaste.style.borderColor = 'rgba(255,255,255,0.2)';
+    }
+    if (tabModeStream) {
+      tabModeStream.style.background = 'transparent';
+      tabModeStream.style.color = 'var(--gold-metallic)';
+      tabModeStream.style.borderColor = 'rgba(245,158,11,0.3)';
+    }
+    if (pasteModeContainer) pasteModeContainer.style.display = 'block';
+    if (streamModeContainer) streamModeContainer.style.display = 'none';
+  }
+}
+
+if (tabModePaste) tabModePaste.addEventListener('click', () => setBatchMode('paste'));
+if (tabModeStream) tabModeStream.addEventListener('click', () => setBatchMode('stream'));
+
+function formatBytesReadable(bytes) {
+  if (!bytes || bytes <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${units[i]}`;
+}
+
 uploadZone.addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
-  document.getElementById('fileChosen').textContent = `${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
-  const reader = new FileReader();
-  reader.onload = (evt) => {
-    batchText.value = evt.target.result;
-    showToast(`ĐÃ TẢI ${file.name} VÀO KHUNG QUÉT!`);
-  };
-  reader.readAsText(file);
+
+  const sizeFormatted = formatBytesReadable(file.size);
+  document.getElementById('fileChosen').textContent = `${file.name} (${sizeFormatted})`;
+
+  // Nếu file lớn hơn 2MB -> Tự động chuyển sang chế độ Stream Mode để tránh treo trình duyệt
+  if (file.size > 2 * 1024 * 1024) {
+    setBatchMode('stream');
+    streamSelectedFile = file;
+    const badge = document.getElementById('streamFileBadge');
+    if (badge) badge.textContent = `${file.name} (${sizeFormatted})`;
+    document.getElementById('streamTotalBytes').textContent = sizeFormatted;
+    document.getElementById('streamBytesRead').textContent = '0 MB';
+    document.getElementById('streamQueueCount').textContent = '0 acc';
+    document.getElementById('streamETA').textContent = '--:--';
+    showToast(`⚡ FILE LỚN (${sizeFormatted}): ĐÃ KÍCH HOẠT CHẾ ĐỘ STREAM KHỦNG!`);
+  } else {
+    // File nhỏ (<2MB): Cho phép đọc nhanh vào textarea
+    streamSelectedFile = file;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      batchText.value = evt.target.result;
+      showToast(`ĐÃ TẢI ${file.name} VÀO KHUNG QUÉT!`);
+    };
+    reader.readAsText(file);
+  }
 });
 
 btnClearBatch.addEventListener('click', () => {
+  if (activeStreamScanner && activeStreamScanner.isRunning) {
+    activeStreamScanner.stop();
+  }
   batchText.value = '';
+  streamSelectedFile = null;
+  fileInput.value = '';
   document.getElementById('fileChosen').textContent = 'Kéo thả hoặc click để chọn file';
+  const badge = document.getElementById('streamFileBadge');
+  if (badge) badge.textContent = 'Chưa nạp file';
+  document.getElementById('streamTotalBytes').textContent = '0 MB';
+  document.getElementById('streamBytesRead').textContent = '0 MB';
+  document.getElementById('streamQueueCount').textContent = '0 acc';
+  document.getElementById('streamETA').textContent = '--:--';
   batchResultsList.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);font-size:13px;">Chưa có kết quả. Nhập danh sách bên trái và bấm Bắt đầu quét!</div>';
   allResults = [];
+  updateResultsCounters();
 });
 
+// ── CLASS: CLIENT-DRIVEN 10GB FILE STREAM SCANNER ────────────────────────
+class FileStreamScanner {
+  constructor(file, options = {}) {
+    this.file = file;
+    this.chunkSize = options.chunkSize || 2 * 1024 * 1024; // 2MB blocks
+    this.offset = 0;
+    this.tailBuffer = '';
+    this.queue = [];
+    this.isRunning = false;
+    this.isPaused = false;
+    this.shouldStop = false;
+    this.activeRequests = 0;
+    this.maxConcurrent = options.maxConcurrent || 2; // Giữ 2 request song song để Render 512MB RAM thở thoải mái
+    this.batchSize = options.batchSize || 50; // 50 combos / request
+    this.threads = options.threads || 15;
+    this.startTime = null;
+    this.totalProcessed = 0;
+    this.consecutiveErrors = 0;
+  }
+
+  async start() {
+    this.isRunning = true;
+    this.isPaused = false;
+    this.shouldStop = false;
+    this.startTime = Date.now();
+    this.offset = 0;
+    this.tailBuffer = '';
+    this.queue = [];
+    this.totalProcessed = 0;
+
+    // UI Updates
+    document.getElementById('batchProgressBox').style.display = 'block';
+    document.getElementById('batchProgStatus').textContent = '⚡ STREAM ENGINE ĐANG ĐỌC TỪNG KHỐI FILE...';
+    btnStartBatch.style.display = 'none';
+    if (btnPauseStream) {
+      btnPauseStream.style.display = 'inline-flex';
+      btnPauseStream.textContent = '⏸️ TẠM DỪNG';
+    }
+    if (btnStopBatch) {
+      btnStopBatch.style.display = 'inline-flex';
+      btnStopBatch.disabled = false;
+    }
+
+    this.runLoop();
+  }
+
+  pause() {
+    this.isPaused = true;
+    if (btnPauseStream) btnPauseStream.textContent = '▶️ TIẾP TỤC';
+    document.getElementById('batchProgStatus').textContent = '⏸️ ĐÃ TẠM DỪNG TIẾN TRÌNH STREAM';
+    showToast('Đã tạm dừng đọc file và gửi mini-batch!');
+  }
+
+  resume() {
+    this.isPaused = false;
+    if (btnPauseStream) btnPauseStream.textContent = '⏸️ TẠM DỪNG';
+    document.getElementById('batchProgStatus').textContent = '⚡ ĐANG TIẾP TỤC QUÉT STREAM...';
+    showToast('Đang tiếp tục tiến trình stream!');
+    this.runLoop();
+  }
+
+  stop() {
+    this.shouldStop = true;
+    this.isRunning = false;
+    this.finish('ĐÃ DỪNG BỞI NGƯỜI DÙNG');
+  }
+
+  async readNextChunk() {
+    if (this.offset >= this.file.size || this.shouldStop) {
+      return false;
+    }
+
+    const nextEnd = Math.min(this.offset + this.chunkSize, this.file.size);
+    const slice = this.file.slice(this.offset, nextEnd);
+    this.offset = nextEnd;
+
+    const text = await slice.text();
+    const combined = this.tailBuffer + text;
+
+    // Line Boundary Resolver: Cắt theo dòng, giữ phần dư dở dang cho chunk kế
+    const lines = combined.split(/\r?\n/);
+    if (nextEnd < this.file.size) {
+      this.tailBuffer = lines.pop() || '';
+    } else {
+      this.tailBuffer = '';
+    }
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line || line.startsWith('#')) continue;
+      // Trích xuất user:pass nhanh
+      const sepIdx = line.indexOf(':') !== -1 ? line.indexOf(':') : line.indexOf('|');
+      if (sepIdx > 0 && sepIdx < line.length - 1) {
+        const u = line.substring(0, sepIdx).trim();
+        const p = line.substring(sepIdx + 1).trim();
+        if (u && p) {
+          this.queue.push([u, p]);
+        }
+      }
+    }
+
+    this.updateStatsUI();
+    return true;
+  }
+
+  updateStatsUI() {
+    const bytesReadEl = document.getElementById('streamBytesRead');
+    if (bytesReadEl) bytesReadEl.textContent = formatBytesReadable(this.offset);
+    const queueEl = document.getElementById('streamQueueCount');
+    if (queueEl) queueEl.textContent = `${this.queue.length} acc`;
+
+    // Tính % file và tốc độ
+    const pct = this.file.size > 0 ? Math.min(100, Math.round((this.offset / this.file.size) * 100)) : 0;
+    const progBar = document.getElementById('batchProgBar');
+    if (progBar) progBar.style.width = `${pct}%`;
+
+    const progRatio = document.getElementById('batchProgRatio');
+    if (progRatio) progRatio.textContent = `${pct}% (${this.totalProcessed} acc đã check)`;
+
+    const elapsedSec = this.startTime ? Math.max(0.5, (Date.now() - this.startTime) / 1000) : 1;
+    const speed = (this.totalProcessed / elapsedSec).toFixed(1);
+    const speedBadge = document.getElementById('batchSpeedBadge');
+    if (speedBadge) speedBadge.textContent = `${speed} acc/s`;
+
+    const timerBadge = document.getElementById('batchTimerBadge');
+    if (timerBadge) timerBadge.textContent = `⏱️ ${formatElapsedDuration(Date.now() - this.startTime)}`;
+
+    // ETA calculation
+    if (this.offset > 0 && this.file.size > this.offset) {
+      const remainingBytes = this.file.size - this.offset;
+      const bytesPerSec = this.offset / elapsedSec;
+      if (bytesPerSec > 0) {
+        const etaSec = remainingBytes / bytesPerSec;
+        const etaEl = document.getElementById('streamETA');
+        if (etaEl) etaEl.textContent = formatElapsedDuration(etaSec * 1000);
+      }
+    }
+  }
+
+  async runLoop() {
+    while (this.isRunning && !this.shouldStop) {
+      if (this.isPaused) {
+        await new Promise(r => setTimeout(r, 400));
+        continue;
+      }
+
+      // Backpressure: Nếu queue dưới 500 acc và file còn data -> đọc tiếp chunk
+      if (this.queue.length < 500 && this.offset < this.file.size) {
+        await this.readNextChunk();
+      }
+
+      // Nếu còn acc trong queue và còn slot gửi request đồng thời
+      if (this.queue.length > 0 && this.activeRequests < this.maxConcurrent) {
+        const batch = this.queue.splice(0, this.batchSize);
+        this.activeRequests++;
+        this.sendMiniBatch(batch);
+      }
+
+      // Kiểm tra xem đã hoàn thành toàn bộ chưa
+      if (this.offset >= this.file.size && this.queue.length === 0 && this.activeRequests === 0) {
+        this.finish('ĐÃ QUÉT HOÀN TẤT TOÀN BỘ FILE!');
+        break;
+      }
+
+      // Nghỉ nhẹ 50ms giữa các vòng điều phối để UI thread luôn mượt mà
+      await new Promise(r => setTimeout(r, 50));
+    }
+  }
+
+  async sendMiniBatch(combos) {
+    try {
+      const res = await fetch('/api/check-mini-batch', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          combos: combos,
+          threads: this.threads,
+          user_id: currentUser ? currentUser.id : null
+        })
+      });
+
+      if (!res.ok) {
+        throw new Error(`Server returned HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      this.consecutiveErrors = 0;
+
+      if (data.results && Array.isArray(data.results)) {
+        this.totalProcessed += data.results.length;
+        allResults = allResults.concat(data.results);
+        renderFilteredResults();
+      }
+    } catch (err) {
+      console.warn('[STREAM MINI-BATCH ERROR] Retry batch:', err);
+      this.consecutiveErrors++;
+      // Auto-retry: Trả combos về đầu queue để không bị mất acc
+      if (!this.shouldStop) {
+        this.queue.unshift(...combos);
+      }
+      if (this.consecutiveErrors > 10) {
+        this.pause();
+        showToast('Mạng không ổn định hoặc Render quá tải. Đã tự động tạm dừng!');
+      }
+    } finally {
+      this.activeRequests--;
+      this.updateStatsUI();
+    }
+  }
+
+  finish(msg) {
+    this.isRunning = false;
+    this.updateStatsUI();
+    const finalElapsed = this.startTime ? Date.now() - this.startTime : 0;
+    document.getElementById('batchProgStatus').textContent = `${msg} (${formatElapsedDuration(finalElapsed)})`;
+    showToast(msg);
+
+    btnStartBatch.style.display = 'inline-flex';
+    btnStartBatch.disabled = false;
+    btnStartBatch.textContent = 'BẮT ĐẦU QUÉT';
+    if (btnPauseStream) btnPauseStream.style.display = 'none';
+    if (btnStopBatch) btnStopBatch.style.display = 'none';
+  }
+}
+
+// Pause/Resume Button Handler
+if (btnPauseStream) {
+  btnPauseStream.addEventListener('click', () => {
+    if (!activeStreamScanner) return;
+    if (activeStreamScanner.isPaused) {
+      activeStreamScanner.resume();
+    } else {
+      activeStreamScanner.pause();
+    }
+  });
+}
+
+// Stop Batch Handler (Hỗ trợ cả Paste Mode và Stream Mode)
 if (btnStopBatch) {
   btnStopBatch.addEventListener('click', async () => {
     btnStopBatch.disabled = true;
     btnStopBatch.textContent = 'ĐANG DỪNG...';
+
+    if (currentBatchMode === 'stream' && activeStreamScanner) {
+      activeStreamScanner.stop();
+      btnStopBatch.style.display = 'none';
+      btnStopBatch.disabled = false;
+      btnStopBatch.textContent = 'DỪNG';
+      return;
+    }
+
     try {
       await fetch('/api/batch/stop', {
         method: 'POST',
@@ -492,7 +973,7 @@ if (btnStopBatch) {
     } finally {
       btnStopBatch.style.display = 'none';
       btnStopBatch.disabled = false;
-      btnStopBatch.textContent = 'DỪNG QUÉT';
+      btnStopBatch.textContent = 'DỪNG';
       btnStartBatch.disabled = false;
       btnStartBatch.textContent = 'BẮT ĐẦU QUÉT';
       btnStartBatch.style.display = 'inline-flex';
@@ -500,14 +981,35 @@ if (btnStopBatch) {
   });
 }
 
+// Start Batch Handler
 btnStartBatch.addEventListener('click', async () => {
+  const threads = parseInt(threadRange.value, 10) || 20;
+
+  // 1. CHẾ ĐỘ FILE STREAM CHO FILE LỚN (10GB+)
+  if (currentBatchMode === 'stream') {
+    if (!streamSelectedFile) {
+      showToast('Vui lòng chọn file danh sách tài khoản từ máy!');
+      fileInput.click();
+      return;
+    }
+
+    activeStreamScanner = new FileStreamScanner(streamSelectedFile, {
+      chunkSize: 2 * 1024 * 1024,
+      batchSize: 50,
+      maxConcurrent: 2,
+      threads: Math.min(threads, 25)
+    });
+    activeStreamScanner.start();
+    return;
+  }
+
+  // 2. CHẾ ĐỘ DÁN TEXT THỦ CÔNG (TRUYỀN THỐNG CHO FILE NHỎ)
   const raw = batchText.value.trim();
   if (!raw) {
     showToast('Vui lòng nhập danh sách tài khoản trước!');
     return;
   }
   const lines = raw.split(/\r?\n/).filter(x => x.trim().length > 0);
-  const threads = parseInt(threadRange.value, 10) || 20;
 
   document.getElementById('batchProgressBox').style.display = 'block';
   btnStartBatch.disabled = true;
@@ -515,7 +1017,7 @@ btnStartBatch.addEventListener('click', async () => {
   if (btnStopBatch) {
     btnStopBatch.style.display = 'inline-flex';
     btnStopBatch.disabled = false;
-    btnStopBatch.textContent = 'DỪNG QUÉT';
+    btnStopBatch.textContent = 'DỪNG';
   }
 
   try {
@@ -588,9 +1090,11 @@ function pollBatchProgress(taskId) {
     if (timerBadge) timerBadge.textContent = `⏱️ ${formatElapsedDuration(elapsed)}`;
   }, 500);
 
+  let clientOffset = 0;
+
   pollInterval = setInterval(async () => {
     try {
-      const res = await fetch(`/api/batch/status?task_id=${taskId}`);
+      const res = await fetch(`/api/batch/status?task_id=${taskId}&offset=${clientOffset}&stream=true`);
       if (!res.ok) {
         consecutivePollErrors++;
         if (consecutivePollErrors >= 15) {
@@ -627,16 +1131,24 @@ function pollBatchProgress(taskId) {
         document.getElementById('batchProgStatus').textContent = `Đang quét (${progress}/${total})...`;
       }
 
-      // Optimize rendering: Only re-render if data length changed
-      if (data.results && Array.isArray(data.results)) {
+      // RAM Offloading: Client accumulates delta items in its own memory
+      let hasNewData = false;
+      if (data.new_results && Array.isArray(data.new_results) && data.new_results.length > 0) {
+        allResults = allResults.concat(data.new_results);
+        clientOffset = data.next_offset || allResults.length;
+        hasNewData = true;
+      } else if (data.results && Array.isArray(data.results) && data.results.length > 0 && allResults.length === 0) {
         allResults = data.results;
-        if (allResults.length !== lastRenderedCount || data.is_done) {
-          lastRenderedCount = allResults.length;
-          try {
-            renderFilteredResults();
-          } catch (rErr) {
-            console.error('Render batch results error:', rErr);
-          }
+        clientOffset = data.next_offset || allResults.length;
+        hasNewData = true;
+      }
+
+      if (hasNewData || (data.is_done && allResults.length !== lastRenderedCount)) {
+        lastRenderedCount = allResults.length;
+        try {
+          renderFilteredResults();
+        } catch (rErr) {
+          console.error('Render batch results error:', rErr);
         }
       }
 
@@ -897,6 +1409,10 @@ document.getElementById('btnCopyResults').addEventListener('click', () => {
 
 document.getElementById('btnExportTrang').addEventListener('click', () => {
   const trangList = allResults.filter(r => r.is_trang || (r.tinh_trang && r.tinh_trang.toLowerCase().includes('trắng'))).map(r => r.full_line || `${r.account} | ${r.status}`).join('\n');
+  if (!trangList) {
+    showToast('Chưa có tài khoản Trắng Thông Tin nào!');
+    return;
+  }
   const blob = new Blob([trangList], { type: 'text/plain;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -904,6 +1420,22 @@ document.getElementById('btnExportTrang').addEventListener('click', () => {
   a.click();
   showToast('ĐÃ XUẤT FILE ACC TRẮNG THÀNH CÔNG!');
 });
+
+if (btnExportLive) {
+  btnExportLive.addEventListener('click', () => {
+    const liveList = allResults.filter(r => r.status === 'HIT' || r.status === 'LIVE' || r.status === 'LIVE_TRANG').map(r => r.full_line || `${r.account} | ${r.status}`).join('\n');
+    if (!liveList) {
+      showToast('Chưa có tài khoản LIVE nào để xuất!');
+      return;
+    }
+    const blob = new Blob([liveList], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `acc_hits_live_${Date.now()}.txt`;
+    a.click();
+    showToast('ĐÃ XUẤT FILE ACC LIVE THÀNH CÔNG!');
+  });
+}
 
 // ── TAB 3: PLAYGROUND AI COPILOT ────────────────────────────────────────────
 const aiMainChatBody = document.getElementById('aiMainChatBody');
@@ -1358,26 +1890,51 @@ function loadSettings() {
   updateAvatarPreview(selectedAvatarChoice);
 }
 
-// File upload direct avatar handler
+// File upload direct avatar handler with auto-compression
 const fileInpAvatar = document.getElementById('settingAvatarFileInput');
 if (fileInpAvatar) {
   fileInpAvatar.addEventListener('change', (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      showToast('Kích thước ảnh tối đa 5MB');
+    if (file.size > 8 * 1024 * 1024) {
+      showToast('Kích thước ảnh tối đa 8MB');
       return;
     }
 
     const reader = new FileReader();
     reader.onload = function(evt) {
-      const dataUrl = evt.target.result;
-      selectedAvatarChoice = dataUrl;
-      const avtUrlInp = document.getElementById('settingAvatarUrl');
-      if (avtUrlInp) avtUrlInp.value = '';
-      document.querySelectorAll('.preset-avatar-item').forEach(el => el.classList.remove('active'));
-      updateAvatarPreview(dataUrl);
-      showToast('Đã chọn ảnh! Hãy bấm "LƯU THAY ĐỔI CÀI ĐẶT" bên phải.');
+      const img = new Image();
+      img.onload = function() {
+        // Auto compress / resize to max 128x128 for ultra-fast load
+        const maxSide = 128;
+        let w = img.width;
+        let h = img.height;
+        if (w > h) {
+          if (w > maxSide) {
+            h = Math.round((h * maxSide) / w);
+            w = maxSide;
+          }
+        } else {
+          if (h > maxSide) {
+            w = Math.round((w * maxSide) / h);
+            h = maxSide;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+        selectedAvatarChoice = compressedDataUrl;
+        const avtUrlInp = document.getElementById('settingAvatarUrl');
+        if (avtUrlInp) avtUrlInp.value = '';
+        document.querySelectorAll('.preset-avatar-item').forEach(el => el.classList.remove('active'));
+        updateAvatarPreview(compressedDataUrl);
+        showToast('Đã nén ảnh sắc nét! Hãy bấm "LƯU THAY ĐỔI CÀI ĐẶT" để hoàn tất.');
+      };
+      img.src = evt.target.result;
     };
     reader.readAsDataURL(file);
   });
@@ -1411,7 +1968,7 @@ if (btnSaveProfile) {
       btnSaveProfile.textContent = 'ĐANG LƯU...';
       const res = await fetch('/api/user/profile/update', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           user_id: currentUser.id,
           display_name: displayName,
@@ -1426,8 +1983,9 @@ if (btnSaveProfile) {
         currentUser.email = data.user.email;
         localStorage.setItem('aov_user', JSON.stringify(currentUser));
         renderUserProfile();
+        updateAllAvatarsAcrossUI(currentUser.avatar_url, currentUser.display_name || currentUser.username);
         loadSettings();
-        showToast('ĐÃ CẬP NHẬT HỒ SƠ TÀI KHOẢN THÀNH CÔNG!');
+        showToast('ĐÃ CẬP NHẬT HỒ SƠ VÀ ĐỒNG BỘ AVATAR THÀNH CÔNG!');
       } else {
         showToast(data.error || 'Cập nhật thất bại');
       }
@@ -1574,6 +2132,62 @@ if (formCreateGift) {
   });
 }
 
+// ── USER CREDIT LEDGER (SAO KÊ BIẾN ĐỘNG SỐ DƯ) ────────────────────────────
+async function loadUserLedger() {
+  if (!currentUser) return;
+  const tbody = document.getElementById('userLedgerTbody');
+  if (!tbody) return;
+
+  tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text-muted);">Đang truy xuất sổ cái sao kê bảo mật...</td></tr>`;
+
+  try {
+    const res = await fetch(`/api/user/credit-history?user_id=${currentUser.id}`, {
+      headers: getAuthHeaders()
+    });
+    const data = await res.json();
+    if (data.success && data.history && data.history.length > 0) {
+      tbody.innerHTML = data.history.map(tx => {
+        const isPlus = tx.amount > 0;
+        const color = isPlus ? '#22c55e' : '#ef4444';
+        const sign = isPlus ? `+${tx.amount}` : `${tx.amount}`;
+        const timeStr = tx.created_at ? tx.created_at.slice(0, 19).replace('T', ' ') : 'N/A';
+        const txType = escapeHtml(tx.type || 'ADJUST');
+        const reason = escapeHtml(tx.reason || '');
+
+        return `
+          <tr style="border-bottom:1px solid var(--border-color);">
+            <td style="padding:10px 12px;font-family:var(--font-mono);font-size:11px;color:var(--text-muted);">${tx.id}</td>
+            <td style="padding:10px 12px;font-size:12px;color:var(--text-muted);">${timeStr}</td>
+            <td style="padding:10px 12px;"><span style="font-size:11px;font-weight:700;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,0.06);font-family:var(--font-mono);">${txType}</span></td>
+            <td style="padding:10px 12px;font-weight:800;font-family:var(--font-mono);color:${color};font-size:13px;">${sign}</td>
+            <td style="padding:10px 12px;font-family:var(--font-mono);font-size:12px;color:var(--text-main);">${Number(tx.balance_after).toLocaleString()} Cr</td>
+            <td style="padding:10px 12px;font-size:12px;color:var(--text-muted);">${reason}</td>
+          </tr>
+        `;
+      }).join('');
+    } else {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">Chưa có biến động số dư nào được ghi nhận.</td></tr>`;
+    }
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:#ef4444;">Lỗi kết nối khi nạp sao kê số dư.</td></tr>`;
+  }
+}
+
+const btnRefreshLedger = document.getElementById('btnRefreshLedger');
+if (btnRefreshLedger) {
+  btnRefreshLedger.addEventListener('click', () => {
+    loadUserLedger();
+    showToast('ĐÃ LÀM MỚI SỔ CÁI SAO KÊ');
+  });
+}
+
+// Update loadSettings to load ledger
+const _oldLoadSettings = loadSettings;
+loadSettings = function() {
+  _oldLoadSettings();
+  loadUserLedger();
+};
+
 window.ownerAdjustCredits = async function(targetId, targetUsername, sign) {
   const label = sign > 0 ? 'CỘNG' : 'TRỪ';
   const valStr = prompt(`Nhập số lượng Credits muốn ${label} cho [${targetUsername}]:`, "500");
@@ -1585,7 +2199,7 @@ window.ownerAdjustCredits = async function(targetId, targetUsername, sign) {
   try {
     const res = await fetch('/api/admin/users/credits', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({
         requester_id: currentUser.id,
         target_user_id: targetId,
@@ -1597,7 +2211,11 @@ window.ownerAdjustCredits = async function(targetId, targetUsername, sign) {
       showToast(data.message || 'Cập nhật Credits thành công!');
       loadOwnerDashboard();
     } else {
-      showToast(data.error || 'Cập nhật thất bại');
+      if (data.security_violation) {
+        alert(data.error || 'CẢNH BÁO AN NINH: Hành vi can thiệp trái phép đã được ghi nhận!');
+      } else {
+        showToast(data.error || 'Cập nhật thất bại');
+      }
     }
   } catch (e) {
     showToast('Lỗi máy chủ');
@@ -1611,7 +2229,7 @@ window.ownerChangeRole = async function(targetId, targetUsername, currentRole) {
   try {
     const res = await fetch('/api/admin/users/role', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({
         requester_id: currentUser.id,
         target_user_id: targetId,
@@ -1623,7 +2241,12 @@ window.ownerChangeRole = async function(targetId, targetUsername, currentRole) {
       showToast(data.message || 'Đã đổi quyền thành công!');
       loadOwnerDashboard();
     } else {
-      showToast(data.error || 'Không thể đổi quyền');
+      // Security trap response
+      if (data.security_violation) {
+        alert(`${data.error}\n\nHệ thống đã lưu vết địa chỉ IP và danh tính tài khoản vào Nhật Ký Thanh Tra An Ninh!`);
+      } else {
+        showToast(data.error || 'Không thể đổi quyền');
+      }
     }
   } catch (e) {
     showToast('Lỗi máy chủ');
@@ -1635,7 +2258,7 @@ window.ownerDeleteGiftcode = async function(code) {
   try {
     const res = await fetch('/api/admin/giftcodes/delete', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({
         requester_id: currentUser.id,
         code: code
@@ -1653,20 +2276,658 @@ window.ownerDeleteGiftcode = async function(code) {
   }
 };
 
-// Theme Switching
-let currentTheme = localStorage.getItem('aov_theme') || 'dark';
-function applyTheme(th) {
-  currentTheme = th;
-  document.documentElement.setAttribute('data-theme', th);
-  localStorage.setItem('aov_theme', th);
-}
-applyTheme(currentTheme);
+// ══════════════════════════════════════════════════════════════════════════════
+// ── TAB 3: PLAYGROUND AI - FULL AI COPILOT MODULE ────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
 
+// ── AI State ─────────────────────────────────────────────────────────────────
+let currentAiTokens = { free: 0, paid: 0, total: 0 };
+let aiPendingImage = null;     // { dataUrl, base64, name }
+let aiPendingFile = null;      // { content, name }
+let aiSearchEnabled = false;
+let aiConversationHistory = [];
+let aiIsTyping = false;
+let _lastSentPayload = null;   // for auto-resend after token exchange
+
+// ── DOM refs ──────────────────────────────────────────────────────────────────
+const aiCanvasForm = document.getElementById('aiCanvasForm');
+const aiCanvasInput = document.getElementById('aiCanvasInput');
+const aiMainChatBody = document.getElementById('aiMainChatBody');
+const aiTokenHudLabel = document.getElementById('aiTokenHudLabel');
+const aiAttachmentTray = document.getElementById('aiAttachmentTray');
+const aiAttachPreviewImg = document.getElementById('aiAttachPreviewImg');
+const aiAttachPreviewFile = document.getElementById('aiAttachPreviewFile');
+const aiAttachImgThumb = document.getElementById('aiAttachImgThumb');
+const aiAttachImgLabel = document.getElementById('aiAttachImgLabel');
+const aiAttachFileLabel = document.getElementById('aiAttachFileLabel');
+const btnToggleSearch = document.getElementById('btnToggleSearch');
+const btnAttachImage = document.getElementById('btnAttachImage');
+const btnAttachFile = document.getElementById('btnAttachFile');
+const aiImageFileInput = document.getElementById('aiImageFileInput');
+const aiDocFileInput = document.getElementById('aiDocFileInput');
+const btnRemoveImage = document.getElementById('btnRemoveImage');
+const btnRemoveFile = document.getElementById('btnRemoveFile');
+const modalTokenExchange = document.getElementById('modalTokenExchange');
+
+// ── AI Token HUD updater ──────────────────────────────────────────────────────
+function updateAiTokenHud(free, paid) {
+  const total = (free || 0) + (paid || 0);
+  currentAiTokens = { free: free || 0, paid: paid || 0, total };
+  if (!aiTokenHudLabel) return;
+  const formatted = total >= 1000 ? `${(total / 1000).toFixed(1)}k` : total;
+  aiTokenHudLabel.textContent = `${formatted} Tokens`;
+  const hud = document.getElementById('aiTokenHud');
+  if (hud) {
+    if (total <= 0) {
+      hud.style.color = 'var(--red-neon)';
+      hud.style.borderColor = 'rgba(239,68,68,0.4)';
+    } else if (total < 500) {
+      hud.style.color = '#f59e0b';
+      hud.style.borderColor = 'rgba(245,158,11,0.4)';
+    } else {
+      hud.style.color = 'var(--green-neon)';
+      hud.style.borderColor = 'rgba(34,197,94,0.35)';
+    }
+  }
+}
+
+// Load AI token balance from profile
+async function loadAiTokenBalance() {
+  if (!currentUser) return;
+  try {
+    const res = await fetch(`/api/v1/me?user_id=${currentUser.id}`);
+    const data = await res.json();
+    if (data.success && data.user) {
+      const free = data.user.ai_free_tokens || 0;
+      const paid = data.user.ai_paid_tokens || 0;
+      updateAiTokenHud(free, paid);
+    }
+  } catch (e) { /* silent */ }
+}
+
+// ── Attachment Tray helpers ───────────────────────────────────────────────────
+function refreshAttachmentTray() {
+  const hasAttachment = aiPendingImage || aiPendingFile;
+  if (aiAttachmentTray) aiAttachmentTray.style.display = hasAttachment ? 'flex' : 'none';
+  if (aiAttachPreviewImg) aiAttachPreviewImg.style.display = aiPendingImage ? 'flex' : 'none';
+  if (aiAttachPreviewFile) aiAttachPreviewFile.style.display = aiPendingFile ? 'flex' : 'none';
+}
+
+function clearImage() {
+  aiPendingImage = null;
+  if (aiAttachImgThumb) aiAttachImgThumb.src = '';
+  if (aiImageFileInput) aiImageFileInput.value = '';
+  refreshAttachmentTray();
+}
+
+function clearFile() {
+  aiPendingFile = null;
+  if (aiDocFileInput) aiDocFileInput.value = '';
+  refreshAttachmentTray();
+}
+
+function attachImageFromFile(file) {
+  if (!file || !file.type.startsWith('image/')) {
+    showToast('Chỉ hỗ trợ file ảnh (PNG, JPG, GIF, WebP)!');
+    return;
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    showToast('Ảnh quá lớn! Tối đa 5MB.');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const dataUrl = ev.target.result;
+    aiPendingImage = { dataUrl, base64: dataUrl, name: file.name };
+    if (aiAttachImgThumb) aiAttachImgThumb.src = dataUrl;
+    if (aiAttachImgLabel) aiAttachImgLabel.textContent = file.name;
+    refreshAttachmentTray();
+    showToast(`Đã đính kèm ảnh: ${file.name}`);
+  };
+  reader.readAsDataURL(file);
+}
+
+function attachDocFile(file) {
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) {
+    showToast('File quá lớn! Tối đa 2MB văn bản.');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    aiPendingFile = { content: ev.target.result, name: file.name };
+    if (aiAttachFileLabel) aiAttachFileLabel.textContent = file.name;
+    refreshAttachmentTray();
+    showToast(`Đã đính kèm file: ${file.name}`);
+  };
+  reader.readAsText(file);
+}
+
+// ── Event: Search toggle ──────────────────────────────────────────────────────
+if (btnToggleSearch) {
+  btnToggleSearch.addEventListener('click', () => {
+    aiSearchEnabled = !aiSearchEnabled;
+    btnToggleSearch.classList.toggle('active', aiSearchEnabled);
+    showToast(aiSearchEnabled ? '🔍 Live Search ĐÃ BẬT (+500 tokens)' : 'Đã tắt Live Search');
+  });
+}
+
+// ── Event: Attach Image button ────────────────────────────────────────────────
+if (btnAttachImage) {
+  btnAttachImage.addEventListener('click', () => aiImageFileInput && aiImageFileInput.click());
+}
+if (aiImageFileInput) {
+  aiImageFileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) attachImageFromFile(file);
+  });
+}
+
+// ── Event: Attach File button ─────────────────────────────────────────────────
+if (btnAttachFile) {
+  btnAttachFile.addEventListener('click', () => aiDocFileInput && aiDocFileInput.click());
+}
+if (aiDocFileInput) {
+  aiDocFileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) attachDocFile(file);
+  });
+}
+
+// ── Event: Remove attachments ─────────────────────────────────────────────────
+if (btnRemoveImage) btnRemoveImage.addEventListener('click', () => { clearImage(); showToast('Đã xóa ảnh đính kèm'); });
+if (btnRemoveFile) btnRemoveFile.addEventListener('click', () => { clearFile(); showToast('Đã xóa file đính kèm'); });
+
+// ── Event: Paste image from clipboard (Ctrl+V) ────────────────────────────────
+document.addEventListener('paste', (e) => {
+  const target = document.getElementById('viewPlaygroundAI');
+  if (!target || target.style.display === 'none') return;
+  if (!target.classList.contains('active') && getComputedStyle(target).display === 'none') return;
+  const items = (e.clipboardData || window.clipboardData)?.items;
+  if (!items) return;
+  for (let i = 0; i < items.length; i++) {
+    if (items[i].type.startsWith('image/')) {
+      const file = items[i].getAsFile();
+      if (file) {
+        attachImageFromFile(file);
+        e.preventDefault();
+        break;
+      }
+    }
+  }
+});
+
+// ── Auto-resize textarea ──────────────────────────────────────────────────────
+if (aiCanvasInput) {
+  aiCanvasInput.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 160) + 'px';
+  });
+  aiCanvasInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (aiCanvasForm) aiCanvasForm.dispatchEvent(new Event('submit'));
+    }
+  });
+}
+
+// ── Quick pill prompt injectors ───────────────────────────────────────────────
+document.querySelectorAll('.ai-pill-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const query = btn.getAttribute('data-query');
+    if (query && aiCanvasInput) {
+      aiCanvasInput.value = query;
+      aiCanvasInput.style.height = 'auto';
+      aiCanvasInput.focus();
+    }
+  });
+});
+
+// ── Chat message renderer ─────────────────────────────────────────────────────
+function renderMarkdownAI(text) {
+  if (!text) return '';
+  let html = escapeHtml(text);
+
+  // Code blocks
+  html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+    const langLabel = lang ? lang.toUpperCase() : 'CODE';
+    const safeCode = code.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+    const escaped = safeCode.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return `<div class="ai-code-preview-container">
+      <div class="ai-code-header">
+        <span class="ai-code-lang">${langLabel}</span>
+        <button class="ai-code-copy-btn" onclick="navigator.clipboard.writeText(this.closest('.ai-code-preview-container').querySelector('pre').textContent);this.textContent='Đã sao chép!';setTimeout(()=>this.textContent='COPY',1500);">COPY</button>
+      </div>
+      <pre class="ai-code-body">${escaped}</pre>
+    </div>`;
+  });
+
+  // Inline code
+  html = html.replace(/`([^`]+)`/g, '<code class="ai-inline-code">$1</code>');
+  // Bold
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  // Italic
+  html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  // Blockquote
+  html = html.replace(/^&gt; (.+)$/gm, '<blockquote style="border-left:3px solid var(--border-subtle);margin:6px 0;padding:6px 12px;color:var(--text-secondary);font-style:italic;">$1</blockquote>');
+  // Headers
+  html = html.replace(/^### (.+)$/gm, '<h4 style="margin:10px 0 4px;font-size:13px;font-weight:700;">$1</h4>');
+  html = html.replace(/^## (.+)$/gm, '<h3 style="margin:12px 0 6px;font-size:15px;font-weight:800;">$1</h3>');
+  html = html.replace(/^# (.+)$/gm, '<h2 style="margin:14px 0 8px;font-size:17px;font-weight:900;">$1</h2>');
+  // Bullet list
+  html = html.replace(/^- (.+)$/gm, '<li style="margin:3px 0;">$1</li>');
+  html = html.replace(/(<li[^>]*>[\s\S]*?<\/li>)/g, '<ul style="margin:6px 0;padding-left:20px;">$1</ul>');
+  // Line breaks
+  html = html.replace(/\n\n/g, '</p><p style="margin:8px 0;">');
+  html = html.replace(/\n/g, '<br>');
+  return html;
+}
+
+function appendAIMessage(role, content, thought, imageDataUrl) {
+  if (!aiMainChatBody) return;
+
+  const now = new Date();
+  const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+  let thoughtHtml = '';
+  if (thought && role === 'assistant') {
+    const lines = thought.split('\n').filter(Boolean).map(l => `<div style="font-size:11.5px;color:var(--text-secondary);padding:2px 0;">${escapeHtml(l)}</div>`).join('');
+    thoughtHtml = `
+      <details class="ai-thought-accordion" style="margin-bottom:8px;">
+        <summary style="cursor:pointer;font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:0.5px;list-style:none;display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--bg-surface);border-radius:var(--radius-sm);border:1px solid var(--border-subtle);">
+          <svg style="width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;" viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z"/><line x1="9" y1="21" x2="15" y2="21"/></svg>
+          CHUỖI TƯ DUY (Chain-of-Thought)
+        </summary>
+        <div style="padding:10px 12px;background:var(--bg-deep);border-radius:0 0 var(--radius-sm) var(--radius-sm);border:1px solid var(--border-subtle);border-top:none;">${lines}</div>
+      </details>`;
+  }
+
+  let imagePreviewHtml = '';
+  if (imageDataUrl && role === 'user') {
+    imagePreviewHtml = `<div style="margin-bottom:8px;"><img src="${imageDataUrl}" style="max-width:200px;max-height:150px;border-radius:8px;border:1px solid var(--border-subtle);object-fit:cover;" alt="Ảnh đính kèm" /></div>`;
+  }
+
+  const avatarHtml = role === 'assistant'
+    ? `<img src="/assets/garena_logo.png" style="width:20px;height:20px;object-fit:contain;" alt="AI" />`
+    : `<span>${(currentUser?.display_name || currentUser?.username || 'U')[0].toUpperCase()}</span>`;
+  const senderName = role === 'assistant'
+    ? `AOV COPILOT <span class="ai-time">${timeStr}</span>`
+    : `${(currentUser?.display_name || currentUser?.username || 'Bạn').toUpperCase()} <span class="ai-time">${timeStr}</span>`;
+
+  const row = document.createElement('div');
+  row.className = `ai-message-row ${role}`;
+  row.innerHTML = `
+    <div class="ai-msg-avatar">${avatarHtml}</div>
+    <div class="ai-msg-bubble">
+      <div class="ai-sender-name">${senderName}</div>
+      ${thoughtHtml}
+      ${imagePreviewHtml}
+      <div class="ai-msg-text">${renderMarkdownAI(content)}</div>
+    </div>`;
+  aiMainChatBody.appendChild(row);
+  aiMainChatBody.scrollTop = aiMainChatBody.scrollHeight;
+}
+
+function appendAITypingIndicator() {
+  if (!aiMainChatBody) return null;
+  const div = document.createElement('div');
+  div.id = 'aiTypingIndicator';
+  div.className = 'ai-message-row assistant';
+  div.innerHTML = `
+    <div class="ai-msg-avatar"><img src="/assets/garena_logo.png" style="width:20px;height:20px;object-fit:contain;" alt="AI"/></div>
+    <div class="ai-msg-bubble">
+      <div class="ai-sender-name">AOV COPILOT</div>
+      <div class="ai-msg-text" style="display:flex;align-items:center;gap:6px;">
+        <span class="ai-typing-dots">
+          <span></span><span></span><span></span>
+        </span>
+        <span style="font-size:12px;color:var(--text-muted);">Đang phân tích...</span>
+      </div>
+    </div>`;
+  aiMainChatBody.appendChild(div);
+  aiMainChatBody.scrollTop = aiMainChatBody.scrollHeight;
+  return div;
+}
+
+// ── Out-of-token interactive card ─────────────────────────────────────────────
+function appendOutOfTokenCard(creditsAvailable, ratePerCredit, tokensNeeded) {
+  if (!aiMainChatBody) return;
+  const card = document.createElement('div');
+  card.className = 'ai-token-out-card';
+  card.innerHTML = `
+    <div class="token-out-icon">⚡</div>
+    <div class="token-out-body">
+      <div class="token-out-title">Hết AI Tokens!</div>
+      <div class="token-out-sub">Bạn cần <strong>${(tokensNeeded||500).toLocaleString()}</strong> tokens cho tin nhắn này. Hãy quy đổi Credits để tiếp tục.</div>
+      <div class="token-out-meta">Credits khả dụng: <strong style="color:var(--gold-light);">${(creditsAvailable||0).toLocaleString()}</strong> Credits &nbsp;·&nbsp; Tỷ lệ: 1 Credit = ${(ratePerCredit||2000).toLocaleString()} Tokens</div>
+    </div>
+    <button class="token-out-btn" id="btnOpenTokenExchangeCard">Đổi Token Ngay →</button>`;
+  aiMainChatBody.appendChild(card);
+  aiMainChatBody.scrollTop = aiMainChatBody.scrollHeight;
+
+  card.querySelector('#btnOpenTokenExchangeCard').addEventListener('click', () => {
+    openTokenExchangeModal(creditsAvailable, ratePerCredit);
+  });
+}
+
+// ── Token Exchange Modal ───────────────────────────────────────────────────────
+function openTokenExchangeModal(creditsAvailable, ratePerCredit) {
+  if (!modalTokenExchange) return;
+  const slider = document.getElementById('sliderCreditsToExchange');
+  const sliderVal = document.getElementById('sliderValueDisplay');
+  const preview = document.getElementById('tokenExchangePreviewGain');
+  const credLeft = document.getElementById('tokenExchangeCreditsLeft');
+  const errMsg = document.getElementById('tokenExchangeError');
+
+  const maxCr = Math.min(Math.max(creditsAvailable || 1, 1), 1000);
+  if (slider) {
+    slider.max = maxCr;
+    slider.value = Math.min(5, maxCr);
+  }
+  if (credLeft) credLeft.textContent = `${(creditsAvailable||0).toLocaleString()} Credits khả dụng`;
+  if (errMsg) errMsg.style.display = 'none';
+
+  function updatePreview() {
+    const v = parseInt(slider?.value || 5, 10);
+    if (sliderVal) sliderVal.textContent = v;
+    const gain = v * (ratePerCredit || 2000);
+    if (preview) preview.textContent = `+${gain.toLocaleString()} AI Tokens`;
+  }
+  if (slider) { slider.oninput = updatePreview; updatePreview(); }
+
+  modalTokenExchange.style.display = 'flex';
+}
+
+function closeTokenModal() {
+  if (modalTokenExchange) modalTokenExchange.style.display = 'none';
+}
+
+const btnCloseTokenModal = document.getElementById('btnCloseTokenModal');
+if (btnCloseTokenModal) btnCloseTokenModal.addEventListener('click', closeTokenModal);
+if (modalTokenExchange) {
+  modalTokenExchange.addEventListener('click', (e) => { if (e.target === modalTokenExchange) closeTokenModal(); });
+}
+
+async function callConvertTokens(creditsToSpend) {
+  if (!currentUser) return null;
+  try {
+    const res = await fetch('/api/ai/convert-tokens', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: currentUser.id, credits: creditsToSpend })
+    });
+    return await res.json();
+  } catch (e) {
+    return null;
+  }
+}
+
+const btnConfirmTokenExchange = document.getElementById('btnConfirmTokenExchange');
+if (btnConfirmTokenExchange) {
+  btnConfirmTokenExchange.addEventListener('click', async () => {
+    const slider = document.getElementById('sliderCreditsToExchange');
+    const errMsg = document.getElementById('tokenExchangeError');
+    const credits = parseInt(slider?.value || 5, 10);
+
+    btnConfirmTokenExchange.disabled = true;
+    btnConfirmTokenExchange.textContent = 'Đang xử lý...';
+
+    const data = await callConvertTokens(credits);
+    btnConfirmTokenExchange.disabled = false;
+    btnConfirmTokenExchange.textContent = 'XÁC NHẬN ĐỔI TOKEN';
+
+    if (data?.success) {
+      closeTokenModal();
+      updateAiTokenHud(data.free_tokens_remaining, data.paid_tokens_remaining);
+      // Update credits in currentUser
+      if (currentUser && data.credits_remaining !== undefined) {
+        currentUser.credits = data.credits_remaining;
+        localStorage.setItem('aov_user', JSON.stringify(currentUser));
+        renderUserProfile();
+      }
+      showToast(`✅ Đã đổi thành công: +${data.tokens_gained?.toLocaleString()} AI Tokens!`);
+
+      // Auto re-send last message
+      if (_lastSentPayload) {
+        setTimeout(() => {
+          _executeSendAI(_lastSentPayload);
+          _lastSentPayload = null;
+        }, 600);
+      }
+    } else {
+      if (errMsg) {
+        errMsg.style.display = 'block';
+        errMsg.textContent = data?.error || 'Quy đổi thất bại. Vui lòng kiểm tra số dư Credits.';
+      }
+    }
+  });
+}
+
+// ── Core: sendAICanvasMessage ─────────────────────────────────────────────────
+async function _executeSendAI(payload) {
+  const typingEl = appendAITypingIndicator();
+  aiIsTyping = true;
+  const submitBtn = document.getElementById('btnSendAICanvas');
+  if (submitBtn) submitBtn.disabled = true;
+
+  try {
+    const res = await fetch('/api/ai/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+
+    if (typingEl) typingEl.remove();
+    aiIsTyping = false;
+    if (submitBtn) submitBtn.disabled = false;
+
+    if (data.out_of_tokens || res.status === 402) {
+      // Show interactive out-of-token card
+      appendOutOfTokenCard(
+        data.credits_available,
+        data.rate_per_credit,
+        data.tokens_needed
+      );
+      _lastSentPayload = payload; // save for auto-resend
+      return;
+    }
+
+    if (data.success && data.reply) {
+      // Update conversation history
+      aiConversationHistory.push({ role: 'user', content: payload.message });
+      aiConversationHistory.push({ role: 'assistant', content: data.reply });
+      if (aiConversationHistory.length > 20) aiConversationHistory = aiConversationHistory.slice(-20);
+
+      appendAIMessage('assistant', data.reply, data.thought);
+
+      // Update token HUD if we got token info
+      if (data.tokens_used && currentUser) {
+        loadAiTokenBalance();
+      }
+    } else {
+      appendAIMessage('assistant', data.reply || data.error || 'Đã xảy ra lỗi. Vui lòng thử lại!', null);
+    }
+  } catch (err) {
+    if (typingEl) typingEl.remove();
+    aiIsTyping = false;
+    if (submitBtn) submitBtn.disabled = false;
+    appendAIMessage('assistant', `❌ Lỗi kết nối máy chủ AI: ${err.message}. Vui lòng thử lại sau.`, null);
+  }
+}
+
+async function sendAICanvasMessage(messageOverride) {
+  if (aiIsTyping) return;
+  const msg = (messageOverride || aiCanvasInput?.value || '').trim();
+  if (!msg && !aiPendingImage && !aiPendingFile) {
+    showToast('Vui lòng nhập nội dung trước khi gửi!');
+    return;
+  }
+
+  // Snapshot attachments then clear tray
+  const imgData = aiPendingImage ? aiPendingImage.base64 : null;
+  const fileContent = aiPendingFile ? aiPendingFile.content : null;
+  const fileName = aiPendingFile ? aiPendingFile.name : null;
+  const imgDataUrl = aiPendingImage ? aiPendingImage.dataUrl : null;
+  const msgText = msg || (imgData ? '(Phân tích ảnh)' : '(Phân tích file)');
+
+  // Append user message to chat
+  appendAIMessage('user', msgText, null, imgDataUrl);
+
+  // Reset input & tray
+  if (aiCanvasInput) { aiCanvasInput.value = ''; aiCanvasInput.style.height = 'auto'; }
+  clearImage();
+  clearFile();
+
+  // Build request payload
+  const thinkingBtn = document.getElementById('btnToggleThinking');
+  const deepBtn = document.getElementById('btnToggleDeepResearch');
+
+  const payload = {
+    message: msgText,
+    user_name: currentUser?.display_name || currentUser?.username || 'Tris',
+    user_id: currentUser?.id,
+    history: aiConversationHistory.slice(-8),
+    enable_thinking: thinkingBtn ? thinkingBtn.classList.contains('active') : false,
+    enable_deep_research: deepBtn ? deepBtn.classList.contains('active') : false,
+    enable_search: aiSearchEnabled,
+    image_data: imgData || null,
+    file_data: fileContent || null,
+    file_name: fileName || null,
+  };
+
+  // Get active batch task context
+  if (activeTaskId) payload.task_id = activeTaskId;
+
+  await _executeSendAI(payload);
+}
+
+// ── Form Submit ───────────────────────────────────────────────────────────────
+if (aiCanvasForm) {
+  aiCanvasForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    sendAICanvasMessage();
+  });
+}
+
+// ── Toggle Think & Deep Research ──────────────────────────────────────────────
+const btnToggleThinking = document.getElementById('btnToggleThinking');
+const btnToggleDeepResearch = document.getElementById('btnToggleDeepResearch');
+
+if (btnToggleThinking) {
+  btnToggleThinking.addEventListener('click', () => {
+    btnToggleThinking.classList.toggle('active');
+    const on = btnToggleThinking.classList.contains('active');
+    showToast(on ? '💡 Chain-of-Thought ĐÃ BẬT (+300 tokens)' : 'Đã tắt Thinking');
+  });
+}
+if (btnToggleDeepResearch) {
+  btnToggleDeepResearch.addEventListener('click', () => {
+    btnToggleDeepResearch.classList.toggle('active');
+    const on = btnToggleDeepResearch.classList.contains('active');
+    showToast(on ? '🔬 Deep Research ĐÃ BẬT (+300 tokens)' : 'Đã tắt Deep Research');
+  });
+}
+
+// ── Load AI token balance on studio open ─────────────────────────────────────
+const _origShowStudio = showStudio;
+showStudio = function() {
+  _origShowStudio();
+  loadAiTokenBalance();
+};
+
+// ── Dropdown: Top-up → open Token Exchange Modal ──────────────────────────────
+const ddBtnTopup = document.getElementById('ddBtnTopup');
+const creditsPillTopup = document.getElementById('creditsPillTopup');
+if (ddBtnTopup) {
+  ddBtnTopup.addEventListener('click', () => {
+    const dropdown = document.getElementById('userDropdownMenu');
+    if (dropdown) dropdown.style.display = 'none';
+    openTokenExchangeModal(currentUser?.credits || 0, 2000);
+  });
+}
+if (creditsPillTopup) {
+  creditsPillTopup.addEventListener('click', () => {
+    openTokenExchangeModal(currentUser?.credits || 0, 2000);
+  });
+}
+
+// Slider live update in modal
+const sliderCredits = document.getElementById('sliderCreditsToExchange');
+const sliderValDisplay = document.getElementById('sliderValueDisplay');
+const tokenExchangePreviewGain = document.getElementById('tokenExchangePreviewGain');
+if (sliderCredits) {
+  sliderCredits.addEventListener('input', () => {
+    const v = parseInt(sliderCredits.value, 10);
+    if (sliderValDisplay) sliderValDisplay.textContent = v;
+    if (tokenExchangePreviewGain) tokenExchangePreviewGain.textContent = `+${(v * 2000).toLocaleString()} AI Tokens`;
+  });
+}
+
+// ── Dropdown Toggle ───────────────────────────────────────────────────────────
+const userChipDropdownBtn = document.getElementById('userChipDropdownBtn');
+const userDropdownMenu = document.getElementById('userDropdownMenu');
+if (userChipDropdownBtn && userDropdownMenu) {
+  userChipDropdownBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isOpen = userDropdownMenu.style.display === 'block';
+    userDropdownMenu.style.display = isOpen ? 'none' : 'block';
+  });
+  document.addEventListener('click', () => {
+    if (userDropdownMenu) userDropdownMenu.style.display = 'none';
+  });
+}
+
+const ddBtnSettings = document.getElementById('ddBtnSettings');
+if (ddBtnSettings) {
+  ddBtnSettings.addEventListener('click', () => {
+    if (userDropdownMenu) userDropdownMenu.style.display = 'none';
+    switchTab('settings');
+  });
+}
+const ddBtnAdminPanel = document.getElementById('ddBtnAdminPanel');
+if (ddBtnAdminPanel) {
+  ddBtnAdminPanel.addEventListener('click', () => {
+    if (userDropdownMenu) userDropdownMenu.style.display = 'none';
+    switchTab('owner');
+  });
+}
+const ddBtnLogout = document.getElementById('ddBtnLogout');
+if (ddBtnLogout) {
+  ddBtnLogout.addEventListener('click', () => {
+    currentUser = null;
+    localStorage.removeItem('aov_user');
+    showLanding();
+    showToast('ĐÃ ĐĂNG XUẤT');
+  });
+}
+
+// ── Theme & Language Initializer & Listeners ────────────────────────────────
 const btnLandingTheme = document.getElementById('btnLandingTheme');
-if (btnLandingTheme) btnLandingTheme.addEventListener('click', () => applyTheme(currentTheme === 'dark' ? 'light' : 'dark'));
+if (btnLandingTheme) {
+  btnLandingTheme.addEventListener('click', () => {
+    applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
+  });
+}
 
 const btnStudioTheme = document.getElementById('btnStudioTheme');
-if (btnStudioTheme) btnStudioTheme.addEventListener('click', () => applyTheme(currentTheme === 'dark' ? 'light' : 'dark'));
+if (btnStudioTheme) {
+  btnStudioTheme.addEventListener('click', () => {
+    applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
+  });
+}
+
+const btnStudioLang = document.getElementById('btnStudioLang');
+if (btnStudioLang) {
+  btnStudioLang.addEventListener('click', () => {
+    applyLanguage(currentLang === 'vi' ? 'en' : 'vi');
+    showToast(currentLang === 'vi' ? 'ĐÃ ĐỔI SANG TIẾNG VIỆT' : 'SWITCHED TO ENGLISH');
+  });
+}
+
+// Initial application of Theme & Lang
+applyTheme(currentTheme);
+applyLanguage(currentLang);
 
 // Bootstrap
 (function init() {
@@ -1683,3 +2944,4 @@ if (btnStudioTheme) btnStudioTheme.addEventListener('click', () => applyTheme(cu
     showLanding();
   }
 })();
+

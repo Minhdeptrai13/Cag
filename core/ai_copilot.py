@@ -100,6 +100,29 @@ def get_free_llm_pool():
     return _FREE_LLM_POOL
 
 
+def build_search_context(query: str) -> str:
+    """Inject live web search results as context into system prompt (lightweight scrape)."""
+    import urllib.parse
+    try:
+        # Use DuckDuckGo instant answer API for search context
+        encoded = urllib.parse.quote_plus(query[:80])
+        url = f"https://api.duckduckgo.com/?q={encoded}&format=json&no_html=1&skip_disambig=1"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=5.0) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        abstract = data.get("AbstractText", "").strip()
+        related = [r.get("Text", "") for r in data.get("RelatedTopics", [])[:3] if isinstance(r, dict) and r.get("Text")]
+        parts = []
+        if abstract:
+            parts.append(f"[Kết quả tìm kiếm cho: {query[:60]}]\n{abstract}")
+        for r in related:
+            if r:
+                parts.append(f"- {r[:200]}")
+        return "\n".join(parts) if parts else ""
+    except Exception:
+        return ""
+
+
 def chat_with_copilot(
     user_message: str,
     history: list = None,
@@ -107,7 +130,11 @@ def chat_with_copilot(
     user_name: str = "Tris",
     enable_thinking: bool = False,
     enable_deep_research: bool = False,
-    user_id: int = None
+    user_id: int = None,
+    image_data: str = None,      # base64-encoded image string (data:image/...;base64,...)
+    file_data: str = None,       # plaintext content of uploaded file
+    file_name: str = None,       # original filename for context
+    enable_search: bool = False, # inject web search context into prompt
 ) -> dict:
     """
     True Generative AI Copilot with Reasoning Process (Chain-of-Thought) and Deep Research:
@@ -194,16 +221,50 @@ def chat_with_copilot(
     if enable_deep_research:
         system_prompt += "\nCHẾ ĐỘ NGHIÊN CỨU SÂU ĐANG BẬT: Trả lời có cấu trúc chuyên sâu, phân tích chi tiết từng khía cạnh kỹ thuật, thuật toán và giải pháp kiến trúc."
 
+    # ─ Live Search Context Injection ─────────────────────────────────────────
+    if enable_search:
+        search_ctx = build_search_context(user_message)
+        if search_ctx:
+            system_prompt += f"\n\n[NGUỒN TÌM KIẾM TRỰC TIẾP]\n{search_ctx}"
+
+    # ─ File Content Injection ─────────────────────────────────────────────
+    effective_message = user_message
+    if file_data:
+        fname = file_name or "tệp đính kèm"
+        # Truncate large file to 8000 chars for context safety
+        truncated = file_data[:8000]
+        if len(file_data) > 8000:
+            truncated += f"\n... (File bị cắt ngắn, chỉ phân tích {len(truncated):,} ký tự đầu trong tổng {len(file_data):,} ký tự)"
+        effective_message = (
+            f"[NỘI DUNG FILE: {fname}]\n```\n{truncated}\n```\n\n"
+            f"[YÊU CẦU NGƯỜI DÙNG]\n{user_message}"
+        )
+
     messages = [{"role": "system", "content": system_prompt}]
     if history:
         for msg in history[-4:]:
             messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
-    messages.append({"role": "user", "content": user_message})
+
+    # ─ Build User Message (Multimodal Vision or Text) ────────────────────
+    if image_data:
+        img_url = image_data if image_data.startswith("data:") else f"data:image/jpeg;base64,{image_data}"
+        user_content = [
+            {"type": "text", "text": effective_message},
+            {"type": "image_url", "image_url": {"url": img_url, "detail": "auto"}}
+        ]
+    else:
+        user_content = effective_message
+    messages.append({"role": "user", "content": user_content})
 
     # Generate reasoning thought process if thinking mode is on
     thought_process = None
     if enable_thinking:
-        thought_process = generate_reasoning_steps(user_message, u, enable_deep_research)
+        thought_process = generate_reasoning_steps(
+            user_message, u, enable_deep_research,
+            has_image=bool(image_data),
+            has_file=bool(file_data),
+            has_search=enable_search
+        )
 
     # Try Priority Tier: Multi-Provider LLM Pool (freellmpool)
     pool = get_free_llm_pool()
@@ -305,29 +366,50 @@ def chat_with_copilot(
     }
 
 
-def generate_reasoning_steps(prompt: str, user_name: str, deep_mode: bool) -> str:
+def generate_reasoning_steps(
+    prompt: str, user_name: str, deep_mode: bool,
+    has_image: bool = False, has_file: bool = False, has_search: bool = False
+) -> str:
     """Generates Chain-of-Thought (CoT) steps for the Accordion thinking viewer"""
     pl = prompt.lower()
     steps = [
         f"1. Phân tích ngữ cảnh & tri thức: Tiếp nhận chỉ lệnh của {user_name}, trích xuất đặc trưng câu hỏi.",
         "2. Kích hoạt RAG Core: Khai thác cơ sở dữ liệu phân cấp Skin SSS/Anime/SS và tiêu chuẩn bảo mật tài khoản Garena."
     ]
+    step_n = 3
+    if has_image:
+        steps.append(f"{step_n}. [Vision Tensor] Giải mã hình ảnh (đa phương thức): Phân tích pixel, OCR văn bản và trích xuất đặc trưng thị giác.")
+        step_n += 1
+    if has_file:
+        steps.append(f"{step_n}. [File Analyzer] Phân tích nội dung tệp đính kèm: Nhận diện cấu trúc, trích xuất thông tin chính.")
+        step_n += 1
+    if has_search:
+        steps.append(f"{step_n}. [Live Search] Tìm kiếm theo thời gian thực: Triệu gọi DuckDuckGo Instant API, tích hợp kết quả vào context.")
+        step_n += 1
     if any(k in pl for k in ("code", "python", "script", "viết", "hàm", "socket")):
-        steps.append("3. Khối sinh mã (Code Synthesizer): Phân tích giao thức TLS/TCP, tối ưu Connection Pool và async I/O.")
-        steps.append("4. Tối ưu kiến trúc: Áp dụng non-blocking socket và cơ chế tự phục hồi lỗi kết nối.")
+        steps.append(f"{step_n}. Khối sinh mã (Code Synthesizer): Phân tích giao thức TLS/TCP, tối ưu Connection Pool và async I/O.")
+        step_n += 1
+        steps.append(f"{step_n}. Tối ưu kiến trúc: Áp dụng non-blocking socket và cơ chế tự phục hồi lỗi kết nối.")
+        step_n += 1
     elif any(k in pl for k in ("trắng", "đổi mật khẩu", "bảo mật", "sđt", "cccd", "mail")):
-        steps.append("3. Khảo sát luồng xác thực Garena: Kiểm tra tính độc lập của Email, SĐT, CCCD và cơ chế khôi phục mật khẩu.")
-        steps.append("4. Thẩm định an toàn giao dịch: Xác định khả năng bảo vệ tài khoản sau khi đổi pass.")
+        steps.append(f"{step_n}. Khảo sát luồng xác thực Garena: Kiểm tra tính độc lập của Email, SĐT, CCCD và cơ chế khôi phục mật khẩu.")
+        step_n += 1
+        steps.append(f"{step_n}. Thẩm định an toàn giao dịch: Xác định khả năng bảo vệ tài khoản sau khi đổi pass.")
+        step_n += 1
     elif any(k in pl for k in ("giá", "định giá", "bao nhiêu", "tiền", "bán")):
-        steps.append("3. Ma trận định giá (Valuation Matrix): Đối chiếu độ hiếm Skin SSS, Anime giới hạn và tình trạng liên kết thông tin.")
-        steps.append("4. Hiệu chỉnh chiết khấu thị trường: Tính toán độ thanh khoản dựa trên rank và tướng hot pick.")
+        steps.append(f"{step_n}. Ma trận định giá (Valuation Matrix): Đối chiếu độ hiếm Skin SSS, Anime giới hạn và tình trạng liên kết thông tin.")
+        step_n += 1
+        steps.append(f"{step_n}. Hiệu chỉnh chiết khấu thị trường: Tính toán độ thanh khoản dựa trên rank và tướng hot pick.")
+        step_n += 1
     else:
-        steps.append("3. Kiểm định luồng suy luận nghiệp vụ chuyên sâu và tổng hợp giải pháp kỹ thuật.")
+        steps.append(f"{step_n}. Kiểm định luồng suy luận nghiệp vụ chuyên sâu và tổng hợp giải pháp kỹ thuật.")
+        step_n += 1
 
     if deep_mode:
-        steps.append("5. [Deep-Research Engine]: Kích hoạt tổng hợp phân tích đa tầng, đào sâu thuật toán và cơ chế bảo mật hệ thống.")
+        steps.append(f"{step_n}. [Deep-Research Engine]: Kích hoạt tổng hợp phân tích đa tầng, đào sâu thuật toán và cơ chế bảo mật hệ thống.")
+        step_n += 1
 
-    steps.append("6. Hoàn tất chuỗi tư duy logic. Chuyển giao phản hồi chi tiết tới giao diện người dùng.")
+    steps.append(f"{step_n}. Hoàn tất chuỗi tư duy logic. Chuyển giao phản hồi chi tiết tới giao diện người dùng.")
     return "\n".join(steps)
 
 

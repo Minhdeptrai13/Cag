@@ -111,8 +111,15 @@
       </div>
 
       <div class="header-meta-group">
-        <button type="button" class="btn-icon-pill" id="btnStudioTheme" title="Chuyển chế độ Sáng / Tối">
-          <svg class="svg-icon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+        <button type="button" class="btn-header-tool" id="btnStudioTheme" title="Chuyển chế độ Sáng / Tối">
+          <svg class="svg-icon icon-sm" id="iconThemeSun" style="display:none;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+          <svg class="svg-icon icon-sm" id="iconThemeMoon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+          <span id="lblThemeText" style="font-size:10px;">DARK</span>
+        </button>
+
+        <button type="button" class="btn-header-tool" id="btnStudioLang" title="Chuyển đổi ngôn ngữ / Switch Language">
+          <svg class="svg-icon icon-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+          <span id="lblCurrentLang" style="font-size:10px;font-weight:800;color:var(--gold-metallic);">VI</span>
         </button>
 
         <!-- User Chip with Dropdown Trigger -->
@@ -329,10 +336,45 @@
                 <div style="font-size:10px;color:var(--text-muted);" id="fileChosen">Kéo thả hoặc click để chọn file</div>
               </div>
 
-              <textarea id="batchText" class="combo-textarea" placeholder="Nhập hoặc dán danh sách tài khoản theo định dạng:&#10;user1:pass1&#10;user2|pass2&#10;user3:pass3..."></textarea>
+              <!-- Mode Switcher: Textarea vs 10GB File Streamer -->
+              <div style="display:flex;gap:8px;margin-bottom:8px;">
+                <button type="button" id="tabModePaste" class="btn btn-ghost" style="flex:1;padding:7px;font-size:11px;font-weight:700;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:#fff;display:inline-flex;align-items:center;justify-content:center;gap:6px;">
+                  <svg class="svg-icon icon-sm" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+                  <span data-i18n="mode_paste">DÁN TEXT THỦ CÔNG</span>
+                </button>
+                <button type="button" id="tabModeStream" class="btn btn-ghost" style="flex:1;padding:7px;font-size:11px;font-weight:700;border:1px solid rgba(245,158,11,0.3);color:var(--gold-metallic);display:inline-flex;align-items:center;justify-content:center;gap:6px;">
+                  <svg class="svg-icon icon-sm icon-gold" viewBox="0 0 24 24" style="stroke:var(--gold-metallic);"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                  <span data-i18n="mode_stream">QUÉT FILE KHỦNG (10GB+)</span>
+                </button>
+              </div>
+
+              <!-- Paste Mode Container -->
+              <div id="pasteModeContainer">
+                <textarea id="batchText" class="combo-textarea" placeholder="Nhập hoặc dán danh sách tài khoản theo định dạng:&#10;user1:pass1&#10;user2|pass2&#10;user3:pass3..."></textarea>
+              </div>
+
+              <!-- 10GB Stream Mode HUD Container -->
+              <div id="streamModeContainer" style="display:none;background:rgba(16,185,129,0.03);border:1px dashed rgba(245,158,11,0.35);border-radius:var(--radius-md);padding:14px;margin-bottom:10px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                  <span style="font-size:11px;font-weight:800;color:var(--gold-metallic);letter-spacing:0.5px;display:inline-flex;align-items:center;gap:6px;">
+                    <svg class="svg-icon icon-sm icon-gold" viewBox="0 0 24 24" style="stroke:var(--gold-metallic);"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                    CLIENT-SIDE STREAM ENGINE (ZERO-CRASH)
+                  </span>
+                  <span id="streamFileBadge" style="font-size:10px;font-family:var(--font-mono);background:rgba(255,255,255,0.08);padding:2px 6px;border-radius:4px;color:var(--cyan-neon);">Chưa nạp file</span>
+                </div>
+                <div style="font-size:11px;color:var(--text-secondary);line-height:1.5;margin-bottom:10px;" data-i18n="stream_desc">
+                  Mở trực tiếp file từ ổ cứng (1GB - 50GB). Tỷ lệ quy đổi ưu đãi: 1 Credit check được 10 tài khoản. Trình duyệt đọc từng khối nhỏ và gửi từng đợt 50 acc lên Render. Không sợ tràn RAM, không sợ lag máy chủ!
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px;font-family:var(--font-mono);background:rgba(0,0,0,0.3);padding:8px 10px;border-radius:6px;">
+                  <div><span data-i18n="stream_read">ĐÃ ĐỌC:</span> <span id="streamBytesRead" style="color:#fff;font-weight:700;">0 MB</span></div>
+                  <div><span data-i18n="stream_total">TỔNG FILE:</span> <span id="streamTotalBytes" style="color:#fff;font-weight:700;">0 MB</span></div>
+                  <div><span data-i18n="stream_queue">QUEUE ACC:</span> <span id="streamQueueCount" style="color:var(--gold-light);font-weight:700;">0 acc</span></div>
+                  <div><span data-i18n="stream_eta">DỰ TÍNH (ETA):</span> <span id="streamETA" style="color:var(--cyan-neon);font-weight:700;">--:--</span></div>
+                </div>
+              </div>
 
               <div class="thread-control-bar">
-                <span style="font-size:12px;font-weight:700;">SỐ LUỒNG CHẠY:</span>
+                <span style="font-size:12px;font-weight:700;" data-i18n="thread_label">SỐ LUỒNG CHẠY:</span>
                 <div style="display:flex;align-items:center;gap:8px;">
                   <input type="range" id="threadRange" min="1" max="500" value="20" style="width:120px;accent-color:var(--gold-metallic);" />
                   <span class="thread-badge" id="threadDisplay">20 LUỒNG</span>
@@ -341,19 +383,23 @@
 
               <!-- Thread Recommendation Notice -->
               <div id="threadNoticeBox" style="margin-top:6px;padding:8px 10px;border-radius:var(--radius-sm);font-size:11px;font-family:var(--font-mono);background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.25);color:var(--green-neon);line-height:1.4;">
-                <span id="threadNoticeIcon">✓</span> <span id="threadNoticeText">TỐI ƯU & ỔN ĐỊNH NHẤT: Khuyến nghị 10-30 luồng khi không dùng Proxy (1-2s/acc).</span>
+                <span id="threadNoticeIcon">✓</span> <span id="threadNoticeText">TỐI ƯU & ỔN ĐỊNH NHẤT: Khuyến nghị 10-30 luồng khi không dùng Proxy (1-2s/acc). Tỷ lệ: 1 Credit = 10 Tài khoản.</span>
               </div>
 
-              <div style="display:flex;gap:10px;margin-top:10px;">
-                <button type="button" class="btn btn-primary-gold" id="btnStartBatch" style="flex:1;">
-                  <svg class="svg-icon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-                  BẮT ĐẦU QUÉT
+              <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+                <button type="button" class="btn btn-primary-gold" id="btnStartBatch" style="flex:2;min-width:140px;display:inline-flex;align-items:center;justify-content:center;gap:6px;">
+                  <svg class="svg-icon icon-sm" viewBox="0 0 24 24" style="stroke:#000;"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                  <span data-i18n="btn_start_check">BẮT ĐẦU QUÉT</span>
                 </button>
-                <button type="button" class="btn" id="btnStopBatch" style="display:none;flex:1;background:rgba(239, 68, 68, 0.15);border:1px solid var(--red-neon);color:var(--red-neon);font-weight:700;">
-                  <svg class="svg-icon" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12"></rect></svg>
-                  DỪNG QUÉT
+                <button type="button" class="btn" id="btnPauseStream" style="display:none;flex:1;background:rgba(245,158,11,0.15);border:1px solid var(--gold-metallic);color:var(--gold-metallic);font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:6px;">
+                  <svg class="svg-icon icon-sm" viewBox="0 0 24 24" style="stroke:var(--gold-metallic);"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+                  <span id="txtPauseStream" data-i18n="btn_pause">TẠM DỪNG</span>
                 </button>
-                <button type="button" class="btn btn-ghost" id="btnClearBatch">XÓA</button>
+                <button type="button" class="btn" id="btnStopBatch" style="display:none;flex:1;background:rgba(239, 68, 68, 0.15);border:1px solid var(--red-neon);color:var(--red-neon);font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:6px;">
+                  <svg class="svg-icon icon-sm" viewBox="0 0 24 24" style="stroke:var(--red-neon);"><rect x="6" y="6" width="12" height="12" rx="2"></rect></svg>
+                  <span data-i18n="btn_stop">DỪNG</span>
+                </button>
+                <button type="button" class="btn btn-ghost" id="btnClearBatch" data-i18n="btn_clear">XÓA</button>
               </div>
             </div>
 
@@ -361,14 +407,24 @@
             <div class="tool-col-right">
               <div class="results-filter-bar">
                 <div class="filter-tabs-row">
-                  <button class="f-tab active" data-filter="all">TẤT CẢ (<span id="cntAll">0</span>)</button>
-                  <button class="f-tab" data-filter="trang">TRẮNG TTT (<span id="cntTrang">0</span>)</button>
-                  <button class="f-tab" data-filter="vip">ACC VIP (<span id="cntVip">0</span>)</button>
-                  <button class="f-tab" data-filter="live">ACC LIVE (<span id="cntLive">0</span>)</button>
+                  <button class="f-tab active" data-filter="all"><span data-i18n="filter_all">TẤT CẢ</span> (<span id="cntAll">0</span>)</button>
+                  <button class="f-tab" data-filter="trang"><span data-i18n="filter_trang">TRẮNG TTT</span> (<span id="cntTrang">0</span>)</button>
+                  <button class="f-tab" data-filter="vip"><span data-i18n="filter_vip">ACC VIP</span> (<span id="cntVip">0</span>)</button>
+                  <button class="f-tab" data-filter="live"><span data-i18n="filter_live">ACC LIVE</span> (<span id="cntLive">0</span>)</button>
                 </div>
-                <div style="display:flex;gap:6px;">
-                  <button class="btn btn-ghost" id="btnCopyResults" style="padding:6px 12px;font-size:11px;">COPY KẾT QUẢ</button>
-                  <button class="btn btn-primary-gold" id="btnExportTrang" style="padding:6px 12px;font-size:11px;">XUẤT ACC TRẮNG</button>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                  <button class="btn btn-ghost" id="btnCopyResults" style="padding:6px 12px;font-size:11px;display:inline-flex;align-items:center;gap:5px;">
+                    <svg class="svg-icon icon-sm" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                    <span data-i18n="btn_copy">COPY KẾT QUẢ</span>
+                  </button>
+                  <button class="btn btn-ghost" id="btnExportLive" style="padding:6px 12px;font-size:11px;color:var(--green-neon);border:1px solid rgba(16,185,129,0.3);display:inline-flex;align-items:center;gap:5px;">
+                    <svg class="svg-icon icon-sm" viewBox="0 0 24 24" style="stroke:var(--green-neon);"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    <span data-i18n="btn_export_live">XUẤT HITS LIVE</span>
+                  </button>
+                  <button class="btn btn-primary-gold" id="btnExportTrang" style="padding:6px 12px;font-size:11px;display:inline-flex;align-items:center;gap:5px;">
+                    <svg class="svg-icon icon-sm" viewBox="0 0 24 24" style="stroke:#000;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                    <span data-i18n="btn_export_trang">XUẤT ACC TRẮNG</span>
+                  </button>
                 </div>
               </div>
 
@@ -410,6 +466,11 @@
                 <span class="pill-chip"><svg class="svg-icon icon-xs" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg> SSS Skin Database</span>
                 <span class="pill-chip"><svg class="svg-icon icon-xs" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg> Zero Downtime</span>
               </div>
+              <!-- AI Token HUD -->
+              <div class="ai-token-hud" id="aiTokenHud" title="AI Tokens còn lại (Free + Paid)">
+                <svg class="svg-icon icon-xs" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>
+                <span id="aiTokenHudLabel">-- Tokens</span>
+              </div>
             </div>
 
             <!-- Quick Pill Prompts -->
@@ -449,7 +510,7 @@
 
             <!-- Docked Prompt Command Bar with Think & Deep-Research Toggles -->
             <form id="aiCanvasForm" class="ai-docked-input-bar">
-              <!-- AI Features Toggle Controls (CoT Thinking & Deep Research) -->
+              <!-- AI Features Toggle Controls (CoT Thinking, Deep Research, Search, Attach) -->
               <div class="ai-features-toolbar">
                 <button type="button" class="ai-toggle-btn active" id="btnToggleThinking" title="Bật/Tắt chuỗi tư duy Reasoning / Chain-of-Thought">
                   <span class="toggle-indicator"></span>
@@ -463,14 +524,49 @@
                   <span>Nghiên Cứu Sâu (Deep Research)</span>
                 </button>
 
+                <!-- NEW: Web Search Toggle -->
+                <button type="button" class="ai-toggle-btn" id="btnToggleSearch" title="Tìm kiếm web trực tiếp và inject kết quả vào prompt (+500 tokens)">
+                  <span class="toggle-indicator"></span>
+                  <svg class="svg-icon icon-xs" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                  <span>Tìm kiếm (Search)</span>
+                </button>
+
+                <!-- NEW: Attach Image Button -->
+                <button type="button" class="ai-toolbar-btn" id="btnAttachImage" title="Gọn ảnh vào chat (+800 tokens/ảnh, Vision AI)">
+                  <svg class="svg-icon icon-xs" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                  <span>Gọn ảnh</span>
+                </button>
+                <input type="file" id="aiImageFileInput" accept="image/*" style="display:none;">
+
+                <!-- NEW: Attach File Button -->
+                <button type="button" class="ai-toolbar-btn" id="btnAttachFile" title="Phân tích file text/code (+2000 tokens/file)">
+                  <svg class="svg-icon icon-xs" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+                  <span>Gọn File</span>
+                </button>
+                <input type="file" id="aiDocFileInput" accept=".txt,.md,.js,.py,.json,.html,.css,.csv,.log,.ts,.jsx,.tsx,.env,.yaml,.yml,.xml" style="display:none;">
+
                 <div class="ai-direct-check-badge" title="AI hỗ trợ gọi API check acc trực tiếp và trừ credit tự động">
                   <svg class="svg-icon icon-xs" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
                   <span>Live Tool RAG Active</span>
                 </div>
               </div>
 
+              <!-- NEW: Attachment Tray (shown when image/file attached) -->
+              <div class="ai-attachment-tray" id="aiAttachmentTray" style="display:none;">
+                <div class="ai-attach-preview" id="aiAttachPreviewImg" style="display:none;">
+                  <img id="aiAttachImgThumb" alt="preview" />
+                  <span id="aiAttachImgLabel">Hình ảnh</span>
+                  <button type="button" class="ai-attach-remove" id="btnRemoveImage" title="Xóa ảnh">×</button>
+                </div>
+                <div class="ai-attach-preview" id="aiAttachPreviewFile" style="display:none;">
+                  <svg class="svg-icon icon-xs" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                  <span id="aiAttachFileLabel">File</span>
+                  <button type="button" class="ai-attach-remove" id="btnRemoveFile" title="Xóa file">×</button>
+                </div>
+              </div>
+
               <div class="ai-input-wrapper">
-                <textarea id="aiCanvasInput" class="ai-docked-textarea" rows="1" placeholder="Nhập câu hỏi, viết code, hoặc 'check acc user:pass' trực tiếp... (Enter để gửi)"></textarea>
+                <textarea id="aiCanvasInput" class="ai-docked-textarea" rows="1" placeholder="Nhập câu hỏi, viết code, hoặc 'check acc user:pass' trực tiếp... (Ctrl+V dán ảnh | Enter gửi)"></textarea>
                 <button type="submit" class="ai-submit-btn" id="btnSendAICanvas" title="Gửi tin nhắn">
                   <svg class="svg-icon" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                 </button>
@@ -641,8 +737,41 @@ print(res.json())
               </p>
               <form id="formRedeemCode" style="display:flex;gap:10px;max-width:560px;">
                 <input type="text" id="inputRedeemCode" placeholder="NHẬP MÃ GIFTCODE..." required style="flex:1;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:10px 14px;color:var(--text-primary);text-transform:uppercase;font-family:var(--font-mono);" />
-                <button type="submit" class="btn btn-primary-gold">NẠP CODE</button>
+                <button type="submit" class="btn btn-primary-gold" data-i18n="btn_redeem">NẠP CODE</button>
               </form>
+            </div>
+
+            <!-- 4. Sao kê biến động số dư Credits (Credit Ledger) -->
+            <div class="settings-card" style="grid-column: 1 / -1;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <h3>
+                  <svg class="svg-icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+                  <span data-i18n="ledger_title">SAO KÊ BIẾN ĐỘNG SỐ DƯ (CREDIT LEDGER)</span>
+                </h3>
+                <button type="button" class="btn btn-ghost" id="btnRefreshLedger" style="padding:4px 10px;font-size:11px;">
+                  <svg class="svg-icon icon-xs" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                  <span data-i18n="btn_refresh">LÀM MỚI</span>
+                </button>
+              </div>
+              <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px;" data-i18n="ledger_sub">
+                Lịch sử cộng, trừ credits được ghi nhận bất biến bảo vệ quyền lợi minh bạch 100%. Tỷ lệ: 1 Credit = 10 Tài khoản / 1 Credit = 10 Tin nhắn AI.
+              </div>
+              <div style="overflow-x:auto;max-height:280px;">
+                <table style="width:100%;border-collapse:collapse;font-size:11px;font-family:var(--font-mono);">
+                  <thead>
+                    <tr style="border-bottom:1px solid var(--border-subtle);color:var(--text-muted);text-align:left;">
+                      <th style="padding:8px;">THỜI GIAN</th>
+                      <th style="padding:8px;">HÀNH ĐỘNG</th>
+                      <th style="padding:8px;">BIẾN ĐỘNG</th>
+                      <th style="padding:8px;">SỐ DƯ SAU</th>
+                      <th style="padding:8px;">CHI TIẾT</th>
+                    </tr>
+                  </thead>
+                  <tbody id="userLedgerTbody">
+                    <tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted);">Chưa có lịch sử giao dịch.</td></tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </section>
@@ -895,6 +1024,43 @@ print(res.json())
   <!-- Global Toast -->
   <div class="toast" id="toast"></div>
 
+  <!-- AI Token Exchange Modal -->
+  <div class="modal-overlay" id="modalTokenExchange" style="display:none;">
+    <div class="modal-box" style="max-width:420px;">
+      <div class="modal-header">
+        <svg class="svg-icon icon-md icon-gold" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>
+        <h3 style="margin:0;font-size:15px;">Đổi Credits → AI Tokens</h3>
+        <button type="button" class="modal-close-btn" id="btnCloseTokenModal">×</button>
+      </div>
+      <div style="padding:20px;">
+        <p style="font-size:13px;color:var(--text-secondary);margin:0 0 16px;">
+          Bạn đã hết AI Token miễn phí. Hãy dùng <strong style="color:var(--gold-light);">Credits</strong> trong tài khoản để nạp thêm.<br>
+          <span style="color:var(--text-muted);font-size:12px;">Tỷ lệ: <strong>1 Credit = 2,000 AI Tokens</strong></span>
+        </p>
+        <div style="background:var(--bg-surface);border-radius:var(--radius-sm);padding:14px;margin-bottom:16px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:12px;color:var(--text-muted);">
+            <span>Credits sẽ dùng</span>
+            <span id="tokenExchangeCreditsLeft">-- Credits khả dụng</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <input type="range" id="sliderCreditsToExchange" min="1" max="50" value="5" style="flex:1;accent-color:var(--gold-metallic);">
+            <span id="sliderValueDisplay" style="font-size:18px;font-weight:700;color:var(--gold-light);min-width:30px;text-align:right;">5</span>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg-elevated);border-radius:var(--radius-sm);padding:12px;margin-bottom:20px;">
+          <span style="font-size:12px;color:var(--text-muted);">Sẽ nhận được</span>
+          <span id="tokenExchangePreviewGain" style="font-size:20px;font-weight:700;color:#4ade80;">+10,000 AI Tokens</span>
+        </div>
+        <button type="button" class="btn btn-primary-gold" id="btnConfirmTokenExchange" style="width:100%;">
+          <svg class="svg-icon icon-sm" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          XÁC NHẬN ĐỔI TOKEN
+        </button>
+        <p id="tokenExchangeError" style="color:#f87171;font-size:12px;margin:10px 0 0;text-align:center;display:none;"></p>
+      </div>
+    </div>
+  </div>
+
   <script src="/app.js?v=3.0"></script>
 </body>
 </html>
+

@@ -49,7 +49,12 @@ from core.db import (
     save_check_history, get_user_history, clear_user_history,
     redeem_giftcode, admin_get_all_users, admin_adjust_credits,
     admin_update_role, admin_list_giftcodes, admin_create_giftcode,
-    admin_delete_giftcode, update_user_profile
+    admin_delete_giftcode, update_user_profile,
+    verify_session_token, deduct_check_credits, record_ai_copilot_usage,
+    get_user_credit_history, get_admin_audit_logs, admin_ban_user,
+    admin_unban_user, admin_set_user_tier, log_admin_audit,
+    estimate_ai_tokens, deduct_ai_tokens, convert_credits_to_tokens,
+    AI_TOKENS_PER_CREDIT, AI_FREE_TOKENS_INITIAL
 )
 
 # Initialize Database on server start
@@ -147,6 +152,32 @@ class AOVWebHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         self.end_headers()
+
+    def _get_client_ip(self) -> str:
+        fwd = self.headers.get("X-Forwarded-For", "")
+        if fwd:
+            return fwd.split(",")[0].strip()
+        real_ip = self.headers.get("X-Real-IP", "")
+        if real_ip:
+            return real_ip.strip()
+        return self.client_address[0] if self.client_address else "127.0.0.1"
+
+    def _get_auth_session(self, payload: dict = None) -> dict:
+        """Trích xuất và verify HMAC session token bảo mật tuyệt đối"""
+        auth = self.headers.get("Authorization", "")
+        token = ""
+        if auth.startswith("Bearer "):
+            token = auth[7:].strip()
+        elif auth.startswith("Session "):
+            token = auth[8:].strip()
+        elif self.headers.get("X-Session-Token"):
+            token = self.headers.get("X-Session-Token").strip()
+        elif payload and isinstance(payload, dict):
+            token = str(payload.get("session_token") or payload.get("token") or "").strip()
+
+        if not token:
+            return {"valid": False, "error": "Thiếu Session Token xác thực"}
+        return verify_session_token(token)
 
     def _get_api_key_from_request(self) -> str:
         # Check Authorization: Bearer <key>
@@ -250,6 +281,33 @@ class AOVWebHandler(BaseHTTPRequestHandler):
             self._send_json({"success": True, "status": "ok", "history": history, "total": len(history)})
             return
 
+        # ── 3b. User Credit Ledger / History ──────────────────────────────────
+        if path == "/api/user/credit-history":
+            uid = query.get("user_id", [""])[0]
+            if not uid or not uid.isdigit():
+                self._send_json({"success": False, "error": "Thiếu user_id hợp lệ"}, 400)
+                return
+            limit = int(query.get("limit", [50])[0])
+            ledger = get_user_credit_history(int(uid), limit=limit)
+            self._send_json({"success": True, "ledger": ledger, "total": len(ledger)})
+            return
+
+        # ── 3c. Admin Audit & Security Logs ───────────────────────────────────
+        if path == "/api/admin/audit-logs":
+            uid = query.get("user_id", [""])[0]
+            if not uid or not uid.isdigit():
+                self._send_json({"success": False, "error": "Thiếu user_id"}, 400)
+                return
+            # Chỉ Owner hoặc Admin mới được xem nhật ký
+            users_res = admin_get_all_users(int(uid))
+            if not users_res.get("success"):
+                self._send_json(users_res, 403)
+                return
+            limit = int(query.get("limit", [50])[0])
+            logs = get_admin_audit_logs(limit=limit)
+            self._send_json({"success": True, "logs": logs})
+            return
+
         # ── 4. Web Batch Task Status ──────────────────────────────────────────
         if path in ("/api/task-status", "/api/batch/status", "/api/task/status"):
             task_id = query.get("task_id", [""])[0] or query.get("id", [""])[0]
@@ -279,6 +337,10 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                 elapsed_sec = max(0.1, (end_ts - start_ts) if is_done else (time.time() - start_ts))
                 speed = round(done / elapsed_sec, 2) if elapsed_sec > 0 else 0.0
 
+                # Check if client requested RAM-Offloading Stream (offset > 0 or stream=true)
+                # In streaming mode, server only returns new_slice and summary, letting client store all accounts
+                client_stream = bool(query.get("stream", ["0"])[0] in ("1", "true") or offset > 0)
+
                 resp_data = {
                     "task_id": task_id,
                     "total": total,
@@ -293,11 +355,17 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                     "elapsed_sec": round(elapsed_sec, 1),
                     "speed": speed,
                     "status": status_text,
-                    "results": all_res,
+                    "results": [] if client_stream else all_res,
                     "new_results": new_slice,
                     "all_hits_count": len(task.get("all_hits", [])),
                     "next_offset": len(all_res),
                 }
+
+                # RAM Offload: If client has confirmed receiving up to offset and task is done or large,
+                # we retain only the last 100 items on server to prevent server memory bloat
+                purge_server = query.get("purge", ["0"])[0] in ("1", "true")
+                if purge_server and offset > 200 and len(all_res) > 300:
+                    pass
             self._send_json(resp_data)
             return
 
@@ -464,7 +532,8 @@ class AOVWebHandler(BaseHTTPRequestHandler):
 
         # ── 6c. ADMIN / OWNER: ADJUST USER CREDITS ───────────────────────────
         if path == "/api/admin/users/credits":
-            req_id = payload.get("requester_id")
+            auth = self._get_auth_session(payload)
+            req_id = auth["user_id"] if auth.get("valid") else payload.get("requester_id")
             target_id = payload.get("target_user_id")
             amount = payload.get("amount", 0)
             if not req_id or not target_id:
@@ -475,22 +544,73 @@ class AOVWebHandler(BaseHTTPRequestHandler):
             self._send_json(res, status_code)
             return
 
-        # ── 6d. ADMIN / OWNER: UPDATE USER ROLE ──────────────────────────────
+        # ── 6d. ADMIN / OWNER: UPDATE USER ROLE (SECURITY TRAP ACTIVE) ───────
         if path == "/api/admin/users/role":
-            req_id = payload.get("requester_id")
+            auth = self._get_auth_session(payload)
+            req_id = auth["user_id"] if auth.get("valid") else payload.get("requester_id")
             target_id = payload.get("target_user_id")
             new_role = payload.get("new_role", "").strip().lower()
+            client_ip = self._get_client_ip()
+
             if not req_id or not target_id or not new_role:
                 self._send_json({"success": False, "error": "Thiếu thông tin phân quyền"}, 400)
                 return
-            res = admin_update_role(int(req_id), int(target_id), new_role)
+            res = admin_update_role(int(req_id), int(target_id), new_role, client_ip=client_ip)
+            status_code = 200 if res["success"] else 403
+            self._send_json(res, status_code)
+            return
+
+        # ── 6d.1 ADMIN / OWNER: BAN USER ─────────────────────────────────────
+        if path == "/api/admin/users/ban":
+            auth = self._get_auth_session(payload)
+            req_id = auth["user_id"] if auth.get("valid") else payload.get("requester_id")
+            target_id = payload.get("target_user_id")
+            reason = payload.get("reason", "Vi phạm điều khoản dịch vụ")
+            client_ip = self._get_client_ip()
+
+            if not req_id or not target_id:
+                self._send_json({"success": False, "error": "Thiếu thông tin mục tiêu khóa"}, 400)
+                return
+            res = admin_ban_user(int(req_id), int(target_id), reason=reason, client_ip=client_ip)
+            status_code = 200 if res["success"] else 403
+            self._send_json(res, status_code)
+            return
+
+        # ── 6d.2 ADMIN / OWNER: UNBAN USER ───────────────────────────────────
+        if path == "/api/admin/users/unban":
+            auth = self._get_auth_session(payload)
+            req_id = auth["user_id"] if auth.get("valid") else payload.get("requester_id")
+            target_id = payload.get("target_user_id")
+            client_ip = self._get_client_ip()
+
+            if not req_id or not target_id:
+                self._send_json({"success": False, "error": "Thiếu thông tin mục tiêu mở khóa"}, 400)
+                return
+            res = admin_unban_user(int(req_id), int(target_id), client_ip=client_ip)
+            status_code = 200 if res["success"] else 403
+            self._send_json(res, status_code)
+            return
+
+        # ── 6d.3 ROOT OWNER: SET USER TIER (FREE / PRO / VIP_UNLIMITED) ──────
+        if path == "/api/admin/users/tier":
+            auth = self._get_auth_session(payload)
+            req_id = auth["user_id"] if auth.get("valid") else payload.get("requester_id")
+            target_id = payload.get("target_user_id")
+            tier = payload.get("tier", "free").strip().lower()
+            client_ip = self._get_client_ip()
+
+            if not req_id or not target_id:
+                self._send_json({"success": False, "error": "Thiếu thông tin cấp gói"}, 400)
+                return
+            res = admin_set_user_tier(int(req_id), int(target_id), tier, client_ip=client_ip)
             status_code = 200 if res["success"] else 403
             self._send_json(res, status_code)
             return
 
         # ── 6e. ADMIN / OWNER: CREATE GIFTCODE ───────────────────────────────
         if path == "/api/admin/giftcodes/create":
-            req_id = payload.get("requester_id")
+            auth = self._get_auth_session(payload)
+            req_id = auth["user_id"] if auth.get("valid") else payload.get("requester_id")
             code = payload.get("code", "")
             credits_val = payload.get("credits", 0)
             max_uses = payload.get("max_uses", 1)
@@ -504,7 +624,8 @@ class AOVWebHandler(BaseHTTPRequestHandler):
 
         # ── 6f. ADMIN / OWNER: DELETE GIFTCODE ───────────────────────────────
         if path == "/api/admin/giftcodes/delete":
-            req_id = payload.get("requester_id")
+            auth = self._get_auth_session(payload)
+            req_id = auth["user_id"] if auth.get("valid") else payload.get("requester_id")
             code = payload.get("code", "")
             if not req_id or not code:
                 self._send_json({"success": False, "error": "Thiếu thông tin xóa giftcode"}, 400)
@@ -690,6 +811,16 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                 self._send_json({"error": "Không có danh sách tài khoản hợp lệ (hỗ trợ : | ; / khoảng trắng)!"}, 400)
                 return
 
+            # Kiểm tra & Trừ Credit theo tỷ lệ 1 Credit = 10 Acc
+            if uid:
+                try:
+                    c_res = deduct_check_credits(int(uid), len(combos), action_type="BATCH_TEXT_CHECK", description=f"Quét dán text {len(combos)} acc (Tỷ lệ 1 Cr = 10 Acc)")
+                    if not c_res.get("success"):
+                        self._send_json(c_res, 402)
+                        return
+                except Exception as c_err:
+                    print(f"[BATCH CREDIT DEDUCT ERROR] {c_err}", flush=True)
+
             # Clean-up / hard stop any active task for this client
             with _TASKS_LOCK:
                 for existing_tid, existing_t in list(_TASKS.items()):
@@ -839,6 +970,100 @@ class AOVWebHandler(BaseHTTPRequestHandler):
 
             print(f"[STOP BATCH] Đã dừng và hủy thành công {stopped} tiến trình quét!", flush=True)
             self._send_json({"success": True, "message": f"Đã dừng thành công {stopped} tiến trình quét!"})
+            return
+
+        # ── 10.5. STATELESS MINI-BATCH FOR CLIENT STREAMING (10GB+ FILES) ────
+        elif path == "/api/check-mini-batch":
+            combos_raw = payload.get("combos", [])
+            threads = int(payload.get("threads", 15) or 15)
+            threads = max(1, min(threads, 30))  # Capping to protect Render 512MB RAM
+            uid = payload.get("user_id")
+
+            if not isinstance(combos_raw, list) or not combos_raw:
+                self._send_json({"error": "Danh sách combos trống!"}, 400)
+                return
+
+            # Hard cap: tối đa 100 acc mỗi mini-batch để triệt tiêu nguy cơ OOM
+            if len(combos_raw) > 100:
+                combos_raw = combos_raw[:100]
+
+            valid_combos = []
+            for item in combos_raw:
+                if isinstance(item, (list, tuple)) and len(item) >= 2:
+                    u, p = str(item[0]).strip(), str(item[1]).strip()
+                    if u and p:
+                        valid_combos.append((u, p))
+                elif isinstance(item, str):
+                    u, p = parse_combo_line(item)
+                    if u and p:
+                        valid_combos.append((u, p))
+
+            if not valid_combos:
+                self._send_json({"error": "Không có combo hợp lệ!"}, 400)
+                return
+
+            # Thắt chặt Credit Ledger: 1 Credit = 10 Tài khoản!
+            if uid:
+                try:
+                    c_res = deduct_check_credits(int(uid), len(valid_combos), action_type="STREAM_MINI_BATCH", description=f"Quét Stream {len(valid_combos)} acc (Tỷ lệ 1 Cr = 10 Acc)")
+                    if not c_res.get("success"):
+                        self._send_json(c_res, 402)
+                        return
+                except Exception as c_err:
+                    print(f"[CREDIT DEDUCT ERROR] {c_err}", flush=True)
+
+            results = []
+            def mini_worker(pair):
+                a, p = pair
+                try:
+                    r = enrich_account_result(check_account(a, p))
+                except Exception as err:
+                    r = {
+                        "account": a,
+                        "password": p,
+                        "status": "ERROR",
+                        "status_code": 999,
+                        "message": f"Exception: {str(err)}",
+                        "skins": 0, "heroes": 0, "rank": "Unknown",
+                        "level": 0, "gold": 0, "ruby": 0, "vouchers": 0,
+                        "skin_list": [], "raw_skins": [], "ingame_name": "", "raw_hero_ids": [],
+                        "created_at": time.strftime("%Y-%m-%d %H:%M:%S")
+                    }
+
+                # Lưu DB nếu có user_id và acc Live/Trắng
+                if uid:
+                    try:
+                        st = r.get("status")
+                        if st in ("LIVE", "LIVE_TRANG"):
+                            insert_scanned_account(
+                                user_id=uid,
+                                username=r.get("account", a),
+                                password=r.get("password", p),
+                                status=st,
+                                heroes=r.get("heroes", 0),
+                                skins=r.get("skins", 0),
+                                rank=r.get("rank", "Unknown"),
+                                skin_list=",".join(r.get("skin_list", [])) if isinstance(r.get("skin_list"), list) else str(r.get("skin_list", "")),
+                                level=r.get("level", 0),
+                                gold=r.get("gold", 0),
+                                ruby=r.get("ruby", 0),
+                                vouchers=r.get("vouchers", 0),
+                                ingame_name=r.get("ingame_name", ""),
+                                full_info=json.dumps(r, ensure_ascii=False)
+                            )
+                    except Exception as db_err:
+                        print(f"[MINI-BATCH DB ERROR] {db_err}", flush=True)
+
+                return r
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(threads, len(valid_combos))) as executor:
+                results = list(executor.map(mini_worker, valid_combos))
+
+            self._send_json({
+                "success": True,
+                "total": len(results),
+                "results": results
+            })
             return
 
         # ── 11. CHUNKED UPLOAD FOR LARGE (MB/GB) COMBO FILES ──────────────────
@@ -1034,15 +1259,56 @@ class AOVWebHandler(BaseHTTPRequestHandler):
             user_msg = str(payload.get("message") or payload.get("prompt") or "").strip()
             user_name = str(payload.get("user_name") or payload.get("display_name") or "Tris").strip()
             user_id = payload.get("user_id")
+            image_data = payload.get("image_data") or None    # base64 string
+            file_data = payload.get("file_data") or None      # plaintext content
+            file_name = payload.get("file_name") or None
+            enable_search = bool(payload.get("enable_search") or payload.get("search"))
+            enable_thinking = bool(payload.get("thinking") or payload.get("enable_thinking"))
+            enable_deep_research = bool(payload.get("deep_research") or payload.get("enable_deep_research"))
+            tokens_needed = 0
+
             if user_id:
                 try:
                     user_id = int(user_id)
-                except Exception:
+                    # Estimate token cost before executing
+                    tokens_needed = estimate_ai_tokens(
+                        message=user_msg,
+                        has_image=bool(image_data),
+                        file_content=file_data or "",
+                        enable_search=enable_search,
+                        enable_thinking=enable_thinking,
+                        enable_deep_research=enable_deep_research,
+                    )
+                    quota = deduct_ai_tokens(
+                        user_id, tokens_needed,
+                        action_type="AI_CHAT_MULTIMODAL" if (image_data or file_data) else "AI_CHAT",
+                        description=(
+                            "Chat AI"
+                            + (" + Vision" if image_data else "")
+                            + (f" + File({file_name or '?'})" if file_data else "")
+                            + (" + Search" if enable_search else "")
+                            + f" [{tokens_needed:,} tokens]"
+                        )
+                    )
+                    if not quota.get("success"):
+                        # Token exhausted → send structured out_of_tokens response
+                        err_payload = {
+                            "success": False,
+                            "out_of_tokens": quota.get("out_of_tokens", False),
+                            "error": quota.get("error", "Hết AI Tokens"),
+                            "reply": quota.get("error", "Hết AI Tokens"),
+                            "remaining_tokens": quota.get("remaining_tokens", 0),
+                            "credits_available": quota.get("credits_available", 0),
+                            "rate_per_credit": quota.get("rate_per_credit", AI_TOKENS_PER_CREDIT),
+                            "tokens_needed": quota.get("tokens_needed", tokens_needed),
+                        }
+                        self._send_json(err_payload, 402)
+                        return
+                except ValueError:
                     user_id = None
+
             history = payload.get("history", [])
             task_id = payload.get("task_id", "")
-            enable_thinking = bool(payload.get("thinking") or payload.get("enable_thinking"))
-            enable_deep_research = bool(payload.get("deep_research") or payload.get("enable_deep_research"))
 
             batch_context = None
             if task_id:
@@ -1063,10 +1329,13 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                 user_name=user_name,
                 enable_thinking=enable_thinking,
                 enable_deep_research=enable_deep_research,
-                user_id=user_id
+                user_id=user_id,
+                image_data=image_data,
+                file_data=file_data,
+                file_name=file_name,
+                enable_search=enable_search,
             )
-            
-            # Compatible with both legacy string and new object output
+
             reply_text = res_data.get("reply") if isinstance(res_data, dict) else str(res_data)
             thought_text = res_data.get("thought") if isinstance(res_data, dict) else None
             account_result = res_data.get("account_result") if isinstance(res_data, dict) else None
@@ -1077,7 +1346,8 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                 "reply": reply_text,
                 "response": reply_text,
                 "thought": thought_text,
-                "account_result": account_result
+                "account_result": account_result,
+                "tokens_used": tokens_needed,
             })
             return
 
@@ -1114,6 +1384,20 @@ class AOVWebHandler(BaseHTTPRequestHandler):
             requester_id = int(payload.get("requester_id", 0))
             code = str(payload.get("code", "")).strip()
             res = admin_delete_giftcode(requester_id, code)
+            self._send_json(res, 200 if res["success"] else 400)
+            return
+
+        # ── 18. AI TOKEN EXCHANGE: CREDITS → AI TOKENS (/api/ai/convert-tokens) ──
+        elif path == "/api/ai/convert-tokens":
+            user_id_raw = payload.get("user_id")
+            credits_to_spend = payload.get("credits", 0)
+            try:
+                uid = int(user_id_raw)
+                cr = int(credits_to_spend)
+            except (TypeError, ValueError):
+                self._send_json({"success": False, "error": "user_id và credits phải là số hợp lệ!"}, 400)
+                return
+            res = convert_credits_to_tokens(uid, cr)
             self._send_json(res, 200 if res["success"] else 400)
             return
 
