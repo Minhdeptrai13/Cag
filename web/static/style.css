@@ -426,13 +426,14 @@ body.app-body {
   background: linear-gradient(135deg, var(--gold-light), var(--gold-metallic));
   color: #000;
   font-weight: 800;
-  font-size: 12px;
+  font-size: 13px;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden !important;
   flex-shrink: 0;
-  border: 1.5px solid var(--border-subtle);
+  border: 1.5px solid rgba(255,255,255,0.15);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
 }
 .user-avatar img, .dropdown-avatar img, #settingAvatarPreviewBox img {
   width: 100% !important;
@@ -442,14 +443,20 @@ body.app-body {
   border-radius: 50% !important;
 }
 .dropdown-avatar {
-  width: 42px;
-  height: 42px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
+  background: linear-gradient(135deg, var(--gold-light), var(--gold-metallic));
+  color: #000;
+  font-weight: 900;
+  font-size: 16px;
+  border: 2px solid rgba(255,255,255,0.2);
   overflow: hidden !important;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.4);
 }
 .btn-header-tool {
   display: inline-flex;
@@ -1583,19 +1590,7 @@ body.app-body {
   gap: 10px;
   margin-bottom: 8px;
 }
-.dropdown-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: 1px solid #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 900;
-  background: rgba(255, 255, 255, 0.1);
-  overflow: hidden;
-  flex-shrink: 0;
-}
+.dropdown-avatar-dup-removed { display: none; }
 .dropdown-name {
   font-size: 13px;
   font-weight: 800;

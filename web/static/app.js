@@ -1672,6 +1672,25 @@ function loadSettings() {
 
   selectedAvatarChoice = currentUser.avatar_url || '';
   updateAvatarPreview(selectedAvatarChoice);
+
+  // Populate Preset Avatar Grid
+  const presetGrid = document.getElementById('presetAvatarGrid');
+  if (presetGrid) {
+    presetGrid.innerHTML = PRESET_AVATARS.map(emoji => `
+      <div class="preset-avatar-item${selectedAvatarChoice === emoji ? ' active' : ''}"
+           title="${emoji}"
+           onclick="
+             selectedAvatarChoice = '${emoji}';
+             document.querySelectorAll('.preset-avatar-item').forEach(el => el.classList.remove('active'));
+             this.classList.add('active');
+             const urlInp = document.getElementById('settingAvatarUrl');
+             if (urlInp) urlInp.value = '';
+             updateAvatarPreview('${emoji}');
+           ">
+        ${emoji}
+      </div>
+    `).join('');
+  }
 }
 
 // File upload direct avatar handler with auto-compression
