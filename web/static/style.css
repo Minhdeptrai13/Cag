@@ -323,11 +323,13 @@ body.app-body {
 .gradient-text-gold {
   background: linear-gradient(135deg, #ffffff 20%, var(--gold-light) 60%, #ea580c 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 .gradient-text-violet {
   background: linear-gradient(135deg, #a855f7 20%, var(--indigo-core) 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 .hero-sub {
@@ -1279,6 +1281,7 @@ body.app-body {
   background: linear-gradient(90deg, var(--text-muted) 0%, #fff 50%, var(--text-muted) 100%);
   background-size: 200% 100%;
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   animation: shimmer 1.8s infinite linear;
   font-weight: 600;

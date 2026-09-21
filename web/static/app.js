@@ -1437,223 +1437,7 @@ if (btnExportLive) {
   });
 }
 
-// ── TAB 3: PLAYGROUND AI COPILOT ────────────────────────────────────────────
-const aiMainChatBody = document.getElementById('aiMainChatBody');
-const aiCanvasForm = document.getElementById('aiCanvasForm');
-const aiCanvasInput = document.getElementById('aiCanvasInput');
-const btnToggleThinking = document.getElementById('btnToggleThinking');
-const btnToggleDeepResearch = document.getElementById('btnToggleDeepResearch');
 
-let aiThinkingEnabled = true;
-let aiDeepResearchEnabled = false;
-
-if (btnToggleThinking) {
-  btnToggleThinking.addEventListener('click', () => {
-    aiThinkingEnabled = !aiThinkingEnabled;
-    btnToggleThinking.classList.toggle('active', aiThinkingEnabled);
-    showToast(aiThinkingEnabled ? 'ĐÃ BẬT: Chuỗi suy nghĩ (Reasoning CoT)' : 'ĐÃ TẮT: Chuỗi suy nghĩ');
-  });
-}
-
-if (btnToggleDeepResearch) {
-  btnToggleDeepResearch.addEventListener('click', () => {
-    aiDeepResearchEnabled = !aiDeepResearchEnabled;
-    btnToggleDeepResearch.classList.toggle('deep-active', aiDeepResearchEnabled);
-    showToast(aiDeepResearchEnabled ? 'ĐÃ BẬT: Phân tích sâu (Deep Research Mode)' : 'ĐÃ TẮT: Phân tích sâu');
-  });
-}
-
-document.querySelectorAll('.ai-pill-btn, .ai-prompt-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const q = btn.getAttribute('data-query');
-    if (q) {
-      aiCanvasInput.value = q;
-      sendAICanvasMessage(q);
-    }
-  });
-});
-
-aiCanvasInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    const msg = aiCanvasInput.value.trim();
-    if (msg) sendAICanvasMessage(msg);
-  }
-});
-
-aiCanvasForm.addEventListener('submit', (e) => {
-  e.preventDefault();
-  const msg = aiCanvasInput.value.trim();
-  if (msg) sendAICanvasMessage(msg);
-});
-
-async function sendAICanvasMessage(text) {
-  appendAIMessage('user', text);
-  aiCanvasInput.value = '';
-
-  let loadingLabel = 'Đang trích xuất dữ liệu RAG và phân tích...';
-  if (aiThinkingEnabled && aiDeepResearchEnabled) {
-    loadingLabel = 'Đang suy nghĩ (Chain-of-Thought) & Nghiên cứu sâu...';
-  } else if (aiThinkingEnabled) {
-    loadingLabel = 'Đang kích hoạt chuỗi suy nghĩ CoT...';
-  } else if (aiDeepResearchEnabled) {
-    loadingLabel = 'Đang truy vấn mô hình nghiên cứu sâu...';
-  }
-
-  const typing = appendAIMessage('assistant', loadingLabel, true);
-
-  try {
-    const userName = currentUser ? (currentUser.display_name || currentUser.username || 'Tris') : 'Tris';
-    const res = await fetch('/api/ai/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        prompt: text,
-        task_id: activeTaskId || '',
-        user_name: userName,
-        user_id: currentUser ? currentUser.id : 0,
-        enable_thinking: aiThinkingEnabled,
-        enable_deep_research: aiDeepResearchEnabled
-      })
-    });
-    const data = await res.json();
-    typing.remove();
-
-    if (data.status === 'ok' || data.success) {
-      const reply = data.response || data.reply || 'Đã hoàn tất xử lý.';
-      const thought = data.thought || null;
-      appendAIMessage('assistant', reply, false, thought);
-
-      // If account was checked directly, refresh profile to update credits
-      if (data.account_result && currentUser) {
-        syncCurrentUserProfile();
-      }
-    } else {
-      appendAIMessage('assistant', data.error || 'Trợ lý AI gặp gián đoạn kết nối.');
-    }
-  } catch (err) {
-    typing.remove();
-    appendAIMessage('assistant', 'Lỗi kết nối tới AI Copilot.');
-  }
-}
-
-function escapeHtml(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
-
-function formatAIMarkdown(raw) {
-  if (!raw) return '';
-
-  // 1. Code Blocks: ```lang ... ```
-  const codeBlockRegex = /```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g;
-  let formatted = raw.replace(codeBlockRegex, (match, lang, code) => {
-    const language = (lang || 'code').toLowerCase();
-    const cleanCode = escapeHtml(code.trim());
-    const blockId = 'code_' + Math.random().toString(36).substring(2, 9);
-    return `
-      <div class="ai-code-preview-container">
-        <div class="ai-code-header">
-          <span class="ai-code-lang"><svg class="svg-icon icon-xs" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg> ${language.toUpperCase()}</span>
-          <button type="button" class="ai-code-copy-btn" onclick="copyCodeBlock('${blockId}')">
-            <svg class="svg-icon icon-xs" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-            SAO CHÉP
-          </button>
-        </div>
-        <pre class="ai-code-body"><code id="${blockId}">${cleanCode}</code></pre>
-      </div>
-    `;
-  });
-
-  // 2. Inline `code`
-  formatted = formatted.replace(/`([^`]+)`/g, '<code class="ai-inline-code">$1</code>');
-
-  // 3. Bold **text**
-  formatted = formatted.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-
-  // 4. Linebreaks
-  formatted = formatted.replace(/\n/g, '<br/>');
-
-  return formatted;
-}
-
-window.copyCodeBlock = function(id) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  const text = el.innerText || el.textContent;
-  navigator.clipboard.writeText(text).then(() => {
-    showToast('ĐÃ SAO CHÉP MÃ NGUỒN!');
-  });
-};
-
-function appendAIMessage(role, content, isTyping = false, thought = null) {
-  const row = document.createElement('div');
-  row.className = `ai-message-row ${role}`;
-
-  const av = document.createElement('div');
-  av.className = 'ai-msg-avatar';
-  if (role === 'user') {
-    av.textContent = (currentUser && currentUser.username ? currentUser.username[0] : 'U').toUpperCase();
-  } else {
-    av.innerHTML = '<img src="/assets/garena_logo.png" style="width:20px;height:20px;object-fit:contain;" alt="AI" />';
-  }
-
-  const bubble = document.createElement('div');
-  bubble.className = 'ai-msg-bubble';
-
-  const header = document.createElement('div');
-  header.className = 'ai-sender-name';
-  header.innerHTML = role === 'user' ? 'BẠN' : 'AOV COPILOT <span class="ai-time">ONLINE</span>';
-
-  const text = document.createElement('div');
-  text.className = 'ai-msg-text';
-  if (isTyping) {
-    text.innerHTML = `<span class="ai-typing-indicator"><span class="dot"></span><span class="dot"></span><span class="dot"></span> <span class="ai-shimmer-text">${escapeHtml(content)}</span></span>`;
-  } else {
-    let htmlOutput = '';
-    
-    // Render Thinking Accordion if thought exists
-    if (thought) {
-      const accId = 'thought_' + Math.random().toString(36).substring(2, 9);
-      htmlOutput += `
-        <div class="ai-thought-accordion" id="${accId}">
-          <div class="ai-thought-header" onclick="toggleThoughtAccordion('${accId}')">
-            <span class="ai-thought-title">
-              <svg class="svg-icon icon-xs thought-brain-icon" viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z"></path><line x1="9" y1="21" x2="15" y2="21"></line></svg>
-              <span>Chuỗi suy nghĩ (Reasoning Process)</span>
-            </span>
-            <svg class="svg-icon icon-xs ai-thought-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"></polyline></svg>
-          </div>
-          <div class="ai-thought-content">${escapeHtml(thought)}</div>
-        </div>
-      `;
-    }
-
-    htmlOutput += formatAIMarkdown(content);
-    text.innerHTML = htmlOutput;
-  }
-
-  bubble.appendChild(header);
-  bubble.appendChild(text);
-
-  row.appendChild(av);
-  row.appendChild(bubble);
-  aiMainChatBody.appendChild(row);
-  aiMainChatBody.scrollTop = aiMainChatBody.scrollHeight;
-  return row;
-}
-
-window.toggleThoughtAccordion = function(id) {
-  const el = document.getElementById(id);
-  if (el) {
-    el.classList.toggle('open');
-  }
-};
 
 // ── TAB 4: API KEY MANAGER (VAULT LIST) ─────────────────────────────────────
 let userApiKeysList = [];
@@ -2442,8 +2226,8 @@ if (btnRemoveFile) btnRemoveFile.addEventListener('click', () => { clearFile(); 
 document.addEventListener('paste', (e) => {
   const target = document.getElementById('viewPlaygroundAI');
   if (!target || target.style.display === 'none') return;
-  if (!target.classList.contains('active') && getComputedStyle(target).display === 'none') return;
-  const items = (e.clipboardData || window.clipboardData)?.items;
+  const cbData = e.clipboardData || window.clipboardData;
+  const items = cbData ? cbData.items : null;
   if (!items) return;
   for (let i = 0; i < items.length; i++) {
     if (items[i].type.startsWith('image/')) {
@@ -2549,10 +2333,10 @@ function appendAIMessage(role, content, thought, imageDataUrl) {
 
   const avatarHtml = role === 'assistant'
     ? `<img src="/assets/garena_logo.png" style="width:20px;height:20px;object-fit:contain;" alt="AI" />`
-    : `<span>${(currentUser?.display_name || currentUser?.username || 'U')[0].toUpperCase()}</span>`;
+    : `<span>${((currentUser && currentUser.display_name) || (currentUser && currentUser.username) || 'U')[0].toUpperCase()}</span>`;
   const senderName = role === 'assistant'
     ? `AOV COPILOT <span class="ai-time">${timeStr}</span>`
-    : `${(currentUser?.display_name || currentUser?.username || 'Bạn').toUpperCase()} <span class="ai-time">${timeStr}</span>`;
+    : `${((currentUser && currentUser.display_name) || (currentUser && currentUser.username) || 'Bạn').toUpperCase()} <span class="ai-time">${timeStr}</span>`;
 
   const row = document.createElement('div');
   row.className = `ai-message-row ${role}`;
@@ -2628,7 +2412,7 @@ function openTokenExchangeModal(creditsAvailable, ratePerCredit) {
   if (errMsg) errMsg.style.display = 'none';
 
   function updatePreview() {
-    const v = parseInt(slider?.value || 5, 10);
+    const v = parseInt((slider ? slider.value : null) || 5, 10);
     if (sliderVal) sliderVal.textContent = v;
     const gain = v * (ratePerCredit || 2000);
     if (preview) preview.textContent = `+${gain.toLocaleString()} AI Tokens`;
@@ -2667,7 +2451,7 @@ if (btnConfirmTokenExchange) {
   btnConfirmTokenExchange.addEventListener('click', async () => {
     const slider = document.getElementById('sliderCreditsToExchange');
     const errMsg = document.getElementById('tokenExchangeError');
-    const credits = parseInt(slider?.value || 5, 10);
+    const credits = parseInt((slider ? slider.value : null) || 5, 10);
 
     btnConfirmTokenExchange.disabled = true;
     btnConfirmTokenExchange.textContent = 'Đang xử lý...';
@@ -2676,7 +2460,7 @@ if (btnConfirmTokenExchange) {
     btnConfirmTokenExchange.disabled = false;
     btnConfirmTokenExchange.textContent = 'XÁC NHẬN ĐỔI TOKEN';
 
-    if (data?.success) {
+    if ((data && data.success)) {
       closeTokenModal();
       updateAiTokenHud(data.free_tokens_remaining, data.paid_tokens_remaining);
       // Update credits in currentUser
@@ -2685,7 +2469,7 @@ if (btnConfirmTokenExchange) {
         localStorage.setItem('aov_user', JSON.stringify(currentUser));
         renderUserProfile();
       }
-      showToast(`✅ Đã đổi thành công: +${data.tokens_gained?.toLocaleString()} AI Tokens!`);
+      showToast(`✅ Đã đổi thành công: +${data.tokens_gained.toLocaleString()} AI Tokens!`);
 
       // Auto re-send last message
       if (_lastSentPayload) {
@@ -2697,7 +2481,7 @@ if (btnConfirmTokenExchange) {
     } else {
       if (errMsg) {
         errMsg.style.display = 'block';
-        errMsg.textContent = data?.error || 'Quy đổi thất bại. Vui lòng kiểm tra số dư Credits.';
+        errMsg.textContent = (data ? data.error : "") || 'Quy đổi thất bại. Vui lòng kiểm tra số dư Credits.';
       }
     }
   });
@@ -2758,7 +2542,7 @@ async function _executeSendAI(payload) {
 
 async function sendAICanvasMessage(messageOverride) {
   if (aiIsTyping) return;
-  const msg = (messageOverride || aiCanvasInput?.value || '').trim();
+  const msg = (messageOverride || (aiCanvasInput ? aiCanvasInput.value : "") || '').trim();
   if (!msg && !aiPendingImage && !aiPendingFile) {
     showToast('Vui lòng nhập nội dung trước khi gửi!');
     return;
@@ -2785,8 +2569,8 @@ async function sendAICanvasMessage(messageOverride) {
 
   const payload = {
     message: msgText,
-    user_name: currentUser?.display_name || currentUser?.username || 'Tris',
-    user_id: currentUser?.id,
+    user_name: (currentUser && currentUser.display_name) || (currentUser && currentUser.username) || 'Tris',
+    user_id: (currentUser ? currentUser.id : null),
     history: aiConversationHistory.slice(-8),
     enable_thinking: thinkingBtn ? thinkingBtn.classList.contains('active') : false,
     enable_deep_research: deepBtn ? deepBtn.classList.contains('active') : false,
@@ -2836,23 +2620,7 @@ showStudio = function() {
   loadAiTokenBalance();
 };
 
-// ── Dropdown: Top-up → open Token Exchange Modal ──────────────────────────────
-const ddBtnTopup = document.getElementById('ddBtnTopup');
-const creditsPillTopup = document.getElementById('creditsPillTopup');
-if (ddBtnTopup) {
-  ddBtnTopup.addEventListener('click', () => {
-    const dropdown = document.getElementById('userDropdownMenu');
-    if (dropdown) dropdown.style.display = 'none';
-    openTokenExchangeModal(currentUser?.credits || 0, 2000);
-  });
-}
-if (creditsPillTopup) {
-  creditsPillTopup.addEventListener('click', () => {
-    openTokenExchangeModal(currentUser?.credits || 0, 2000);
-  });
-}
-
-// Slider live update in modal
+// ── Slider live update in Token Exchange Modal ──────────────────────────────
 const sliderCredits = document.getElementById('sliderCreditsToExchange');
 const sliderValDisplay = document.getElementById('sliderValueDisplay');
 const tokenExchangePreviewGain = document.getElementById('tokenExchangePreviewGain');
@@ -2861,44 +2629,6 @@ if (sliderCredits) {
     const v = parseInt(sliderCredits.value, 10);
     if (sliderValDisplay) sliderValDisplay.textContent = v;
     if (tokenExchangePreviewGain) tokenExchangePreviewGain.textContent = `+${(v * 2000).toLocaleString()} AI Tokens`;
-  });
-}
-
-// ── Dropdown Toggle ───────────────────────────────────────────────────────────
-const userChipDropdownBtn = document.getElementById('userChipDropdownBtn');
-const userDropdownMenu = document.getElementById('userDropdownMenu');
-if (userChipDropdownBtn && userDropdownMenu) {
-  userChipDropdownBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const isOpen = userDropdownMenu.style.display === 'block';
-    userDropdownMenu.style.display = isOpen ? 'none' : 'block';
-  });
-  document.addEventListener('click', () => {
-    if (userDropdownMenu) userDropdownMenu.style.display = 'none';
-  });
-}
-
-const ddBtnSettings = document.getElementById('ddBtnSettings');
-if (ddBtnSettings) {
-  ddBtnSettings.addEventListener('click', () => {
-    if (userDropdownMenu) userDropdownMenu.style.display = 'none';
-    switchTab('settings');
-  });
-}
-const ddBtnAdminPanel = document.getElementById('ddBtnAdminPanel');
-if (ddBtnAdminPanel) {
-  ddBtnAdminPanel.addEventListener('click', () => {
-    if (userDropdownMenu) userDropdownMenu.style.display = 'none';
-    switchTab('owner');
-  });
-}
-const ddBtnLogout = document.getElementById('ddBtnLogout');
-if (ddBtnLogout) {
-  ddBtnLogout.addEventListener('click', () => {
-    currentUser = null;
-    localStorage.removeItem('aov_user');
-    showLanding();
-    showToast('ĐÃ ĐĂNG XUẤT');
   });
 }
 
