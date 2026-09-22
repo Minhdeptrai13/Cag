@@ -9,18 +9,128 @@ import sys
 
 import Check1
 from Check1 import check_login as check1_login
-from Check1 import _derive_tinh_trang as check1_derive_tinh_trang
 from core.aov_database import translate_aov_rank
 
-# ── High-Performance Optimization ──────────────────────────────────────────
-# Garena servers no longer reply to legacy socket CMD 289 (user_basic) & CMD 342 (account_info),
-# which previously caused 14s-19s socket timeouts per account.
-# All account security (phone, email, 2FA, CCCD) is fully retrieved in 0.05s via SSO key.
-Check1._fetch_user_basic = lambda *a, **k: {}
-Check1._fetch_account_info = lambda *a, **k: {}
-Check1._fetch_kientuong_player = lambda *a, **k: {}
+def _security_flag(value) -> bool:
+    """Normalize the mixed boolean/int/string flags returned by Garena."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        return value.strip().upper() in {"1", "TRUE", "YES", "Y", "ON", "LINKED", "CONNECTED"}
+    return False
 
-derive_tinh_trang = check1_derive_tinh_trang
+
+def _security_text(value) -> str:
+    return str(value or "").strip()
+
+
+def _has_masked_value(value) -> bool:
+    """A masked value such as phu****@gmail.com or 33*****91 is still bound."""
+    text = _security_text(value)
+    if not text:
+        return False
+    normalized = text.lower()
+    if normalized in {"trắng", "trang", "none", "null", "n/a", "no", "false", "0", "không"}:
+        return False
+    return bool(text.replace("*", "").strip())
+
+
+def _build_security(raw: dict) -> dict:
+    """Build one canonical security snapshot from Check1's flat result."""
+    phone = (
+        _security_text(raw.get("aov_prefill_mobile"))
+        or _security_text(raw.get("fcmobile_prefill_mobile"))
+        or _security_text(raw.get("masked_phone"))
+    )
+    email = _security_text(raw.get("masked_email"))
+    idcard = _security_text(raw.get("idcard"))
+    fb_uid = _security_text(raw.get("fb_uid") or raw.get("fb_uid_login"))
+    fb_account = _security_text(raw.get("fb_account_name"))
+    has_phone = _security_flag(raw.get("mobile_bound")) or _has_masked_value(phone)
+    has_email = _security_flag(raw.get("email_verified")) or _security_flag(raw.get("email_v")) or _has_masked_value(email)
+    has_cccd = bool(idcard.replace("*", "").strip())
+    auth_2fa = _security_flag(raw.get("authenticator_enable")) or _security_flag(raw.get("two_step_verify"))
+    # The reference checker may expose a truthy string such as "0" from the
+    # account-init endpoint. Require actual FB identity data before marking
+    # the account as linked.
+    fb_linked = bool(fb_uid) or (
+        _security_flag(raw.get("fb_linked")) and _has_masked_value(fb_account)
+    )
+
+    return {
+        "has_phone": has_phone,
+        "mobile_bound": _security_flag(raw.get("mobile_bound")),
+        "masked_phone": phone,
+        "masked_email": email,
+        "email_verified": _security_flag(raw.get("email_verified")),
+        "email_v": has_email,
+        "has_cccd": has_cccd,
+        "idcard": idcard,
+        "fb_linked": fb_linked,
+        "fb_uid": fb_uid,
+        "auth_2fa": auth_2fa,
+        "banned": _security_flag(raw.get("aov_banned")),
+        "suspicious": _security_flag(raw.get("suspicious")),
+    }
+
+
+def _raw_security_snapshot(raw: dict) -> dict:
+    """Keep the original security values without exposing login credentials."""
+    fields = (
+        "aov_prefill_mobile",
+        "fcmobile_prefill_mobile",
+        "masked_phone",
+        "mobile_bound",
+        "masked_email",
+        "email_verified",
+        "email_v",
+        "idcard",
+        "authenticator_enable",
+        "two_step_verify",
+        "fb_linked",
+        "fb_uid",
+        "fb_uid_login",
+        "fb_account_name",
+        "aov_banned",
+        "suspicious",
+    )
+    return {key: raw[key] for key in fields if key in raw}
+
+
+def _derive_security_status(raw: dict, security: dict) -> str:
+    """Match Check1's security-based classification without trusting string truthiness."""
+    parts = []
+    if security["has_phone"]:
+        parts.append("SĐT")
+    if security["email_v"]:
+        parts.append("Mail")
+    if security["fb_linked"]:
+        parts.append("FB")
+    if security["has_cccd"]:
+        parts.append("CCCD")
+    if security["auth_2fa"]:
+        parts.append("2FA")
+    if _security_flag(raw.get("password_set")):
+        parts.append("Pass")
+
+    if not parts:
+        status = "Acc Trắng"
+    elif len(parts) >= 4:
+        status = "Full Info"
+    else:
+        status = "Acc Dính " + " + ".join(parts)
+
+    suffix = []
+    if _security_flag(raw.get("aov_banned")):
+        suffix.append("BAN")
+    try:
+        if int(raw.get("suspicious", 0) or 0):
+            suffix.append("Suspicious")
+    except (TypeError, ValueError):
+        pass
+    return f"{status} [{' + '.join(suffix)}]" if suffix else status
 
 
 def parse_combo_line(line: str) -> tuple[str, str]:
@@ -55,10 +165,15 @@ def parse_combo_line(line: str) -> tuple[str, str]:
 
 
 def derive_accurate_tinh_trang(raw: dict) -> str:
-    """Derive account condition using the exact proven algorithm from Check1.py."""
+    """Derive account condition using the normalized Check1 security fields."""
     if not raw or raw.get("status") != "HIT":
         return "Chưa xác định"
-    return check1_derive_tinh_trang(raw)
+    return _derive_security_status(raw, _build_security(raw))
+
+
+def derive_tinh_trang(raw: dict) -> str:
+    """Public status helper; keep CLI, API, and web on the same security rules."""
+    return derive_accurate_tinh_trang(raw)
 
 
 def check_account(account: str, password: str, proxy=None, timeout: int = 10) -> dict:
@@ -72,13 +187,14 @@ def check_account(account: str, password: str, proxy=None, timeout: int = 10) ->
     raw = check1_login(account, password, timeout=timeout, fetch_info=True, proxy=proxy)
     status = raw.get("status", "ERROR")
 
-    phone_display = (raw.get("aov_prefill_mobile") or raw.get("fcmobile_prefill_mobile") or raw.get("masked_phone") or "").strip()
-    mobile_bound = bool(raw.get("mobile_bound"))
-    has_phone = mobile_bound or bool(phone_display and phone_display != "Trắng")
+    security = _build_security(raw)
+    phone_display = security["masked_phone"]
+    mobile_bound = security["mobile_bound"]
+    has_phone = security["has_phone"]
     if not phone_display and mobile_bound:
         phone_display = "ĐÃ LIÊN KẾT"
 
-    tinh_trang = derive_accurate_tinh_trang(raw) if status == "HIT" else "Chưa xác định"
+    tinh_trang = _derive_security_status(raw, security) if status == "HIT" else "Chưa xác định"
     is_trang = (tinh_trang == "Acc Trắng") and not has_phone
     if has_phone and (is_trang or tinh_trang == "Acc Trắng"):
         is_trang = False
@@ -158,13 +274,17 @@ def check_account(account: str, password: str, proxy=None, timeout: int = 10) ->
             "has_phone": has_phone,
             "mobile_bound": mobile_bound,
             "masked_phone": phone_display,
-            "masked_email": (raw.get("masked_email") or "").strip(),
-            "email_v": bool(raw.get("email_verified")) or bool(int(raw.get("email_v", 0) or 0)),
-            "has_cccd": bool((raw.get("idcard") or "").replace("*", "").strip()),
-            "idcard": (raw.get("idcard") or "").strip(),
-            "fb_linked": bool(raw.get("fb_linked")),
-            "fb_uid": (raw.get("fb_uid") or raw.get("fb_uid_login") or "").strip(),
-            "auth_2fa": bool(raw.get("authenticator_enable", 0)) or bool(raw.get("two_step_verify", 0)),
+            "masked_email": security["masked_email"],
+            "email_verified": security["email_verified"],
+            "email_v": security["email_v"],
+            "has_cccd": security["has_cccd"],
+            "idcard": security["idcard"],
+            "fb_linked": security["fb_linked"],
+            "fb_uid": security["fb_uid"],
+            "auth_2fa": security["auth_2fa"],
+            "banned": security["banned"],
+            "suspicious": security["suspicious"],
+            "raw": _raw_security_snapshot(raw),
         },
     }
 
@@ -188,12 +308,15 @@ def check_account(account: str, password: str, proxy=None, timeout: int = 10) ->
     result["mobile_bound"] = mobile_bound
     result["masked_phone"] = phone_display
     result["masked_email"] = result["security"]["masked_email"]
+    result["email_verified"] = result["security"]["email_verified"]
     result["email_v"] = result["security"]["email_v"]
     result["has_cccd"] = result["security"]["has_cccd"]
     result["idcard"] = result["security"]["idcard"]
     result["fb_linked"] = result["security"]["fb_linked"]
     result["fb_uid"] = result["security"]["fb_uid"]
     result["auth_2fa"] = result["security"]["auth_2fa"]
+    result["aov_banned"] = raw.get("aov_banned", "NO")
+    result["raw_security"] = result["security"]["raw"]
     result["full_info"] = format_account_full_info(result)
 
     return result
@@ -224,22 +347,21 @@ def format_account_full_info(r: dict) -> str:
     level = aov.get("level", 0)
     hero = aov.get("total_champs", 0)
     skin = aov.get("total_skins", 0)
-    ban = aov.get("banned") or "KHÔNG"
+    ban = "BAN" if _security_flag(aov.get("banned")) else "OK"
 
     # Email
     masked_email = (sec.get("masked_email") or "").strip()
-    email_verified = sec.get("email_v", False)
-    if not masked_email or masked_email == "Trắng":
+    if not masked_email or masked_email.lower() in {"trắng", "trang"}:
         email_str = "NO [CHƯA LIÊN KẾT]"
-    elif email_verified:
-        email_str = f"YES [{masked_email} - ĐÃ XÁC THỰC]"
     else:
-        email_str = f"NO [{masked_email} - CHƯA XÁC THỰC]"
+        # Check1 treats the masked address as a linked email even when the
+        # separate verification flag is unavailable.
+        email_str = f"YES [{masked_email}]"
 
     # SDT
     has_phone = bool(sec.get("has_phone")) or bool(sec.get("mobile_bound"))
     masked_phone = (sec.get("masked_phone") or "").strip()
-    if masked_phone and masked_phone != "Trắng":
+    if masked_phone and masked_phone.lower() not in {"trắng", "trang"}:
         sdt_str = f"YES [{masked_phone}]"
     elif has_phone:
         sdt_str = "YES [ĐÃ LIÊN KẾT]"
@@ -262,7 +384,7 @@ def format_account_full_info(r: dict) -> str:
     if fb_linked:
         fb_str = f"YES [{fb_uid}]" if fb_uid else "YES"
     else:
-        fb_str = "DIE"
+        fb_str = "NO"
 
     # SO
     shells = r.get("shells", 0)

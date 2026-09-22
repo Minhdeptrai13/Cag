@@ -144,22 +144,30 @@ class AOVWebHandler(BaseHTTPRequestHandler):
         return
 
     def _send_json(self, data: dict, status: int = 200):
-        body = json.dumps(data, ensure_ascii=False).encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            body = json.dumps(data, ensure_ascii=False).encode("utf-8")
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+            self.end_headers()
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+        except Exception as e:
+            print(f"[SEND_JSON_WARN] {e}", flush=True)
 
     def do_OPTIONS(self):
-        self.send_response(200)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-        self.end_headers()
+        try:
+            self.send_response(200)
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+            self.end_headers()
+        except Exception:
+            pass
 
     def _get_client_ip(self) -> str:
         fwd = self.headers.get("X-Forwarded-For", "")
@@ -731,10 +739,6 @@ class AOVWebHandler(BaseHTTPRequestHandler):
 
             # Launch background worker thread
             def run_api_batch():
-                os.makedirs("results", exist_ok=True)
-                live_path = os.path.join("results", f"api_hits_{task_id}.txt")
-                trang_path = os.path.join("results", f"api_trang_{task_id}.txt")
-
                 def check_worker(pair):
                     a, p = pair
                     r = check_account(a, p)
@@ -744,13 +748,8 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                         if r["status"] == "HIT":
                             task_state["hits"] += 1
                             task_state["all_hits"].append(r)
-                            full_line = format_account_full_info(r)
                             if r.get("is_trang"):
                                 task_state["trang"] += 1
-                                with open(trang_path, "a", encoding="utf-8") as ft:
-                                    ft.write(full_line + "\n")
-                            with open(live_path, "a", encoding="utf-8") as fh:
-                                fh.write(full_line + "\n")
                         else:
                             if r["status"] == "INVALID":
                                 task_state["invalid"] += 1
@@ -863,10 +862,6 @@ class AOVWebHandler(BaseHTTPRequestHandler):
 
             # Launch background worker thread
             def run_batch():
-                os.makedirs("results", exist_ok=True)
-                live_path = os.path.join("results", f"web_hits_{task_id}.txt")
-                trang_path = os.path.join("results", f"web_trang_{task_id}.txt")
-
                 print(f"\n[BẮT ĐẦU CHECK BATCH {task_id}] Client: {client_id} | Tổng: {len(combos)} tài khoản | Luồng: {threads}", flush=True)
 
                 def check_worker(pair):
@@ -906,16 +901,6 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                             full_line = r.get("full_line") or format_account_full_info(r)
                             if r.get("is_trang"):
                                 task_state["trang"] += 1
-                                try:
-                                    with open(trang_path, "a", encoding="utf-8") as ft:
-                                        ft.write(full_line + "\n")
-                                except Exception:
-                                    pass
-                            try:
-                                with open(live_path, "a", encoding="utf-8") as fh:
-                                    fh.write(full_line + "\n")
-                            except Exception:
-                                pass
                             print(f"{done_str} {full_line}", flush=True)
                         else:
                             if r.get("status") == "INVALID":
@@ -947,7 +932,7 @@ class AOVWebHandler(BaseHTTPRequestHandler):
                     actual_checked = task_state.get("done", len(combos))
                     deduct_credit(int(uid), actual_checked)
 
-                print(f"\n[KẾT THÚC BATCH {task_id}] Tổng: {task_state['done']}/{task_state['total']} | Sống: {task_state['hits']} | Trắng TTT: {task_state['trang']} (File lưu tại results/)\n", flush=True)
+                print(f"\n[KẾT THÚC BATCH {task_id}] Tổng: {task_state['done']}/{task_state['total']} | Sống: {task_state['hits']} | Trắng TTT: {task_state['trang']}\n", flush=True)
 
             threading.Thread(target=run_batch, daemon=True).start()
             self._send_json({"status": "ok", "success": True, "task_id": task_id, "total": len(combos)})
