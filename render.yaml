@@ -12,3 +12,5 @@ services:
         value: https://rrugdxdhfdtoypmcabej.supabase.co
       - key: SUPABASE_ANON_KEY
         value: sb_publishable_OKPExiUrEIhNd58pPhQ_og_VLgraK0O
+      - key: AOV_SECURITY_DEBUG
+        value: "1"

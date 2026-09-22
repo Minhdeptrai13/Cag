@@ -18,7 +18,7 @@ import sys
 import threading
 import time
 import unicodedata
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, urlsplit
 import uuid
 
 import requests
@@ -318,6 +318,24 @@ def _next_proxy():
         p = _proxy_list[_proxy_idx % len(_proxy_list)]
         _proxy_idx += 1
     return p
+
+
+def _env_proxy():
+    """Read one authorized outbound proxy for hosted deployments."""
+    value = (os.environ.get("AOV_PROXY_URL") or os.environ.get("HTTPS_PROXY") or "").strip()
+    if not value:
+        return None
+    try:
+        parsed = urlsplit(value if "://" in value else f"http://{value}")
+        if not parsed.hostname or not parsed.port:
+            return None
+        proxy = (parsed.hostname, parsed.port, parsed.username, parsed.password)
+        scheme = (parsed.scheme or "http").lower()
+        with _proxy_type_lock:
+            _proxy_type_cache[(proxy[0], proxy[1])] = "socks5" if scheme.startswith("socks") else "http"
+        return proxy
+    except (TypeError, ValueError):
+        return None
 
 
 def _get_http_proxies(proxy):
@@ -1068,36 +1086,57 @@ def _fetch_account_security(sso_key: str, proxy=None) -> dict:
     """Fetch masked phone, email, CCCD, authen from account.garena.com via SSO."""
     if not sso_key:
         return {}
+    debug_security = os.environ.get("AOV_SECURITY_DEBUG", "0") == "1"
     try:
         sess = requests.Session()
         if proxy:
             sess.proxies = _get_http_proxies(proxy)
         ua = "Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Mobile Safari/537.36"
+        headers = {
+            "User-Agent": ua,
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Referer": "https://account.garena.com/",
+            "Origin": "https://account.garena.com",
+        }
 
         # 1. Exchange sso_key for cookies
         resp = sess.get(
             "https://sso.garena.com/api/universal/login",
-            headers={"User-Agent": ua},
+            headers=headers,
             params={
                 "app_id": "10100",
                 "sso_key": sso_key,
                 "redirect_uri": "https://account.garena.com/",
             },
-            verify=False, timeout=8, allow_redirects=False,
+            verify=False, timeout=15, allow_redirects=False,
         )
         if resp.status_code != 200:
+            if debug_security:
+                print(f"[Security] SSO exchange HTTP {resp.status_code}", flush=True)
             return {}
 
         # 2. Account init data
-        resp2 = sess.get(
-            "https://account.garena.com/api/account/init",
-            headers={"User-Agent": ua},
-            verify=False, timeout=8,
-        )
-        if resp2.status_code != 200:
+        resp2 = None
+        for attempt in range(2):
+            resp2 = sess.get(
+                "https://account.garena.com/api/account/init",
+                headers=headers,
+                verify=False, timeout=15,
+            )
+            if resp2.status_code == 200:
+                break
+            if attempt == 0:
+                time.sleep(0.25)
+        if not resp2 or resp2.status_code != 200:
+            if debug_security:
+                code = resp2.status_code if resp2 is not None else "NO_RESPONSE"
+                print(f"[Security] account/init HTTP {code}", flush=True)
             return {}
         data = resp2.json()
         if "error" in data:
+            if debug_security:
+                print(f"[Security] account/init returned error: {data.get('error')}", flush=True)
             return {}
 
         ui = data.get("user_info", {}) if isinstance(data, dict) else {}
@@ -1141,6 +1180,25 @@ def _fetch_account_security(sso_key: str, proxy=None) -> dict:
         info["country_code"] = _first_value(account_fields, "country_code") or ""
         info["suspicious"] = 1 if _first_value(account_fields, "suspicious") else 0
         info["init_ip"] = data.get("init_ip", "")
+        if debug_security:
+            interesting_keys = sorted(
+                key for key in account_fields
+                if any(token in key.lower() for token in (
+                    "email", "mail", "mobile", "phone", "idcard", "identity",
+                    "cccd", "cmnd", "auth", "2fa", "two_step", "country"
+                ))
+            )
+            print(
+                "[Security] fields=" + ",".join(interesting_keys) +
+                f" | email={_debug_contact_value(info['masked_email'])}"+
+                f" email_flag={bool(info['email_v'])}"+
+                f" phone={_debug_contact_value(info['masked_phone'])}"+
+                f" phone_flag={bool(info['mobile_bound'])}"+
+                f" idcard={_debug_contact_value(info['idcard'])}"+
+                f" auth={bool(info['authenticator_enable'])}"+
+                f" two_step={bool(info['two_step_verify'])}",
+                flush=True,
+            )
 
         # Login history (last 5)
         raw_hist = data.get("login_history") or []
@@ -1169,7 +1227,9 @@ def _fetch_account_security(sso_key: str, proxy=None) -> dict:
             })
         info["sensitive_ops"] = ops
         return info
-    except Exception:
+    except Exception as exc:
+        if debug_security:
+            print(f"[Security] account security fetch failed: {type(exc).__name__}: {exc}", flush=True)
         return {}
 
 
@@ -2535,6 +2595,7 @@ def _is_port_exhaustion(detail: str) -> bool:
 
 # ── Core Login Checking ───────────────────────────────────────────────────────
 def check_login(account: str, password: str, timeout: int = 7, fetch_info: bool = False, proxy=None, debug: bool = False) -> dict:
+    proxy = proxy or _env_proxy()
     result = None
     proxy_fails = 0
     no_proxy_mode = (proxy is None and not _proxy_list)
@@ -2847,7 +2908,7 @@ def _check_login_once(account: str, password: str, timeout: int = 7, fetch_info:
             _hr = {}
             for _k, _f in _futs.items():
                 try:
-                    _t = 8 if _k == "acct_sec" else 5
+                    _t = 20 if _k == "acct_sec" else 5
                     _hr[_k] = _f.result(timeout=_t)
                 except Exception:
                     _hr[_k] = {}
@@ -4582,6 +4643,16 @@ def _flatten_response_fields(value: dict, max_depth: int = 3) -> dict:
 
     walk(value, 0)
     return flattened
+
+
+def _debug_contact_value(value) -> str:
+    """Mask contact/identity values before writing deployment diagnostics."""
+    text = str(value or "")
+    if not text:
+        return "<empty>"
+    if len(text) <= 4:
+        return "*" * len(text)
+    return f"{text[:2]}{'*' * max(3, len(text) - 4)}{text[-2:]}"
 
 
 def _build_security(raw: dict) -> dict:
