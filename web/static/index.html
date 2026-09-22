@@ -986,7 +986,15 @@ print(res.json())
         </div>
         <div style="margin-bottom:14px;">
           <label style="font-size:11px;font-family:var(--font-mono);color:var(--text-muted);display:block;margin-bottom:6px;">PASSWORD</label>
-          <input type="password" id="loginPass" required placeholder="Mật khẩu..." style="width:100%;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:10px 14px;color:#fff;outline:none;" />
+          <div style="position:relative;">
+            <input type="password" id="loginPass" required placeholder="Mật khẩu..." style="width:100%;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:10px 44px 10px 14px;color:#fff;outline:none;box-sizing:border-box;" />
+            <button type="button" id="btnToggleLoginPass" onclick="togglePasswordVisibility('loginPass','eyeIconLogin')" tabindex="-1" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:4px;color:#71717a;display:flex;align-items:center;transition:color 0.2s;" title="Hiện/Ẩn mật khẩu">
+              <svg id="eyeIconLogin" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+          </div>
         </div>
         
         <!-- Google reCAPTCHA Container for Login -->
@@ -1005,7 +1013,15 @@ print(res.json())
         </div>
         <div style="margin-bottom:14px;">
           <label style="font-size:11px;font-family:var(--font-mono);color:var(--text-muted);display:block;margin-bottom:6px;">PASSWORD (TỐI THIỂU 4 KÝ TỰ)</label>
-          <input type="password" id="regPass" required placeholder="Mật khẩu..." style="width:100%;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:10px 14px;color:#fff;outline:none;" />
+          <div style="position:relative;">
+            <input type="password" id="regPass" required placeholder="Mật khẩu..." style="width:100%;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:10px 44px 10px 14px;color:#fff;outline:none;box-sizing:border-box;" />
+            <button type="button" id="btnToggleRegPass" onclick="togglePasswordVisibility('regPass','eyeIconReg')" tabindex="-1" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:4px;color:#71717a;display:flex;align-items:center;transition:color 0.2s;" title="Hiện/Ẩn mật khẩu">
+              <svg id="eyeIconReg" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+          </div>
         </div>
 
         <!-- Google reCAPTCHA Container for Register -->
