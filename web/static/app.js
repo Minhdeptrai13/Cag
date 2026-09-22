@@ -2312,17 +2312,73 @@ function renderMarkdownAI(text) {
   if (!text) return '';
   let html = escapeHtml(text);
 
-  // Code blocks
+  // Code blocks with Gemini-style HTML Preview
+  let codeBlockIndex = 0;
   html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
-    const langLabel = lang ? lang.toUpperCase() : 'CODE';
+    codeBlockIndex++;
+    const langNormalized = (lang || '').toLowerCase().trim();
+    const isHtmlLike = ['html', 'htm', 'svg', 'xml'].includes(langNormalized) ||
+                       (!langNormalized && (code.includes('&lt;html') || code.includes('&lt;!DOCTYPE') || code.includes('&lt;div')));
+    const langLabel = lang ? lang.toUpperCase() : (isHtmlLike ? 'HTML' : 'CODE');
     const safeCode = code.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
     const escaped = safeCode.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    return `<div class="ai-code-preview-container">
+    const blockId = `aiCodeBlock_${Date.now()}_${codeBlockIndex}`;
+
+    // Store raw code in a global registry for safe preview access
+    if (!window._aiCodeSnippets) window._aiCodeSnippets = {};
+    window._aiCodeSnippets[blockId] = safeCode;
+
+    if (isHtmlLike) {
+      return `<div class="ai-code-preview-container" id="${blockId}">
+        <div class="ai-code-header">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="ai-code-lang">
+              <svg style="width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2;" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+              ${langLabel}
+            </span>
+            <div class="ai-code-tabs">
+              <button type="button" class="ai-code-tab-btn active" onclick="switchAiCodeTab('${blockId}', 'code')">
+                <svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:2;" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+                Code
+              </button>
+              <button type="button" class="ai-code-tab-btn" onclick="switchAiCodeTab('${blockId}', 'preview')">
+                <svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:2;" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                Preview
+              </button>
+            </div>
+          </div>
+          <div class="ai-code-header-actions">
+            <button type="button" class="ai-code-action-btn" title="Mở trang trong tab mới" onclick="openAiHtmlNewTab('${blockId}')">
+              <svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:2;" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+              Mở Tab
+            </button>
+            <button type="button" class="ai-code-action-btn" title="Phóng to toàn màn hình" onclick="openAiHtmlFullscreen('${blockId}')">
+              <svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:2;" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
+              Phóng To
+            </button>
+            <button type="button" class="ai-code-copy-btn" onclick="copyAiCodeSnippet('${blockId}', this)">
+              <svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:2;" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              COPY
+            </button>
+          </div>
+        </div>
+        <pre class="ai-code-body" id="${blockId}_code">${escaped}</pre>
+        <div id="${blockId}_preview_wrap" style="display:none;position:relative;">
+          <iframe class="ai-html-preview-frame" id="${blockId}_frame" sandbox="allow-scripts allow-modals"></iframe>
+        </div>
+      </div>`;
+    }
+
+    // Default code block
+    return `<div class="ai-code-preview-container" id="${blockId}">
       <div class="ai-code-header">
         <span class="ai-code-lang">${langLabel}</span>
-        <button class="ai-code-copy-btn" onclick="navigator.clipboard.writeText(this.closest('.ai-code-preview-container').querySelector('pre').textContent);this.textContent='Đã sao chép!';setTimeout(()=>this.textContent='COPY',1500);">COPY</button>
+        <button type="button" class="ai-code-copy-btn" onclick="copyAiCodeSnippet('${blockId}', this)">
+          <svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:2;" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+          COPY
+        </button>
       </div>
-      <pre class="ai-code-body">${escaped}</pre>
+      <pre class="ai-code-body" id="${blockId}_code">${escaped}</pre>
     </div>`;
   });
 
@@ -2346,6 +2402,92 @@ function renderMarkdownAI(text) {
   html = html.replace(/\n/g, '<br>');
   return html;
 }
+
+// ── AI HTML Live Preview & Snippet Handlers (Gemini-style) ───────────────────
+window.switchAiCodeTab = function(blockId, tab) {
+  const container = document.getElementById(blockId);
+  if (!container) return;
+  const codeEl = document.getElementById(`${blockId}_code`);
+  const previewWrap = document.getElementById(`${blockId}_preview_wrap`);
+  const iframe = document.getElementById(`${blockId}_frame`);
+  const tabBtns = container.querySelectorAll('.ai-code-tab-btn');
+
+  if (tab === 'preview') {
+    tabBtns.forEach(b => b.classList.toggle('active', b.textContent.includes('Preview')));
+    if (codeEl) codeEl.style.display = 'none';
+    if (previewWrap) {
+      previewWrap.style.display = 'block';
+      if (iframe && window._aiCodeSnippets && window._aiCodeSnippets[blockId]) {
+        // Load the HTML into the sandboxed iframe
+        iframe.srcdoc = window._aiCodeSnippets[blockId];
+      }
+    }
+  } else {
+    tabBtns.forEach(b => b.classList.toggle('active', b.textContent.includes('Code')));
+    if (codeEl) codeEl.style.display = 'block';
+    if (previewWrap) previewWrap.style.display = 'none';
+  }
+};
+
+window.copyAiCodeSnippet = function(blockId, btn) {
+  const code = (window._aiCodeSnippets && window._aiCodeSnippets[blockId]) ||
+               (document.getElementById(`${blockId}_code`) ? document.getElementById(`${blockId}_code`).textContent : '');
+  if (!code) return;
+  navigator.clipboard.writeText(code).then(() => {
+    const originalText = btn.innerHTML;
+    btn.innerHTML = 'ĐÃ COPY!';
+    btn.style.color = 'var(--green-neon)';
+    setTimeout(() => {
+      btn.innerHTML = originalText;
+      btn.style.color = '';
+    }, 1500);
+  });
+};
+
+window.openAiHtmlNewTab = function(blockId) {
+  const rawHtml = window._aiCodeSnippets && window._aiCodeSnippets[blockId];
+  if (!rawHtml) return;
+  const blob = new Blob([rawHtml], { type: 'text/html;charset=utf-8' });
+  const blobUrl = URL.createObjectURL(blob);
+  window.open(blobUrl, '_blank');
+};
+
+window.openAiHtmlFullscreen = function(blockId) {
+  const rawHtml = window._aiCodeSnippets && window._aiCodeSnippets[blockId];
+  if (!rawHtml) return;
+
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    position: fixed; inset: 0; z-index: 999999;
+    background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(10px);
+    display: flex; flex-direction: column; padding: 20px;
+  `;
+  modal.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:10px 10px 0 0;">
+      <div style="font-size:13px;font-weight:800;color:var(--gold-metallic);letter-spacing:0.5px;display:flex;align-items:center;gap:8px;">
+        <svg style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+        HTML LIVE PREVIEW (FULLSCREEN)
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button id="btnFsOpenNewTab" style="background:transparent;border:1px solid var(--border-subtle);color:var(--text-secondary);font-family:var(--font-mono);font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;">Mở tab mới ↗</button>
+        <button id="btnFsClose" style="background:rgba(239,68,68,0.15);border:1px solid var(--red-neon);color:var(--red-neon);font-weight:800;font-size:13px;padding:4px 10px;border-radius:6px;cursor:pointer;">✕ Đóng</button>
+      </div>
+    </div>
+    <div style="flex:1;background:#fff;border-radius:0 0 10px 10px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,0.6);">
+      <iframe style="width:100%;height:100%;border:none;" sandbox="allow-scripts allow-modals"></iframe>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  const iframe = modal.querySelector('iframe');
+  iframe.srcdoc = rawHtml;
+
+  modal.querySelector('#btnFsClose').onclick = () => modal.remove();
+  modal.querySelector('#btnFsOpenNewTab').onclick = () => {
+    const blob = new Blob([rawHtml], { type: 'text/html;charset=utf-8' });
+    window.open(URL.createObjectURL(blob), '_blank');
+  };
+};
 
 function appendAIMessage(role, content, thought, imageDataUrl, fileName, fileSize) {
   if (!aiMainChatBody) return;
