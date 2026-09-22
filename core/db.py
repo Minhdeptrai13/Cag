@@ -62,23 +62,34 @@ def sync_from_supabase_cloud():
             conn = get_db()
             with conn:
                 for u in remote_users:
-                    conn.execute("""
-                        INSERT OR REPLACE INTO users 
-                        (id, username, password_hash, role, credits, ai_free_tokens, ai_paid_tokens, display_name, avatar_url, email, is_banned)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        u.get("id"),
-                        u.get("username"),
-                        u.get("password_hash"),
-                        u.get("role", "user"),
-                        u.get("credits", 50),
-                        u.get("ai_free_tokens", 10000),
-                        u.get("ai_paid_tokens", 0),
-                        u.get("display_name"),
-                        u.get("avatar_url"),
-                        u.get("email"),
-                        u.get("is_banned", 0)
-                    ))
+                    username = (u.get("username") or "").strip().lower()
+                    if not username or not u.get("password_hash"):
+                        continue
+                    # Never use Supabase's serial id as SQLite's id. The two
+                    # databases have independent sequences and ids can collide.
+                    local = conn.execute(
+                        "SELECT id FROM users WHERE username = ?", (username,)
+                    ).fetchone()
+                    values = (
+                        u.get("password_hash"), u.get("role", "user"),
+                        u.get("credits", 50), u.get("ai_free_tokens", 10000),
+                        u.get("ai_paid_tokens", 0), u.get("display_name"),
+                        u.get("avatar_url"), u.get("email"), u.get("is_banned", 0)
+                    )
+                    if local:
+                        conn.execute("""
+                            UPDATE users SET password_hash = ?, role = ?, credits = ?,
+                                ai_free_tokens = ?, ai_paid_tokens = ?, display_name = ?,
+                                avatar_url = ?, email = ?, is_banned = ?
+                            WHERE id = ?
+                        """, values + (local["id"],))
+                    else:
+                        conn.execute("""
+                            INSERT INTO users
+                            (username, password_hash, role, credits, ai_free_tokens,
+                             ai_paid_tokens, display_name, avatar_url, email, is_banned)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (username,) + values)
             conn.close()
             print(f"[Supabase Sync] Pulled {len(remote_users)} persistent users from Supabase Cloud.", flush=True)
 
@@ -105,7 +116,7 @@ def sync_from_supabase_cloud():
 def push_user_to_supabase(user_dict: dict):
     """Asynchronously / safely replicate user changes to Supabase Cloud"""
     if not is_supabase_enabled():
-        return
+        return True
     try:
         # Check if user exists on Supabase
         existing = supabase_get("users", f"username=eq.{user_dict['username']}")
@@ -122,11 +133,13 @@ def push_user_to_supabase(user_dict: dict):
             "is_banned": user_dict.get("is_banned", 0)
         }
         if existing and len(existing) > 0:
-            supabase_update("users", f"username=eq.{user_dict['username']}", payload)
+            result = supabase_update("users", f"username=eq.{user_dict['username']}", payload)
         else:
-            supabase_insert("users", payload)
+            result = supabase_insert("users", payload)
+        return result is not None
     except Exception as e:
         print(f"[Supabase Push User Error] {e}", flush=True)
+        return False
 
 
 
@@ -369,18 +382,22 @@ def register_user(username: str, password: str) -> dict:
         session_token = generate_session_token(user_id, assigned_role)
         msg = "Đăng ký thành công tài khoản ROOT OWNER (Chủ sở hữu tối cao)!" if is_first_user else "Đăng ký thành công! Bạn nhận được 50 lượt check miễn phí."
         
-        # Async push to Supabase Cloud for persistent lifetime storage
-        try:
-            push_user_to_supabase({
-                "username": username,
-                "password_hash": full_hash,
-                "role": assigned_role,
-                "credits": initial_credits,
-                "ai_free_tokens": 10000,
-                "ai_paid_tokens": 0
-            })
-        except Exception:
-            pass
+        # Cloud is the persistent source on Render. Do not report success when
+        # the account was only written to ephemeral SQLite storage.
+        cloud_ok = push_user_to_supabase({
+            "username": username,
+            "password_hash": full_hash,
+            "role": assigned_role,
+            "credits": initial_credits,
+            "ai_free_tokens": 10000,
+            "ai_paid_tokens": 0
+        })
+        if not cloud_ok:
+            with conn:
+                conn.execute("DELETE FROM api_keys WHERE user_id = ?", (user_id,))
+                conn.execute("DELETE FROM credit_transactions WHERE user_id = ?", (user_id,))
+                conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+            return {"success": False, "error": "Không thể lưu tài khoản lên Supabase. Vui lòng thử lại!"}
 
         return {
             "success": True,
@@ -408,6 +425,11 @@ def login_user(username: str, password: str) -> dict:
     conn = get_db()
     try:
         row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+        # Render's filesystem can be reset. Rehydrate from Supabase when the
+        # local copy is missing, then retry against the cloud-backed hash.
+        if not row and is_supabase_enabled():
+            sync_from_supabase_cloud()
+            row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
         if not row:
             return {"success": False, "error": "Tài khoản hoặc mật khẩu không chính xác!"}
         
@@ -425,7 +447,17 @@ def login_user(username: str, password: str) -> dict:
         salt, p_hash = stored_hash.split("$", 1)
         check_hash = _hash_password(password, salt)
         if not hmac.compare_digest(p_hash, check_hash):
-            return {"success": False, "error": "Tài khoản hoặc mật khẩu không chính xác!"}
+            # A stale SQLite copy must not reject a valid cloud password.
+            if is_supabase_enabled():
+                sync_from_supabase_cloud()
+                row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+                if row:
+                    stored_hash = row["password_hash"]
+                    if "$" in stored_hash:
+                        salt, p_hash = stored_hash.split("$", 1)
+                        check_hash = _hash_password(password, salt)
+            if not hmac.compare_digest(p_hash, check_hash):
+                return {"success": False, "error": "Tài khoản hoặc mật khẩu không chính xác!"}
         
         # Get active API Key
         key_row = conn.execute("SELECT api_key FROM api_keys WHERE user_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1", (row["id"],)).fetchone()
