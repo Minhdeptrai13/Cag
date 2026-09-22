@@ -1100,19 +1100,17 @@ def _fetch_account_security(sso_key: str, proxy=None) -> dict:
         if "error" in data:
             return {}
 
-        ui = data.get("user_info", {}) or {}
-        security_ui = data.get("security_info", {}) or data.get("security", {}) or {}
-        # Garena has returned these values under slightly different names
-        # across account/init versions. Merge the known containers so the
-        # formatter does not silently lose linked security fields.
-        account_fields = {}
-        account_fields.update(data if isinstance(data, dict) else {})
-        account_fields.update(security_ui if isinstance(security_ui, dict) else {})
-        account_fields.update(ui)
+        ui = data.get("user_info", {}) if isinstance(data, dict) else {}
+        # Garena has returned these values under different nested containers
+        # across account/init versions. Flatten only scalar fields so one
+        # unexpected object cannot abort the whole security request.
+        account_fields = _flatten_response_fields(data)
+        if isinstance(ui, dict):
+            account_fields.update(_flatten_response_fields(ui))
         info = {}
 
-        phone = _first_value(account_fields, "mobile_no", "mobile", "phone", "phone_no")
-        cc = _first_value(account_fields, "country_code", "country_calling_code")
+        phone = str(_first_value(account_fields, "mobile_no", "mobile", "phone", "phone_no") or "")
+        cc = str(_first_value(account_fields, "country_code", "country_calling_code") or "")
         info["masked_phone"] = f"+{cc} {phone}" if (cc and phone and phone.replace("*", "")) else phone
 
         info["masked_email"] = _first_value(
@@ -4567,6 +4565,23 @@ def _first_value(mapping: dict, *keys):
         if value is not None and str(value).strip():
             return value
     return ""
+
+
+def _flatten_response_fields(value: dict, max_depth: int = 3) -> dict:
+    """Collect scalar fields from nested account/init response containers."""
+    flattened = {}
+
+    def walk(node, depth):
+        if not isinstance(node, dict) or depth > max_depth:
+            return
+        for key, item in node.items():
+            if isinstance(item, dict):
+                walk(item, depth + 1)
+            elif key not in flattened or flattened[key] in (None, "", 0, False):
+                flattened[key] = item
+
+    walk(value, 0)
+    return flattened
 
 
 def _build_security(raw: dict) -> dict:
