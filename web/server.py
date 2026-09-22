@@ -18,6 +18,7 @@ import time
 import urllib.parse
 import uuid
 import webbrowser
+import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -1063,7 +1064,7 @@ class AOVWebHandler(BaseHTTPRequestHandler):
 
                 return r
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=min(threads, len(valid_combos))) as executor:
+            with ThreadPoolExecutor(max_workers=min(threads, len(valid_combos))) as executor:
                 results = list(executor.map(mini_worker, valid_combos))
 
             self._send_json({
