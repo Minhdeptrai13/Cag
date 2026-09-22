@@ -54,11 +54,18 @@ from core.db import (
     get_user_credit_history, get_admin_audit_logs, admin_ban_user,
     admin_unban_user, admin_set_user_tier, log_admin_audit,
     estimate_ai_tokens, deduct_ai_tokens, convert_credits_to_tokens,
-    AI_TOKENS_PER_CREDIT, AI_FREE_TOKENS_INITIAL
+    AI_TOKENS_PER_CREDIT, AI_FREE_TOKENS_INITIAL,
+    sync_from_supabase_cloud
 )
 
 # Initialize Database on server start
 init_db()
+# Pull persistent cloud state from Supabase (critical on Render - ephemeral filesystem)
+# Ensures all users/giftcodes survive deploys and container restarts
+try:
+    sync_from_supabase_cloud()
+except Exception as _sync_err:
+    print(f"[WARN] Supabase sync failed on startup: {_sync_err}", flush=True)
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 
