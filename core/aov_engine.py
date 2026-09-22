@@ -1100,29 +1100,48 @@ def _fetch_account_security(sso_key: str, proxy=None) -> dict:
         if "error" in data:
             return {}
 
-        ui = data.get("user_info", {})
+        ui = data.get("user_info", {}) or {}
+        security_ui = data.get("security_info", {}) or data.get("security", {}) or {}
+        # Garena has returned these values under slightly different names
+        # across account/init versions. Merge the known containers so the
+        # formatter does not silently lose linked security fields.
+        account_fields = {}
+        account_fields.update(data if isinstance(data, dict) else {})
+        account_fields.update(security_ui if isinstance(security_ui, dict) else {})
+        account_fields.update(ui)
         info = {}
 
-        phone = _first_value(ui, "mobile_no", "mobile", "phone", "phone_no")
-        cc = _first_value(ui, "country_code", "country_calling_code")
+        phone = _first_value(account_fields, "mobile_no", "mobile", "phone", "phone_no")
+        cc = _first_value(account_fields, "country_code", "country_calling_code")
         info["masked_phone"] = f"+{cc} {phone}" if (cc and phone and phone.replace("*", "")) else phone
 
-        info["masked_email"] = _first_value(ui, "email", "email_address", "email_addr")
+        info["masked_email"] = _first_value(
+            account_fields, "email", "masked_email", "email_address", "email_addr"
+        )
         info["email_v"] = _first_value(
-            ui, "email_v", "email_verified", "is_email_verified", "email_bound"
+            account_fields, "email_v", "email_verified", "is_email_verified", "email_bound"
         ) or 0
         info["mobile_bound"] = _first_value(
-            ui, "mobile_bound", "mobile_verified", "is_mobile_bound"
+            account_fields, "mobile_bound", "mobile_verified", "is_mobile_bound"
         ) or 0
-        info["idcard"] = ui.get("idcard", "")
-        info["authenticator_enable"] = ui.get("authenticator_enable", 0)
-        info["two_step_verify"] = ui.get("two_step_verify_enable", 0)
-        info["fb_connected"] = _is_yes(ui.get("is_fbconnect_enabled"))
-        info["fb_account"] = ui.get("fb_account")
-        info["acc_country"] = ui.get("acc_country") or ""
-        info["country"] = ui.get("country") or ""
-        info["country_code"] = ui.get("country_code") or ""
-        info["suspicious"] = 1 if ui.get("suspicious") else 0
+        info["idcard"] = _first_value(
+            account_fields, "idcard", "id_card", "identity_card", "identity_no",
+            "citizen_id", "cccd", "cmnd"
+        )
+        info["authenticator_enable"] = _first_value(
+            account_fields, "authenticator_enable", "authenticator_enabled",
+            "authenticator_status", "two_factor_enabled", "2fa_enabled"
+        ) or 0
+        info["two_step_verify"] = _first_value(
+            account_fields, "two_step_verify_enable", "two_step_verify",
+            "two_step_enabled", "two_factor_enabled", "2fa_enabled"
+        ) or 0
+        info["fb_connected"] = _is_yes(_first_value(account_fields, "is_fbconnect_enabled", "fb_connected", "facebook_linked"))
+        info["fb_account"] = _first_value(account_fields, "fb_account", "facebook_account")
+        info["acc_country"] = _first_value(account_fields, "acc_country") or ""
+        info["country"] = _first_value(account_fields, "country") or ""
+        info["country_code"] = _first_value(account_fields, "country_code") or ""
+        info["suspicious"] = 1 if _first_value(account_fields, "suspicious") else 0
         info["init_ip"] = data.get("init_ip", "")
 
         # Login history (last 5)
@@ -4559,7 +4578,10 @@ def _build_security(raw: dict) -> dict:
     email = _security_text(_first_value(
         raw, "masked_email", "email", "email_address", "email_addr"
     ))
-    idcard = _security_text(raw.get("idcard"))
+    idcard = _security_text(_first_value(
+        raw, "idcard", "id_card", "identity_card", "identity_no",
+        "citizen_id", "cccd", "cmnd"
+    ))
     fb_uid = _security_text(raw.get("fb_uid") or raw.get("fb_uid_login"))
     fb_account = _security_text(raw.get("fb_account_name"))
     has_phone = (
@@ -4570,8 +4592,12 @@ def _build_security(raw: dict) -> dict:
         _security_flag(_first_value(raw, "email_verified", "email_v", "is_email_verified", "email_bound"))
         or _has_masked_value(email)
     )
-    has_cccd = bool(idcard.replace("*", "").strip())
-    auth_2fa = _security_flag(raw.get("authenticator_enable")) or _security_flag(raw.get("two_step_verify"))
+    has_cccd = bool(idcard and idcard.lower() not in {"none", "null", "no", "false", "0", "trắng", "trang"})
+    auth_2fa = _security_flag(_first_value(
+        raw, "authenticator_enable", "authenticator_enabled", "authenticator_status",
+        "two_step_verify", "two_step_verify_enable", "two_step_enabled",
+        "two_factor_enabled", "2fa_enabled"
+    ))
     # The reference checker may expose a truthy string such as "0" from the
     # account-init endpoint. Require actual FB identity data before marking
     # the account as linked.
