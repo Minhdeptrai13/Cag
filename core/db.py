@@ -11,14 +11,27 @@ import sqlite3
 import time
 
 # DB_PATH: read from env var DB_PATH (set this on deploy platform to a persistent volume path)
-# Falls back to <project_root>/data/aov_saas.db so git deploys don't wipe the DB
+# Fallback logic: ưu tiên data/aov_saas.db, nhưng nếu chưa tồn tại mà root có sẵn thì dùng root
+# Tránh tình trạng 2 DB song song gây lỗi "User does not exist" sau session restore
 _ROOT = os.path.dirname(os.path.dirname(__file__))
-DB_PATH = os.environ.get(
-    "DB_PATH",
-    os.path.join(_ROOT, "data", "aov_saas.db")
-)
-# Ensure the data directory exists
-os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+_DATA_DB = os.path.join(_ROOT, "data", "aov_saas.db")
+_ROOT_DB = os.path.join(_ROOT, "aov_saas.db")
+
+def _resolve_db_path() -> str:
+    env_path = os.environ.get("DB_PATH", "")
+    if env_path:
+        os.makedirs(os.path.dirname(env_path), exist_ok=True)
+        return env_path
+    # Nếu data/ DB chưa tồn tại nhưng root DB có data -> migrate root sang data/
+    if not os.path.exists(_DATA_DB) and os.path.exists(_ROOT_DB):
+        os.makedirs(os.path.dirname(_DATA_DB), exist_ok=True)
+        import shutil
+        shutil.copy2(_ROOT_DB, _DATA_DB)
+        print(f"[DB MIGRATE] Copied root DB -> data/aov_saas.db", flush=True)
+    os.makedirs(os.path.dirname(_DATA_DB), exist_ok=True)
+    return _DATA_DB
+
+DB_PATH = _resolve_db_path()
 
 
 def get_db():
@@ -405,7 +418,9 @@ def login_user(username: str, password: str) -> dict:
 
         stored_hash = row["password_hash"]
         if "$" not in stored_hash:
-            return {"success": False, "error": "Lỗi xác thực hash!"}
+            # Hash format cũ (không có salt$hash) - sai format, báo lỗi mật khẩu
+            # Không expose lỗi internal để tránh leak thông tin hệ thống
+            return {"success": False, "error": "Tài khoản hoặc mật khẩu không chính xác!"}
         
         salt, p_hash = stored_hash.split("$", 1)
         check_hash = _hash_password(password, salt)

@@ -427,9 +427,11 @@ document.getElementById('btnBackHome').addEventListener('click', (e) => {
 });
 document.getElementById('btnStudioLogout').addEventListener('click', () => {
   currentUser = null;
+  currentSessionToken = '';
   localStorage.removeItem('aov_user');
+  localStorage.removeItem('aov_session_token');
   showLanding();
-  showToast('ĐÃ ĐĂNG XUẤT KHỎI HỆ THỐNG');
+  showToast('Đã đăng xuất khỏi hệ thống');
 });
 
 // Submit Login with Native Anti-Bot Verification
@@ -1622,9 +1624,11 @@ if (ddBtnLogout) {
     if (userDropdownMenu) userDropdownMenu.style.display = 'none';
     currentUser = null;
     currentApiKey = null;
+    currentSessionToken = '';
     localStorage.removeItem('aov_user');
+    localStorage.removeItem('aov_session_token');
     showLanding();
-    showToast('ĐÃ ĐĂNG XUẤT TÀI KHOẢN');
+    showToast('Đã đăng xuất tài khoản');
   });
 }
 
