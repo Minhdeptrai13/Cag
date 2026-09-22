@@ -100,18 +100,21 @@ def enrich_account_result(r: dict) -> dict:
     if masked_phone and masked_phone != "Trắng":
         r["sdt_str"] = f"YES [{masked_phone}]"
     elif has_phone:
-        r["sdt_str"] = "YES [ĐÃ LIÊN KẾT]"
+        r["sdt_str"] = "YES [ĐÃ LIÊN KẾT - KHÔNG CÓ DỮ LIỆU HIỂN THỊ]"
     else:
         r["sdt_str"] = "NO"
 
     masked_email = (sec_data.get("masked_email") or "").strip()
-    email_verified = sec_data.get("email_v", False)
-    if not masked_email or masked_email == "Trắng":
+    email_verified = bool(sec_data.get("email_verified"))
+    email_linked = bool(sec_data.get("email_v")) or email_verified or bool(masked_email and masked_email != "Trắng")
+    if not email_linked:
         r["email_str"] = "NO [CHƯA LIÊN KẾT]"
-    elif email_verified:
+    elif masked_email and masked_email != "Trắng" and email_verified:
         r["email_str"] = f"YES [{masked_email} - ĐÃ XÁC THỰC]"
+    elif masked_email and masked_email != "Trắng":
+        r["email_str"] = f"YES [{masked_email} - ĐÃ LIÊN KẾT]"
     else:
-        r["email_str"] = f"NO [{masked_email} - CHƯA XÁC THỰC]"
+        r["email_str"] = "YES [ĐÃ LIÊN KẾT - KHÔNG CÓ DỮ LIỆU HIỂN THỊ]"
 
     idcard = (sec_data.get("idcard") or "").strip()
     if sec_data.get("has_cccd"):
