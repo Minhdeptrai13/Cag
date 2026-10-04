@@ -2314,3 +2314,47 @@ body.app-body {
   }
 }
 
+
+/* ══════════════════════ PERFORMANCE (MÁY YẾU → MẠNH) ══════════════════════ */
+
+/* content-visibility: trình duyệt bỏ qua layout/paint của các thẻ kết quả nằm
+   ngoài màn hình → danh sách hàng trăm thẻ cuộn mượt cả trên điện thoại yếu.
+   contain-intrinsic-size cho biết kích thước ước tính trước khi render thật,
+   giữ thanh cuộn ổn định. Không ảnh hưởng copy/export (lấy từ dữ liệu JS). */
+.result-row-item {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 96px;
+}
+
+/* app.js gắn class perf-low / perf-mid / perf-high lên <html> theo hạng máy.
+   Máy yếu: tắt blur (rất tốn GPU mobile) và animation trang trí. */
+html.perf-low *,
+html.perf-low *::before,
+html.perf-low *::after {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  animation: none !important;
+  transition: none !important;
+}
+
+/* Hạng trung bình: chỉ tắt blur — giữ chuyển động nhẹ cho giao diện. */
+html.perf-mid *,
+html.perf-mid *::before,
+html.perf-mid *::after {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* Tôn trọng cài đặt hệ thống: người dùng chọn "reduce motion" → tắt hiệu ứng. */
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+

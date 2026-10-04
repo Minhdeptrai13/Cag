@@ -43,6 +43,12 @@ _load_dotenv()
 from core.aov_engine import check_account, parse_combo_line, format_account_full_info
 from core.captcha import verify_google_recaptcha, generate_adaptive_challenge, GOOGLE_RECAPTCHA_SITE_KEY
 from core.ai_copilot import chat_with_copilot
+
+# Pool check-account dùng chung TOÀN SERVER: trước đây mỗi request mini-batch lại
+# tạo một ThreadPoolExecutor mới — 2 request song song × 25 luồng = 50+ thread trên
+# Render Free 512MB rất dễ bị quá tải/OOM. Pool cố định giới hạn tổng số luồng check
+# đồng thời, tái sử dụng thread (không tạo/phá thread mỗi request).
+_MINI_BATCH_POOL = ThreadPoolExecutor(max_workers=28, thread_name_prefix="minibatch")
 from core.db import (
     init_db, register_user, login_user, get_user_profile,
     validate_api_key, deduct_credit, add_credits,
@@ -1045,8 +1051,21 @@ class AOVWebHandler(BaseHTTPRequestHandler):
 
                 return r
 
-            with ThreadPoolExecutor(max_workers=min(threads, len(valid_combos))) as executor:
-                results = list(executor.map(mini_worker, valid_combos))
+            # Dùng pool dùng chung thay vì tạo executor mới cho mỗi request
+            # (giữ tối đa 28 luồng check đồng thời trên toàn server — bảo vệ Render 512MB)
+            futures = [_MINI_BATCH_POOL.submit(mini_worker, c) for c in valid_combos]
+            results = [f.result() for f in futures]
+
+            # Gọn payload gửi về client (điện thoại/yếu): bỏ các trường thô nặng
+            # không dùng để render UI — DB và full_line đã được xử lý trong worker.
+            _HEAVY_KEYS = ("raw_skins", "raw_hero_ids", "raw_security", "full_info", "skin_list")
+            for r in results:
+                if isinstance(r, dict):
+                    for k in _HEAVY_KEYS:
+                        r.pop(k, None)
+                    sec = r.get("security")
+                    if isinstance(sec, dict):
+                        sec.pop("raw", None)
 
             self._send_json({
                 "success": True,

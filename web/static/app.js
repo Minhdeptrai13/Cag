@@ -137,11 +137,14 @@ const sidebarBtns = document.querySelectorAll('.sidebar-btn');
 const tabViewPanes = document.querySelectorAll('.tab-view-pane');
 
 // ── Toast Notification Helper ───────────────────────────────────────────────
+let _toastTimer = null;
 function showToast(msg, duration = 2500) {
   if (!toast) return;
   toast.textContent = msg;
   toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), duration);
+  // Clear timer cũ để toast mới không bị biến mất sớm do timer cũ còn chạy
+  if (_toastTimer) clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => toast.classList.remove('show'), duration);
 }
 
 function escapeHtml(str) {
@@ -158,6 +161,85 @@ function getAuthHeaders() {
   }
   return headers;
 }
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// ── DEVICE PERFORMANCE PROFILE: tự nhận biết thiết bị YẾU / TRUNG BÌNH / MẠNH ──
+// Dùng cho cả stream scanner (gửi request) lẫn render UI (số thẻ kết quả) để
+// cùng một codebase chạy mượt từ điện thoại yếu đến PC mạnh.
+const DEVICE_PERF = (() => {
+  const nav = navigator;
+  const cores = nav.hardwareConcurrency || 2;
+  const mem = nav.deviceMemory || 0; // 0 = trình duyệt không khai báo RAM
+  const isMobile = /Android|iPhone|iPad|iPod|Mobi/i.test(nav.userAgent || '');
+  const conn = nav.connection || nav.mozConnection || nav.webkitConnection || {};
+  const slowNet = conn.saveData === true || /(^|\s)(slow-2g|2g|3g)$/.test(conn.effectiveType || '');
+
+  let score = 0;
+  score += cores >= 8 ? 2 : cores >= 4 ? 1 : 0;
+  score += mem >= 8 ? 2 : mem >= 4 ? 1 : 0;
+  score += isMobile ? -1 : 1;
+  score += slowNet ? -1 : 0;
+  const tier = score >= 3 ? 'high' : score >= 1 ? 'mid' : 'low';
+
+  return {
+    tier,
+    // Số request mini-batch gửi lên server đồng thời (máy yếu giữ 1 cho Render thở)
+    maxConcurrent: tier === 'high' ? 3 : tier === 'mid' ? 2 : 1,
+    // Số acc mỗi request (server giới hạn cứng 100)
+    batchSize: tier === 'high' ? 60 : tier === 'mid' ? 50 : 30,
+    // Khối đọc file (MB)
+    chunkMB: tier === 'high' ? 4 : tier === 'mid' ? 2 : 1,
+    // Số thẻ kết quả render tối đa mỗi lần (giữ UI mượt trên máy yếu)
+    maxDomCards: tier === 'high' ? 300 : tier === 'mid' ? 200 : 120,
+    // Khoảng cách tối thiểu giữa 2 lần render lại danh sách kết quả (ms)
+    renderIntervalMs: tier === 'high' ? 400 : tier === 'mid' ? 700 : 1200,
+    // Tần suất poll trạng thái quét chế độ paste (ms)
+    pollMs: tier === 'high' ? 1000 : 1500,
+    // Timeout mỗi request mini-batch — Render cold-start có thể mất ~50s
+    fetchTimeoutMs: 90000,
+    // Số luồng gửi lên server (server tự cap 30)
+    serverThreads: tier === 'high' ? 25 : tier === 'mid' ? 20 : 12
+  };
+})();
+
+document.documentElement.classList.add(`perf-${DEVICE_PERF.tier}`);
+
+// ── Render kết quả có throttle: không rebuild hàng trăm thẻ DOM sau MỖI batch ──
+let _resultsRenderTimer = null;
+let _resultsRenderDirty = false;
+
+function scheduleRenderResults(immediate = false) {
+  _resultsRenderDirty = true;
+  if (document.hidden && !immediate) return; // render bù khi tab visible trở lại
+  if (immediate) {
+    if (_resultsRenderTimer) {
+      clearTimeout(_resultsRenderTimer);
+      _resultsRenderTimer = null;
+    }
+    _flushResultsRender();
+    return;
+  }
+  if (_resultsRenderTimer) return; // đã có lần render được xếp lịch
+  _resultsRenderTimer = setTimeout(() => {
+    _resultsRenderTimer = null;
+    _flushResultsRender();
+  }, DEVICE_PERF.renderIntervalMs);
+}
+
+function _flushResultsRender() {
+  if (!_resultsRenderDirty) return;
+  _resultsRenderDirty = false;
+  try {
+    renderFilteredResults();
+  } catch (e) {
+    console.error('Render results error:', e);
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) scheduleRenderResults(true);
+});
 
 // ── View & Auth Switcher ────────────────────────────────────────────────────
 function showLanding() {
@@ -726,7 +808,8 @@ btnClearBatch.addEventListener('click', () => {
 class FileStreamScanner {
   constructor(file, options = {}) {
     this.file = file;
-    this.chunkSize = options.chunkSize || 2 * 1024 * 1024; // 2MB blocks
+    // Khối đọc file: tự theo sức máy (1/2/4MB) nếu không truyền override
+    this.chunkSize = options.chunkSize || DEVICE_PERF.chunkMB * 1024 * 1024;
     this.offset = 0;
     this.tailBuffer = '';
     this.queue = [];
@@ -734,12 +817,17 @@ class FileStreamScanner {
     this.isPaused = false;
     this.shouldStop = false;
     this.activeRequests = 0;
-    this.maxConcurrent = options.maxConcurrent || 2; // Giữ 2 request song song để Render 512MB RAM thở thoải mái
-    this.batchSize = options.batchSize || 50; // 50 combos / request
+    // Số request song song: máy yếu 1, trung bình 2, mạnh 3 (tôn trọng Render 512MB)
+    this.maxConcurrent = options.maxConcurrent || DEVICE_PERF.maxConcurrent;
+    this.batchSize = options.batchSize || DEVICE_PERF.batchSize; // acc / request (server cap 100)
     this.threads = options.threads || 15;
+    this.fetchTimeoutMs = options.fetchTimeoutMs || DEVICE_PERF.fetchTimeoutMs;
     this.startTime = null;
     this.totalProcessed = 0;
     this.consecutiveErrors = 0;
+    this.backoffUntil = 0; // mốc thời gian được phép gửi request tiếp theo sau lỗi
+    this.loopActive = false; // chống chạy nhiều vòng runLoop song song (bug resume)
+    this.pauseReason = '';
   }
 
   async start() {
@@ -751,6 +839,9 @@ class FileStreamScanner {
     this.tailBuffer = '';
     this.queue = [];
     this.totalProcessed = 0;
+    this.consecutiveErrors = 0;
+    this.backoffUntil = 0;
+    this.pauseReason = '';
 
     // UI Updates
     document.getElementById('batchProgressBox').style.display = 'block';
@@ -768,19 +859,30 @@ class FileStreamScanner {
     this.runLoop();
   }
 
-  pause() {
+  pause(notify = true, reason = '') {
     this.isPaused = true;
+    this.pauseReason = reason;
     if (btnPauseStream) btnPauseStream.textContent = '▶️ TIẾP TỤC';
-    document.getElementById('batchProgStatus').textContent = '⏸️ ĐÃ TẠM DỪNG TIẾN TRÌNH STREAM';
-    showToast('Đã tạm dừng đọc file và gửi mini-batch!');
+    document.getElementById('batchProgStatus').textContent = reason
+      ? `⏸️ ${reason}`
+      : '⏸️ ĐÃ TẠM DỪNG TIẾN TRÌNH STREAM';
+    if (notify) showToast('Đã tạm dừng đọc file và gửi mini-batch!');
   }
 
   resume() {
+    // Reset bộ đếm lỗi & backoff: sau khi tự tạm dừng do lỗi mạng, lần lỗi kế
+    // tiếp không được pause ngay lập tức nữa (chính là lỗi "tạm dừng oan" cũ).
+    this.consecutiveErrors = 0;
+    this.backoffUntil = 0;
+    this.pauseReason = '';
     this.isPaused = false;
     if (btnPauseStream) btnPauseStream.textContent = '⏸️ TẠM DỪNG';
     document.getElementById('batchProgStatus').textContent = '⚡ ĐANG TIẾP TỤC QUÉT STREAM...';
     showToast('Đang tiếp tục tiến trình stream!');
-    this.runLoop();
+    // CHỐNG BUG CŨ: vòng runLoop VẪN sống trong lúc pause (nó chỉ idle và quay tiếp),
+    // nên resume tuyệt đối không được sinh vòng mới — nếu không số vòng lặp song song
+    // sẽ nhân đôi mỗi lần bấm TIẾP TỤC → request storm → server quá tải → báo lỗi giả.
+    if (!this.loopActive) this.runLoop();
   }
 
   stop() {
@@ -862,36 +964,52 @@ class FileStreamScanner {
   }
 
   async runLoop() {
-    while (this.isRunning && !this.shouldStop) {
-      if (this.isPaused) {
-        await new Promise(r => setTimeout(r, 400));
-        continue;
-      }
+    // Guard: mỗi scanner chỉ có đúng MỘT vòng điều phối. Vòng cũ vẫn sống trong lúc
+    // pause (idle 400ms rồi quay tiếp) nên không bao giờ được sinh vòng thứ hai.
+    if (this.loopActive) return;
+    this.loopActive = true;
+    try {
+      while (this.isRunning && !this.shouldStop) {
+        if (this.isPaused) {
+          await sleep(400);
+          continue;
+        }
 
-      // Backpressure: Nếu queue dưới 500 acc và file còn data -> đọc tiếp chunk
-      if (this.queue.length < 500 && this.offset < this.file.size) {
-        await this.readNextChunk();
-      }
+        // Đang trong giai đoạn backoff sau lỗi mạng: không gửi request mới
+        // để server đang yếu được nghỉ ngơi (tránh request storm).
+        const inBackoff = Date.now() < this.backoffUntil;
 
-      // Nếu còn acc trong queue và còn slot gửi request đồng thời
-      if (this.queue.length > 0 && this.activeRequests < this.maxConcurrent) {
-        const batch = this.queue.splice(0, this.batchSize);
-        this.activeRequests++;
-        this.sendMiniBatch(batch);
-      }
+        // Backpressure: Nếu queue dưới 500 acc và file còn data -> đọc tiếp chunk
+        if (this.queue.length < 500 && this.offset < this.file.size) {
+          await this.readNextChunk();
+        }
 
-      // Kiểm tra xem đã hoàn thành toàn bộ chưa
-      if (this.offset >= this.file.size && this.queue.length === 0 && this.activeRequests === 0) {
-        this.finish('ĐÃ QUÉT HOÀN TẤT TOÀN BỘ FILE!');
-        break;
-      }
+        // Nếu còn acc trong queue và còn slot gửi request đồng thời
+        if (this.queue.length > 0 && !inBackoff && this.activeRequests < this.maxConcurrent) {
+          const batch = this.queue.splice(0, this.batchSize);
+          this.activeRequests++;
+          this.sendMiniBatch(batch);
+        }
 
-      // Nghỉ nhẹ 50ms giữa các vòng điều phối để UI thread luôn mượt mà
-      await new Promise(r => setTimeout(r, 50));
+        // Kiểm tra xem đã hoàn thành toàn bộ chưa
+        if (this.offset >= this.file.size && this.queue.length === 0 && this.activeRequests === 0) {
+          this.finish('ĐÃ QUÉT HOÀN TẤT TOÀN BỘ FILE!');
+          break;
+        }
+
+        // Nghỉ nhẹ giữa các vòng điều phối để UI thread luôn mượt mà
+        await sleep(this.maxConcurrent > 1 ? 50 : 80);
+      }
+    } finally {
+      this.loopActive = false;
     }
   }
 
   async sendMiniBatch(combos) {
+    // Timeout chủ động: request treo (Render cold-start / proxy quá tải) sẽ bị cắt
+    // thay vì treo vô hạn rồi nổ lỗi muộn khi slot request đã bị chiếm.
+    const controller = new AbortController();
+    const timeoutTimer = setTimeout(() => controller.abort(), this.fetchTimeoutMs);
     try {
       const res = await fetch('/api/check-mini-batch', {
         method: 'POST',
@@ -900,33 +1018,82 @@ class FileStreamScanner {
           combos: combos,
           threads: this.threads,
           user_id: currentUser ? currentUser.id : null
-        })
+        }),
+        signal: controller.signal
       });
 
       if (!res.ok) {
-        throw new Error(`Server returned HTTP ${res.status}`);
+        const httpErr = new Error(`Server returned HTTP ${res.status}`);
+        httpErr.httpStatus = res.status;
+        try {
+          const errBody = await res.json();
+          if (errBody && (errBody.error || errBody.message)) {
+            httpErr.serverMsg = errBody.error || errBody.message;
+          }
+        } catch (_) { /* body không phải JSON */ }
+        throw httpErr;
       }
 
       const data = await res.json();
+      // Thành công -> reset toàn bộ bộ đếm lỗi & cửa sổ backoff
       this.consecutiveErrors = 0;
+      this.backoffUntil = 0;
 
       if (data.results && Array.isArray(data.results)) {
         this.totalProcessed += data.results.length;
         allResults = allResults.concat(data.results);
-        renderFilteredResults();
+        scheduleRenderResults(); // render có throttle (không rebuild DOM mỗi batch)
       }
     } catch (err) {
       console.warn('[STREAM MINI-BATCH ERROR] Retry batch:', err);
-      this.consecutiveErrors++;
-      // Auto-retry: Trả combos về đầu queue để không bị mất acc
+      // Không mất acc: trả nguyên batch về đầu queue để gửi lại
       if (!this.shouldStop) {
         this.queue.unshift(...combos);
       }
-      if (this.consecutiveErrors > 10) {
-        this.pause();
-        showToast('Mạng không ổn định hoặc Render quá tải. Đã tự động tạm dừng!');
+
+      const status = err && err.httpStatus;
+      // Lỗi không thể tự phục hồi: hết credit (402), sai token (401), request sai (400/403/404)
+      const isFatal = status === 400 || status === 401 || status === 402 || status === 403 || status === 404;
+      const isTimeout = err && err.name === 'AbortError';
+
+      if (isFatal && !this.shouldStop) {
+        let reason;
+        if (status === 402) {
+          reason = `${err.serverMsg || 'Hết Credit để quét'}. Nạp thêm Credit rồi bấm TIẾP TỤC.`;
+        } else {
+          reason = `Máy chủ từ chối (HTTP ${status}${err.serverMsg ? ': ' + err.serverMsg : ''}). Kiểm tra đăng nhập rồi bấm TIẾP TỤC.`;
+        }
+        this.pause(false, reason);
+        showToast(reason, 6000);
+        return;
       }
+
+      this.consecutiveErrors++;
+
+      // Sau 8 lần liên tiếp thất bại với backoff (≈91 giây thử lại) mới tự dừng —
+      // trước đó im lặng tự phục hồi, không làm gián đoạn người dùng bằng toast.
+      if (this.consecutiveErrors >= 8) {
+        if (!this.shouldStop) {
+          const cause = isTimeout ? 'timeout' : (status ? `HTTP ${status}` : 'lỗi mạng');
+          const reason = `Mất kết nối máy chủ quá lâu (8 lần liên tiếp, ${cause}). Bấm TIẾP TỤC để quét tiếp.`;
+          this.pause(false, reason);
+          showToast(reason, 6000);
+        }
+        return;
+      }
+
+      // Exponential backoff + jitter: 1s → 2s → 4s → ... → tối đa 30s giữa các lần retry
+      const delay = Math.min(1000 * Math.pow(2, this.consecutiveErrors - 1), 30000)
+        + Math.floor(Math.random() * 400);
+      this.backoffUntil = Date.now() + delay;
+      const st = document.getElementById('batchProgStatus');
+      if (st) {
+        st.textContent = `📶 Mạng chập chờn — tự thử lại lần ${this.consecutiveErrors} sau ${Math.ceil(delay / 1000)}s...`;
+      }
+      // Giữ slot request trong lúc chờ: toàn bộ slot đang ngủ => không gửi dồn dập
+      await sleep(delay);
     } finally {
+      clearTimeout(timeoutTimer);
       this.activeRequests--;
       this.updateStatsUI();
     }
@@ -934,6 +1101,7 @@ class FileStreamScanner {
 
   finish(msg) {
     this.isRunning = false;
+    scheduleRenderResults(true); // flush lần render cuối, không bỏ sót kết quả
     this.updateStatsUI();
     const finalElapsed = this.startTime ? Date.now() - this.startTime : 0;
     document.getElementById('batchProgStatus').textContent = `${msg} (${formatElapsedDuration(finalElapsed)})`;
@@ -1012,11 +1180,10 @@ btnStartBatch.addEventListener('click', async () => {
       return;
     }
 
+    // Cấu hình tự theo hạng máy (DEVICE_PERF): máy yếu 1 req/30 acc/nhẹ,
+    // máy mạnh 3 req/60 acc — server vẫn giữ nguyên giới hạn cứng 100 acc/request.
     activeStreamScanner = new FileStreamScanner(streamSelectedFile, {
-      chunkSize: 2 * 1024 * 1024,
-      batchSize: 50,
-      maxConcurrent: 2,
-      threads: Math.min(threads, 25)
+      threads: Math.min(threads, DEVICE_PERF.serverThreads)
     });
     activeStreamScanner.start();
     return;
@@ -1164,11 +1331,7 @@ function pollBatchProgress(taskId) {
 
       if (hasNewData || (data.is_done && allResults.length !== lastRenderedCount)) {
         lastRenderedCount = allResults.length;
-        try {
-          renderFilteredResults();
-        } catch (rErr) {
-          console.error('Render batch results error:', rErr);
-        }
+        scheduleRenderResults(data.is_done); // throttle: render ngay khi quét xong
       }
 
       // ONLY finish and hide btnStopBatch when actually done or stopped!
@@ -1204,7 +1367,7 @@ function pollBatchProgress(taskId) {
         showToast('Quá trình quét bị ngắt kết nối');
       }
     }
-  }, 1000);
+  }, DEVICE_PERF.pollMs);
 }
 
 // Auto-resume running batch on page reload if activeTaskId exists
@@ -1398,14 +1561,14 @@ function renderFilteredResults() {
     return;
   }
 
-  // Optimize DOM for 500+ threads: render newest 300 cards smoothly to prevent browser freeze
-  const MAX_DOM_RENDER = 300;
+  // Tối ưu DOM: chỉ render N thẻ mới nhất theo sức máy (yếu 120 / TB 200 / mạnh 300)
+  const MAX_DOM_RENDER = DEVICE_PERF.maxDomCards;
   let itemsToRender = filtered;
   let noteHtml = '';
   if (filtered.length > MAX_DOM_RENDER) {
     itemsToRender = filtered.slice(-MAX_DOM_RENDER);
     noteHtml = `<div style="text-align:center;padding:6px;font-size:11px;color:var(--gold-light);background:rgba(255,255,255,0.03);border-radius:4px;margin-bottom:8px;">
-      Đang hiển thị 300 kết quả mới nhất (Tổng: ${filtered.length}). Nút "COPY KẾT QUẢ" & "XUẤT ACC TRẮNG" vẫn xuất đầy đủ 100% tài khoản.
+      Đang hiển thị ${MAX_DOM_RENDER} kết quả mới nhất (Tổng: ${filtered.length}). Nút "COPY KẾT QUẢ" & "XUẤT ACC TRẮNG" vẫn xuất đầy đủ 100% tài khoản.
     </div>`;
   }
 
@@ -1417,7 +1580,7 @@ document.querySelectorAll('.f-tab').forEach(b => {
     document.querySelectorAll('.f-tab').forEach(x => x.classList.remove('active'));
     b.classList.add('active');
     activeResultFilter = b.getAttribute('data-filter');
-    renderFilteredResults();
+    scheduleRenderResults(true); // người dùng bấm lọc -> render ngay, không chờ throttle
   });
 });
 
